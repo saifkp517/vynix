@@ -1,5 +1,6 @@
 'use client'
 import React, { useRef, useState, useEffect } from 'react';
+import { Forest } from '@/components/game-components/obstacles/ForestGenerator';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import Player from '@/components/game-components/player/Player';
 import * as THREE from 'three';
@@ -83,36 +84,30 @@ const FirstPersonGame: React.FC = () => {
 
   //player connection handling
   useEffect(() => {
+    const handleConnect = () => {
+      console.log("Socket connected:", socket.id);
+      socket.emit("joinRoom", socket.id);
+    };
 
-    socket.on("connect", () => {
-      console.log("Connected to server");
+    // Handle the connect event
+    socket.on("connect", handleConnect);
 
-      socket.emit("joinRoom", (socket.id));
+    // If already connected (like when opening a new tab), join immediately
+    if (socket.connected) {
+      handleConnect();
+    }
 
-    });
-
+    // Room and team assignment
     socket.on("roomAssigned", ({ roomId, team }) => {
-      console.log(`Assigned to room: ${roomId}: `);
+      console.log(`Assigned to room: ${roomId}`);
       setRoomId(roomId);
       setTeam(team);
-
     });
 
     socket.on("disconnect", () => {
       console.log("Disconnected from server");
     });
 
-
-    return () => {
-      socket.off("connect");
-      socket.off("roomAssigned");
-      socket.off("disconnect");
-    };
-
-  }, [])
-
-  //prevent window refresh
-  useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       // Chrome requires returnValue to be set
@@ -122,9 +117,13 @@ const FirstPersonGame: React.FC = () => {
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
+      socket.off("connect", handleConnect);
+      socket.off("roomAssigned");
+      socket.off("disconnect");
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
+
 
 
 
@@ -139,11 +138,6 @@ const FirstPersonGame: React.FC = () => {
       obstacles.current.push(ref);
     }
   };
-
-
-  // Check for collisions with all obstacles
-
-
 
 
   return (
@@ -177,7 +171,7 @@ const FirstPersonGame: React.FC = () => {
         <pointLight position={[10, 10, 10]} intensity={1} />
         <gridHelper args={[50, 50]} />
 
-        <Ground fogDistance={25} fogColor="#CEDFE0">
+        <Ground fogDistance={10} fogColor="#65888a">
           {(getGroundHeight) => (
             <>
               <Player
@@ -188,15 +182,19 @@ const FirstPersonGame: React.FC = () => {
                 obstacles={obstacles.current}
                 getGroundHeight={getGroundHeight}
               />
-
-              <Obstacle position={[15, 1, 0]} getGroundHeight={getGroundHeight} ref={addObstacleRef} />
-              <SphereObstacle position={[-15, 1, 0]} getGroundHeight={getGroundHeight} ref={addObstacleRef} />
-              <CylinderObstacle position={[-30, 1, 5]} getGroundHeight={getGroundHeight} ref={addObstacleRef} />
-              <CylinderObstacleVerticle position={[-25, 1, 5]} getGroundHeight={getGroundHeight} ref={addObstacleRef} />
-
+              {/* Small banyan grove */}
+              <Forest
+                center={[80, 0, -40]}
+                radius={200}
+                density={0.1}
+                types={["banyan"]} // Only banyan trees
+                getGroundHeight={getGroundHeight}
+                addObstacleRef={addObstacleRef}
+                
+              />
             </>
-          )}
 
+          )}
         </Ground>
       </Canvas>
     </div>

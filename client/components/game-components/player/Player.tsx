@@ -19,7 +19,7 @@ type FireballProps = {
     onExplode: (position: THREE.Vector3) => void;
 };
 
-const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 2, obstacles, onExplode }) => {
+const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 5, obstacles, onExplode }) => {
     const fireballRef = useRef<THREE.Mesh>(null);
     const startTime = useRef<number>(Date.now());
 
@@ -53,10 +53,10 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 2, obs
         }
 
         for (const obstacle of obstacles!) {
-            
+
             const fireballBox = new THREE.Box3().setFromObject(fireballRef.current);
             const obstacleBox = new THREE.Box3().setFromObject(obstacle);
-            
+
             if (fireballBox.intersectsBox(obstacleBox)) {
                 onExplode(fireballPosition);
                 return;
@@ -86,6 +86,8 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     const [collisionType, setCollisionType] = useState("");
     const [explosions, setExplosions] = useState<{ id: number; position: THREE.Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
+
+
 
     const checkCollisions = (playerPosition: THREE.Vector3) => {
         // Create player hitbox - keeping box for player
@@ -119,6 +121,8 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
                 const obstaclePosition = obstacle.position.clone();
                 const obstacleRadius = obstacle.geometry.parameters.radius * obstacle.scale.x; // Assuming uniform scale
 
+
+
                 // Calculate distance between centers
                 const distance = playerCenter.distanceTo(obstaclePosition);
                 const minDistance = playerSphere.radius + obstacleRadius;
@@ -136,13 +140,19 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
                 }
             } else if (isObstacleCylinder) {
                 // Handle cylinder collision with any orientation
-                const obstaclePosition = obstacle.position.clone();
+                const obstaclePosition = new THREE.Vector3();
+                obstacle.getWorldPosition(obstaclePosition);
+
+                const obstacleScale = new THREE.Vector3();
+                obstacle.getWorldScale(obstacleScale);
 
                 // Get cylinder properties
                 const radiusTop = obstacle.geometry.parameters.radiusTop;
                 const radiusBottom = obstacle.geometry.parameters.radiusBottom || radiusTop;
-                const radius = Math.max(radiusTop, radiusBottom) * Math.max(obstacle.scale.x, obstacle.scale.z);
-                const height = obstacle.geometry.parameters.height * obstacle.scale.y;
+
+
+                const radius = Math.max(radiusTop, radiusBottom) * Math.max(obstacleScale.x, obstacleScale.z);
+                const height = obstacle.geometry.parameters.height * obstacleScale.y;
 
                 // Get cylinder's axis vector (assuming Y is the height axis in cylinder geometry)
                 // We need to extract the Y axis of the cylinder from its world matrix
@@ -425,6 +435,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
 
         //collision detection handling
         if (colliding) {
+            console.log("yes")
             isJumpingRef.current = false;
             const normal = collisionNormal!.clone().normalize();
 

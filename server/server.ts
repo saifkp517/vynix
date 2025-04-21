@@ -234,7 +234,7 @@ function findOrCreateRoom(userId: string, socketId: string) {
         room = {
             id: uuidv4(),
             players: [],
-            maxPlayers: 2,
+            maxPlayers: 10,
             gameStarted: false
         };
         rooms.push(room);
@@ -273,7 +273,8 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         }
         room.players.push(newPlayer)
         socket.emit('roomAssigned', { roomId: room.id, team });
-        console.log("players in room: ", room.players)
+
+        console.log(rooms);
 
     })
 
