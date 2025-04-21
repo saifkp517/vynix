@@ -53,9 +53,11 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 2, obs
         }
 
         for (const obstacle of obstacles!) {
-            fireballPosition.distanceTo(obstacle.position)
-            if (fireballPosition.distanceTo(obstacle.position) < 5) {
-                console.log("ye");
+            
+            const fireballBox = new THREE.Box3().setFromObject(fireballRef.current);
+            const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+            
+            if (fireballBox.intersectsBox(obstacleBox)) {
                 onExplode(fireballPosition);
                 return;
             }
