@@ -11,7 +11,7 @@ type GroundProps = {
 };
 
 const RainEffect = ({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }) => {
-  const rainRef = useRef();
+  const rainRef = useRef(null);
 
   // Create raindrops
   const raindrops = useMemo(() => {
