@@ -2,29 +2,48 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { Tree } from './Tree'; // Import your Tree component
 
-export const Forest = ({
+type Vector3 = [number, number, number];
+type TreeType = "sequoia" | "banyan" | string;
+
+interface ForestProps {
+  center?: Vector3;
+  radius?: number;
+  density?: number; // trees per 100 square units (0.1 - sparse, 1.0 - dense)
+  minDistance?: number; // Minimum distance between trees
+  types?: TreeType[]; // Tree types to use
+  getGroundHeight?: (x: number, z: number) => number;
+  addObstacleRef: (ref: THREE.Object3D) => void; // Function to add obstacle ref to obstacles array
+  minScale?: number;
+  maxScale?: number;
+  minVariation?: number;
+  maxVariation?: number;
+  avoidCenter?: number; // Radius around center to avoid placing trees (for player spawn area)
+}
+
+export const Forest: React.FC<ForestProps> = ({
   center = [0, 0, 0],
   radius = 50,
-  density = 0.8, // trees per 100 square units (0.1 - sparse, 1.0 - dense)
-  minDistance = 10, // Minimum distance between trees
-  types = ["sequoia", "banyan"], // Tree types to use
-  getGroundHeight,
-  addObstacleRef, // Function to add obstacle ref to obstacles array
+  density = 0.8,
+  minDistance = 10,
+  types = ["sequoia", "banyan"],
+  getGroundHeight = () => 0,
+  addObstacleRef,
   minScale = 0.4,
   maxScale = 0.6,
   minVariation = 0.7,
   maxVariation = 1.2,
-  avoidCenter = 15, // Radius around center to avoid placing trees (for player spawn area)
-}: any) => {
-  const placedTrees = useRef([]);
+  avoidCenter = 15,
+}) => {
+  // Store tree positions as [x, z] coordinates
+  const placedTrees = useRef<[number, number][]>([]);
   
   // Generate a pseudo-random but deterministic value based on position
-  const getRandomFromPosition = (x: number, z: number, seed = 0) => {
+  const getRandomFromPosition = (x: number, z: number, seed = 0): number => {
     return Math.abs(Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453) % 1;
   };
   
   // Check if position is valid (not too close to other trees and within radius)
-  const isValidPosition = (x: number, z: number) => {
+  const isValidPosition = (x: number, z: number): boolean => {
     // Check if within forest radius
     const distanceFromCenter = Math.sqrt(
       Math.pow(x - center[0], 2) + Math.pow(z - center[2], 2)
@@ -47,14 +66,14 @@ export const Forest = ({
   // Generate trees based on density and radius
   useEffect(() => {
     // Clean up function to store refs for cleanup
-    const treeRefs: any[] = [];
+    const treeRefs: THREE.Object3D[] = [];
     
     // Calculate area and number of trees
     const area = Math.PI * radius * radius;
     const treeCount = Math.floor((area / 100) * density);
     
     // Try to place trees using Poisson disc sampling
-    const generateForest = () => {
+    const generateForest = (): void => {
       // Reset placed trees
       placedTrees.current = [];
       
@@ -100,9 +119,9 @@ export const Forest = ({
         return (
           <Tree
             key={`tree-${index}`}
-            position={[x, 0, z]}
+            position={[x, getGroundHeight(x, z), z]}
             getGroundHeight={getGroundHeight}
-            ref={(ref) => ref && addObstacleRef(ref)}
+            ref={(ref: THREE.Object3D | null) => ref && addObstacleRef(ref)}
             scale={scale}
             type={treeType}
             ageVariation={ageVar}
