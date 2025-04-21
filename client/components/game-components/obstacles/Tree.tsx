@@ -1,19 +1,30 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 
+
+type TreeType = "sequoia" | "banyan" | string;
+
 // Majestic giant tree component inspired by sequoias and banyan trees
-export const Tree = React.forwardRef(({
+type TreeProps = {
+  position: [number, number, number];
+  scale?: number;
+  type?: TreeType;
+  ageVariation?: number;
+  getGroundHeight?: (x: number, z: number) => number;
+};
+
+export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
   position,
   scale = 1,
-  type = "banyan", // "sequoia" or "banyan"
-  ageVariation = 1, // Affects girth and majesty (0.7-1.3 is good range)
-  getGroundHeight = null, // Function to get ground height at position
+  type = "banyan",
+  ageVariation = 1,
+  getGroundHeight = null,
 }, ref) => {
   // Create persistent unique seed for this tree instance
   const treeSeed = useMemo(() => Math.random(), []);
   
   // Different tree types
-  const treeTypes = {
+  const treeTypes: any = {
     sequoia: {
       trunkColor: "#8B4513", // Rich brown
       barkDetailColor: "#5D4037", // Darker brown for texture
@@ -56,7 +67,7 @@ export const Tree = React.forwardRef(({
   }, [position, groundHeight]);
 
   // A consistent random number generator based on tree seed
-  const seededRandom = (index) => {
+  const seededRandom = (index: number) => {
     const seed = treeSeed + index * 0.1;
     return ((Math.sin(seed) + 1) * 10000) % 1;
   };
