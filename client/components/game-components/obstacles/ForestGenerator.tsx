@@ -15,16 +15,16 @@ export const Forest = ({
   minVariation = 0.7,
   maxVariation = 1.2,
   avoidCenter = 15, // Radius around center to avoid placing trees (for player spawn area)
-}) => {
+}: any) => {
   const placedTrees = useRef([]);
   
   // Generate a pseudo-random but deterministic value based on position
-  const getRandomFromPosition = (x, z, seed = 0) => {
+  const getRandomFromPosition = (x: number, z: number, seed = 0) => {
     return Math.abs(Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453) % 1;
   };
   
   // Check if position is valid (not too close to other trees and within radius)
-  const isValidPosition = (x, z) => {
+  const isValidPosition = (x: number, z: number) => {
     // Check if within forest radius
     const distanceFromCenter = Math.sqrt(
       Math.pow(x - center[0], 2) + Math.pow(z - center[2], 2)
@@ -47,7 +47,7 @@ export const Forest = ({
   // Generate trees based on density and radius
   useEffect(() => {
     // Clean up function to store refs for cleanup
-    const treeRefs = [];
+    const treeRefs: any[] = [];
     
     // Calculate area and number of trees
     const area = Math.PI * radius * radius;
