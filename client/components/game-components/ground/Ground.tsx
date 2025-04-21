@@ -1,5 +1,6 @@
 import { useThree, useLoader, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
+import { Points, BufferGeometry, BufferAttribute } from 'three';
 import * as THREE from "three";
 import { TextureLoader } from "three";
 import { Sky } from "@react-three/drei";
@@ -11,7 +12,7 @@ type GroundProps = {
 };
 
 const RainEffect = ({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }) => {
-  const rainRef = useRef(null);
+  const rainRef = useRef<Points>(null);
 
   // Create raindrops
   const raindrops = useMemo(() => {
@@ -57,9 +58,7 @@ const RainEffect = ({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10,
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          count={count}
-          array={raindrops.positions}
-          itemSize={3}
+          args={[raindrops.positions, 3]} // 3 = itemSize (x, y, z)
         />
       </bufferGeometry>
       <pointsMaterial
