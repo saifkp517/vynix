@@ -186,7 +186,7 @@ const FirstPersonGame: React.FC = () => {
               <Forest
                 center={[80, 0, -40]}
                 radius={200}
-                density={0.1}
+                density={0.01}
                 types={["banyan"]} // Only banyan trees
                 getGroundHeight={getGroundHeight}
                 addObstacleRef={addObstacleRef}

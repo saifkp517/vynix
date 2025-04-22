@@ -57,6 +57,15 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 5, obs
             const fireballBox = new THREE.Box3().setFromObject(fireballRef.current);
             const obstacleBox = new THREE.Box3().setFromObject(obstacle);
 
+
+            const obstacleCenter = new THREE.Vector3();
+            obstacleBox.getCenter(obstacleCenter);
+
+            // 👇 Approximate overlap by checking if distance from center is inside box
+            const distance = fireballBox.distanceToPoint(obstacleCenter);
+            if (distance <= 10) {
+                console.log("distanceToPoint suggests overlap");
+            }
             if (fireballBox.intersectsBox(obstacleBox)) {
                 onExplode(fireballPosition);
                 return;
@@ -295,7 +304,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     };
 
     const gravity = -9.8 * 2;
-    const jumpStrength = 10;
+    const jumpStrength = 15;
 
     const playerSpeed = 10;
     const playerHeight = 2;

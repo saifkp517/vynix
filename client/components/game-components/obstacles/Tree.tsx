@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, RefObject, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 
 
@@ -11,6 +11,8 @@ type TreeProps = {
   type?: TreeType;
   ageVariation?: number;
   getGroundHeight?: (x: number, z: number) => number;
+  geometryRef: RefObject<THREE.BufferGeometry>;
+  materialRef: RefObject<THREE.Material>;
 };
 
 export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
@@ -19,10 +21,26 @@ export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
   type = "banyan",
   ageVariation = 1,
   getGroundHeight = null,
+  geometryRef,
+  materialRef
 }, ref) => {
   // Create persistent unique seed for this tree instance
   const treeSeed = useMemo(() => Math.random(), []);
-  
+
+  const localGeometryRef = useRef<THREE.InstancedMesh>(null);
+  const localMaterialRef = useRef<THREE.InstancedMesh>(null);
+
+
+  useEffect(() => {
+    if (geometryRef && localGeometryRef.current) {
+      geometryRef.current = localGeometryRef.current?.geometry as THREE.BufferGeometry;
+    }
+    if (materialRef && localMaterialRef.current) {
+      materialRef.current = localMaterialRef.current?.material as THREE.Material;
+    }
+  }, [geometryRef, materialRef]);
+
+
   // Different tree types
   const treeTypes: any = {
     sequoia: {
@@ -51,7 +69,7 @@ export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
   };
 
   const selectedType = treeTypes[type] || treeTypes.sequoia;
-  
+
   // Calculate ground height
   const groundHeight = useMemo(() => {
     if (getGroundHeight) {
@@ -60,7 +78,7 @@ export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
     }
     return 0;
   }, [position, getGroundHeight]);
-  
+
   // Actual position including ground height adjustment
   const actualPosition = useMemo(() => {
     return [position[0], position[1] + groundHeight, position[2]];
@@ -234,17 +252,11 @@ export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
   };
 
   return (
-    <group
-      position={[actualPosition[0], actualPosition[1], actualPosition[2]]}
-      scale={scale}
-      
-    >
-      {/* Main Trunk - with ref for collision detection */}
-      <mesh
-        position={[0, selectedType.trunkHeight / 2, 0]}
-        ref={ref}  
-      >
+    <group position={[actualPosition[0], actualPosition[1], actualPosition[2]]} scale={scale}>
+      {/* Main Trunk */}
+      <mesh position={[0, selectedType.trunkHeight / 2, 0]}>
         <cylinderGeometry
+          ref={localGeometryRef}
           args={[
             selectedType.trunkRadiusTop,
             selectedType.trunkRadiusBottom,
@@ -253,21 +265,16 @@ export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
           ]}
         />
         <meshStandardMaterial
+          ref={localMaterialRef}
           color={selectedType.trunkColor}
           roughness={selectedType.barkRoughness}
         />
       </mesh>
 
-      {/* Add bark detail and texture */}
       {createBarkDetail()}
-
-      {/* Add aerial roots for banyan trees */}
       {createAerialRoots()}
-
-      {/* Add foliage */}
       {createFoliage()}
 
-      {/* Add roots at the base */}
       <mesh position={[0, 0, 0]}>
         <cylinderGeometry
           args={[
@@ -277,10 +284,7 @@ export const Tree = React.forwardRef<THREE.Mesh, TreeProps>(({
             16
           ]}
         />
-        <meshStandardMaterial
-          color={selectedType.trunkColor}
-          roughness={1}
-        />
+        <meshStandardMaterial color={selectedType.trunkColor} roughness={1} />
       </mesh>
     </group>
   );
