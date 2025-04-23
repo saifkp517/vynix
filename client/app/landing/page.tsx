@@ -185,7 +185,7 @@ const FirstPersonGame: React.FC = () => {
         <pointLight position={[10, 10, 10]} intensity={1} />
         <gridHelper args={[50, 50]} />
 
-        <Ground fogDistance={200} fogColor="#65888a">
+        <Ground fogDistance={25} fogColor="#65888a">
           {(getGroundHeight) => (
             <>
               <Player
