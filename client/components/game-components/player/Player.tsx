@@ -306,7 +306,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     };
 
     const gravity = -9.8 * 2;
-    const jumpStrength = 15;
+    const jumpStrength = 40;
 
     const playerSpeed = 10;
     const playerHeight = 2;

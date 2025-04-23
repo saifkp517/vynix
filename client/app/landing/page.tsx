@@ -16,7 +16,7 @@ interface ObstacleProps {
   getGroundHeight: (x: number, z: number) => number;
 }
 
-export const Crosshair = () => (
+const Crosshair = () => (
     <div style={{
         position: 'fixed',
         top: '50%',
@@ -185,7 +185,7 @@ const FirstPersonGame: React.FC = () => {
         <pointLight position={[10, 10, 10]} intensity={1} />
         <gridHelper args={[50, 50]} />
 
-        <Ground fogDistance={25} fogColor="#65888a">
+        <Ground fogDistance={200} fogColor="#65888a">
           {(getGroundHeight) => (
             <>
               <Player
@@ -199,7 +199,7 @@ const FirstPersonGame: React.FC = () => {
               {/* Small banyan grove */}
               <Forest
                 center={[80, 0, -40]}
-                radius={200}
+                radius={100}
                 density={0.01}
                 types={["banyan"]} // Only banyan trees
                 getGroundHeight={getGroundHeight}
