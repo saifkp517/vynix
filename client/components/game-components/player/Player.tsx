@@ -5,6 +5,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import Explosion from '../explosion/Explosion';
 import * as THREE from 'three';
 
+
+
 interface PlayerProps {
     obstacles: any;
     getGroundHeight: (x: number, z: number) => number;
@@ -19,7 +21,7 @@ type FireballProps = {
     onExplode: (position: THREE.Vector3) => void;
 };
 
-const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 5, obstacles, onExplode }) => {
+const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obstacles, onExplode }) => {
     const fireballRef = useRef<THREE.Mesh>(null);
     const startTime = useRef<number>(Date.now());
 

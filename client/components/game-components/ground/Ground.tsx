@@ -256,7 +256,7 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
 
       {/* Add Rain Effect */}
       <RainEffect
-        count={8000}
+        count={800}
         size={0.3}
         color="#A9CCE3"
         intensity={1.2}

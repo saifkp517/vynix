@@ -24,11 +24,11 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
   // Create realistic banyan tree geometries
   const geometry = useMemo(() => {
     // Main trunk - thicker and more imposing
-    const mainTrunk = new THREE.CylinderGeometry(1.2, 1.5, 26, 16, 8);
+    const mainTrunk = new THREE.CylinderGeometry(1.2, 1.5, 26, 64, 64, false);
     modifyGeometryForNaturalLook(mainTrunk);
 
     // Aerial roots - characteristic of banyan trees
-    const aerialRoot = new THREE.CylinderGeometry(0.15, 0.25, 5, 8, 6, true);
+    const aerialRoot = new THREE.CylinderGeometry(0.15, 0.25, 26, 8, 6, false);
     modifyGeometryForNaturalLook(aerialRoot);
 
     const largeCanopy = new THREE.SphereGeometry(2.8, 12, 8);   // Smaller radius & segments
@@ -458,7 +458,7 @@ const TreeColliders: React.FC<{ positions: TreePosition[], addObstacleRef: (ref:
             position={treePos.position}
             scale={[treePos.scale * 0.8, treePos.scale * 1.8, treePos.scale * 0.8]}
           >
-            <cylinderGeometry args={[1.5, 1.5, 6, 8]} />
+            <cylinderGeometry args={[1.5, 1.5, 26, 8]} />
             <meshBasicMaterial visible={false} />
           </mesh>
         ))}

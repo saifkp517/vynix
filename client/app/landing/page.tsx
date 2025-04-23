@@ -16,6 +16,18 @@ interface ObstacleProps {
   getGroundHeight: (x: number, z: number) => number;
 }
 
+export const Crosshair = () => (
+    <div style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        width: '4px',
+        height: '4px',
+        backgroundColor: 'red',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 1000,
+    }} />
+);
 
 
 // Obstacle component with forwarded ref using a Cylinder
@@ -164,14 +176,16 @@ const FirstPersonGame: React.FC = () => {
         <p>Room Id: {roomId}</p>
         <p>Team: {team}</p>
       </div>
+      <Crosshair />
 
+      {/* 3D Canvas */}
       <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
         <Stats />
         <ambientLight intensity={0.5} />
         <pointLight position={[10, 10, 10]} intensity={1} />
         <gridHelper args={[50, 50]} />
 
-        <Ground fogDistance={10} fogColor="#65888a">
+        <Ground fogDistance={25} fogColor="#65888a">
           {(getGroundHeight) => (
             <>
               <Player
