@@ -55,12 +55,12 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
 
 
   // Helper function to add imperfections to geometry
-  function modifyGeometryForNaturalLook(geometry) {
-    const posAttr = geometry.attributes.position;
+  function modifyGeometryForNaturalLook(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+    const posAttr = geometry.attributes.position as THREE.BufferAttribute;
     const normal = new THREE.Vector3();
 
     for (let i = 0; i < posAttr.count; i++) {
-      normal.fromBufferAttribute(geometry.attributes.normal, i);
+      normal.fromBufferAttribute(geometry.attributes.normal as THREE.BufferAttribute, i);
 
       // Get current position
       const x = posAttr.getX(i);
@@ -81,8 +81,8 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
   }
 
   // Helper function for more organic foliage shapes
-  function modifyGeometryForOrganicShape(geometry) {
-    const posAttr = geometry.attributes.position;
+  function modifyGeometryForOrganicShape(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+    const posAttr = geometry.attributes.position as THREE.BufferAttribute;
 
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i);
@@ -105,7 +105,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
   }
 
   // Simplified 3D simplex noise function for natural variation
-  function simplex3D(x, y, z) {
+  function simplex3D(x: number, y: number, z: number) {
     // Simple pseudorandom function that looks organic enough
     const dot = x * 12.9898 + y * 78.233 + z * 37.719;
     return Math.sin(dot) * 43758.5453 % 1;
@@ -181,11 +181,13 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
     const ctx = canvas.getContext('2d');
 
     // Base color
-    ctx.fillStyle = '#5D4037';
-    ctx.fillRect(0, 0, 256, 256);
-
-    // Create vertical striations
     if (ctx) {
+      ctx.fillStyle = '#5D4037';
+      ctx.fillRect(0, 0, 256, 256);
+    }
+
+    if (ctx) {
+    // Create vertical striations
       for (let i = 0; i < 40; i++) {
         const x = Math.random() * 256;
         const width = 2 + Math.random() * 8;
@@ -195,18 +197,20 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         ctx.fillStyle = `rgba(${60 + Math.random() * 40}, ${40 + Math.random() * 25}, ${30 + Math.random() * 15}, 0.7)`;
         ctx.fillRect(x, y, width, height);
       }
+
+      // Add some horizontal cracks
+      for (let i = 0; i < 30; i++) {
+        const y = Math.random() * 256;
+        const width = 20 + Math.random() * 80;
+        const height = 1 + Math.random() * 3;
+        const x = Math.random() * (256 - width);
+
+        ctx.fillStyle = rgba(30, 20, 10, 0.8);
+        ctx.fillRect(x, y, width, height);
+      }
     }
 
-    // Add some horizontal cracks
-    for (let i = 0; i < 30; i++) {
-      const y = Math.random() * 256;
-      const width = 20 + Math.random() * 80;
-      const height = 1 + Math.random() * 3;
-      const x = Math.random() * (256 - width);
 
-      ctx.fillStyle = rgba(30, 20, 10, 0.8);
-      ctx.fillRect(x, y, width, height);
-    }
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
@@ -275,7 +279,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
       dummy.rotation.set(0, rotation, 0);
       dummy.scale.set(baseScale, baseScale, baseScale);
       dummy.updateMatrix();
-      mainTrunkRef.current.setMatrixAt(i, dummy.matrix);
+      mainTrunkRef.current ? mainTrunkRef.current.setMatrixAt(i, dummy.matrix) : null;
 
       // --------- Aerial roots ---------
       // Create multiple aerial roots around the trunk
@@ -305,7 +309,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
 
         dummy.updateMatrix();
         if (rootIndex < positions.length * numRoots) {
-          aerialRootsRef.current.setMatrixAt(rootIndex, dummy.matrix);
+          aerialRootsRef.current ? aerialRootsRef.current.setMatrixAt(rootIndex, dummy.matrix) : null;
         }
       }
 
@@ -315,7 +319,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
       dummy.rotation.set(0, rotation + Math.random() * 0.5, 0);
       dummy.scale.set(baseScale * 1.3, baseScale * 0.4, baseScale * 1.3);
       dummy.updateMatrix();
-      canopyPlateRef.current.setMatrixAt(i, dummy.matrix);
+      canopyPlateRef.current ? canopyPlateRef.current.setMatrixAt(i, dummy.matrix) : null;
 
       // --------- Large canopy (bottom layer) ---------
       dummy.position.set(
@@ -330,7 +334,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         baseScale * 4.0   // Very wide spread
       );
       dummy.updateMatrix();
-      largeCanopyRef.current.setMatrixAt(i, dummy.matrix);
+      largeCanopyRef.current ? largeCanopyRef.current.setMatrixAt(i, dummy.matrix) : null
 
       // --------- Medium canopy (middle layer) ---------
       // Add slight offset for natural appearance
@@ -346,7 +350,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         baseScale * 3.5
       );
       dummy.updateMatrix();
-      mediumCanopyRef.current.setMatrixAt(i, dummy.matrix);
+      mediumCanopyRef.current ? mediumCanopyRef.current.setMatrixAt(i, dummy.matrix) : null;
 
       // --------- Small canopy (top layer) ---------
       dummy.position.set(
@@ -361,7 +365,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         baseScale * 2.8
       );
       dummy.updateMatrix();
-      smallCanopyRef.current.setMatrixAt(i, dummy.matrix);
+      smallCanopyRef.current ? smallCanopyRef.current.setMatrixAt(i, dummy.matrix) : null;
     });
 
     // Update all instance matrices
@@ -497,7 +501,7 @@ export const Forest: React.FC<ForestProps> = ({
 
   return (
     <group name="forest">
-      <BanyanTreeVisual positions={treePositions}  />
+      <BanyanTreeVisual positions={treePositions} />
       <TreeColliders positions={treePositions} addObstacleRef={addObstacleRef} />
     </group>
   );
