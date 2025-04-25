@@ -1,4 +1,5 @@
 import { useThree, useLoader, useFrame } from "@react-three/fiber";
+import { createNoise2D } from 'simplex-noise';
 import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
 import { Points, BufferGeometry, BufferAttribute } from 'three';
 import * as THREE from "three";
@@ -92,18 +93,30 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
 
   // Create noise-based roughness variation
   const [roughnessVariation] = useState(() => {
-    // Create a data texture for random roughness
-    const size = 256;
+    const noise2D = createNoise2D();
+    const size = 1024;
     const data = new Uint8Array(size * size);
-    for (let i = 0; i < size * size; i++) {
-      data[i] = Math.floor(Math.random() * 1024);
+
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const value =
+          0.7 * noise2D(x / 40, y / 40) +
+          0.3 * noise2D(x / 10, y / 10); // small craters and big hills
+        const normalized = Math.floor((value + 1) * 127.5); // map from [-1,1] to [0,255]
+        data[x + y * size] = normalized;
+      }
     }
-    const roughnessNoiseTexture = new THREE.DataTexture(data, size, size);
+
+    const roughnessNoiseTexture = new THREE.DataTexture(
+      data, size, size, THREE.RedFormat, THREE.UnsignedByteType
+    );
     roughnessNoiseTexture.wrapS = roughnessNoiseTexture.wrapT = THREE.RepeatWrapping;
-    roughnessNoiseTexture.repeat.set(10, 10);
+    roughnessNoiseTexture.repeat.set(1, 1);
     roughnessNoiseTexture.needsUpdate = true;
+
     return roughnessNoiseTexture;
   });
+
 
   // Define height logic with added noise
   const getGroundHeight = (x: number, z: number): number => {
@@ -184,6 +197,9 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
       posAttr.setXYZ(i, vertex.x, vertex.y, vertex.z);
     }
 
+
+
+
     // Add second UV set for detail textures
     geom.setAttribute('uv2', new THREE.BufferAttribute(uv2, 2));
 
@@ -200,6 +216,11 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
       roughnessVariation.needsUpdate = true;
     }
   });
+
+  useEffect(() => {
+    const geometry = geometryRef.current;
+
+  }, []);
 
   return (
     <>
@@ -222,14 +243,14 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
         position={[0, -0.1, 0]}
         receiveShadow
       >
-        <planeGeometry ref={geometryRef} args={[2000, 2000, 128, 128]} />
+        <planeGeometry ref={geometryRef} args={[2000, 2000, 1024, 1024]} />
         <meshStandardMaterial
           ref={materialRef}
           map={grassMap}
 
           // Use the noise texture as roughness map or fallback to the roughness texture
           roughnessMap={roughnessVariation || roughnessMap}
-          roughness={0.9}
+          roughness={6}
 
           // Add random roughness metalnessMap
           metalnessMap={noiseMap}
@@ -240,15 +261,15 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
           displacementScale={0.8}
 
           // Use noise for normal variation
-          normalScale={new THREE.Vector2(1.0, 1.0)}
+          normalScale={new THREE.Vector2(10.0, 10.0)}
 
           // Adjust color to blend with fog at distance
-          color={new THREE.Color(0xffffff).lerp(new THREE.Color(fogColor), 0.1)}
+          color={new THREE.Color(0xffffff).lerp(new THREE.Color(fogColor), 0.5)}
         />
       </mesh>
 
       {/* Lighting adjusted to match fog atmosphere */}
-      <ambientLight intensity={0.4} color="#D6EAF8" />
+      <ambientLight intensity={0} color="#D6EAF8" />
       <directionalLight position={sunPosition} intensity={1.5} castShadow color="#FFFAF0">
         <orthographicCamera attach="shadow-camera" args={[-100, 100, 100, -100, 0.1, 200]} />
       </directionalLight>

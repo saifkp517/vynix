@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Stats } from '@react-three/drei';
 import Ground from '@/components/game-components/ground/Ground';
 import socket from '@/lib/socket';
+import { Opponent } from '@/components/game-components/player/Opponent';
 
 // Define types for player and obstacle
 
@@ -17,16 +18,16 @@ interface ObstacleProps {
 }
 
 const Crosshair = () => (
-    <div style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        width: '4px',
-        height: '4px',
-        backgroundColor: 'red',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 1000,
-    }} />
+  <div style={{
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    width: '4px',
+    height: '4px',
+    backgroundColor: 'red',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 1000,
+  }} />
 );
 
 
@@ -79,6 +80,8 @@ const FirstPersonGame: React.FC = () => {
   const obstacles = useRef<THREE.Mesh[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [team, setTeam] = useState<string | null>(null);
+  const [otherPlayers, setOtherPlayers] = useState({});
+
 
   type Player = {
     id: string;
@@ -116,14 +119,28 @@ const FirstPersonGame: React.FC = () => {
       setTeam(team);
     });
 
-    socket.on("disconnect", () => {
-      console.log("Disconnected from server");
+    socket.on("playerMoved", ({ id, position }) => {
+      console.log("plauersmoved", id, position);
+      setOtherPlayers(prevPlayers => ({
+        ...prevPlayers,
+        [id]: position,
+      }));
+    })
+
+    socket.on("disconnect", (id) => {
+      setOtherPlayers((prev) => {
+        const updated: any = { ...prev };
+        delete updated[id];
+        return updated;
+      });
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       // Chrome requires returnValue to be set
       e.returnValue = '';
+      window.location.href = '/';
+      socket.disconnect();
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -131,6 +148,7 @@ const FirstPersonGame: React.FC = () => {
     return () => {
       socket.off("connect", handleConnect);
       socket.off("roomAssigned");
+      socket.off("playerMoved");
       socket.off("disconnect");
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
@@ -185,17 +203,29 @@ const FirstPersonGame: React.FC = () => {
         <pointLight position={[10, 10, 10]} intensity={1} />
         <gridHelper args={[50, 50]} />
 
-        <Ground fogDistance={25} fogColor="#65888a">
+        <Ground fogDistance={200} fogColor="#65888a">
           {(getGroundHeight) => (
             <>
               <Player
-                // key={id}
                 onPositionChange={(pos) => {
                   socket.emit("updatePosition", pos.toArray());
                 }}
                 obstacles={obstacles.current}
                 getGroundHeight={getGroundHeight}
               />
+
+              {/* Other players */}
+              {Object.entries(otherPlayers).map(([id, pos]) => (
+                <Opponent
+                  key={id}
+                  initialPosition={Array.isArray(pos) && pos.length === 3 ? pos as [number, number, number] : undefined}
+                  onPositionChange={(pos) => {
+                    socket.emit("updatePosition", pos.toArray());
+                  }}
+                  isRemote
+                  getGroundHeight={getGroundHeight}
+                />
+              ))}
               {/* Small banyan grove */}
               <Forest
                 center={[80, 0, -40]}
@@ -204,7 +234,7 @@ const FirstPersonGame: React.FC = () => {
                 types={["banyan"]} // Only banyan trees
                 getGroundHeight={getGroundHeight}
                 addObstacleRef={addObstacleRef}
-                
+
               />
             </>
 

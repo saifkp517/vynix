@@ -281,7 +281,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
 
     socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] })
-
+    
 
     socket.on('updatePosition', (position) => {
         players[socket.id] = position;
@@ -291,6 +291,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
     socket.on("disconnect", () => {
         console.log('User disconnected:', socket.id);
         delete players[socket.id];
+        console.log(players)
         io.emit('playerDisconnected', socket.id);
     })
 
