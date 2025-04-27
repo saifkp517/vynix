@@ -81,6 +81,7 @@ const FirstPersonGame: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [team, setTeam] = useState<string | null>(null);
   const [otherPlayers, setOtherPlayers] = useState<{ [playerId: string]: THREE.Vector3 }>({});
+  const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
 
 
 
@@ -227,10 +228,11 @@ const FirstPersonGame: React.FC = () => {
                   isRemote
                   getGroundHeight={getGroundHeight}
                   addObstacleRef={addObstacleRef}
+                  isHit={!!hitPlayers[id]}
                 />
               ))}
               {/* Small banyan grove */}
-              {/* <Forest
+              <Forest
                 center={[80, 0, -40]}
                 radius={100}
                 density={0.01}
@@ -238,7 +240,7 @@ const FirstPersonGame: React.FC = () => {
                 getGroundHeight={getGroundHeight}
                 addObstacleRef={addObstacleRef}
 
-              /> */}
+              />
             </>
 
           )}

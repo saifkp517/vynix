@@ -95,6 +95,8 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     const [explosions, setExplosions] = useState<{ id: number; position: THREE.Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
     const explosionRadius = 15; // Explosion radius for damage calculation
+    const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
+
 
 
     const checkCollisions = (playerPosition: THREE.Vector3) => {
@@ -300,16 +302,26 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     };
 
     const checkForExplosionDamage = (explosionPosition: THREE.Vector3) => {
+
+        const newHits: { [id: string]: boolean } = {};
+
         Object.entries(otherPlayers).forEach(([id, pos]) => {
-          // pos is now correctly typed as [number, number, number]
-          const distance = getDistance(pos, explosionPosition.toArray());
-          if (distance < explosionRadius) {
-            // Apply damage or any effect to the opponent
-            console.log(`Opponent ${id} is affected by explosion!`);
-          }
+            const distance = getDistance(pos, explosionPosition.toArray());
+            if (distance < explosionRadius) {
+                console.log(`Opponent ${id} is affected by explosion!`);
+                newHits[id] = true; // mark as hit
+            }
         });
-      };
-      
+
+        setHitPlayers((prev) => ({ ...prev, ...newHits }));
+
+        // Optional: Reset hits after 500ms
+        setTimeout(() => {
+            const resetHits = Object.fromEntries(Object.keys(newHits).map((id) => [id, false]));
+            setHitPlayers((prev) => ({ ...prev, ...resetHits }));
+        }, 500);
+    };
+
 
     const handleExplosion = (position: THREE.Vector3) => {
 
