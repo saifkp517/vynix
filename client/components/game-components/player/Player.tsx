@@ -11,6 +11,7 @@ interface PlayerProps {
     obstacles: any;
     getGroundHeight: (x: number, z: number) => number;
     onPositionChange: (pos: THREE.Vector3) => void;
+    otherPlayers: { [playerId: string]: THREE.Vector3 };
 }
 
 type FireballProps = {
@@ -81,7 +82,7 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obs
 
 
 
-const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundHeight }) => {
+const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundHeight, otherPlayers }) => {
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
     const [collisionNormal, setCollisionNormal] = useState<THREE.Vector3 | null>(null);
@@ -93,10 +94,11 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     const [collisionType, setCollisionType] = useState("");
     const [explosions, setExplosions] = useState<{ id: number; position: THREE.Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
-
+    const explosionRadius = 15; // Explosion radius for damage calculation
 
 
     const checkCollisions = (playerPosition: THREE.Vector3) => {
+
         // Create player hitbox - keeping box for player
         const playerBox = new THREE.Box3().setFromCenterAndSize(
             playerPosition,
@@ -289,11 +291,33 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
 
     };
 
+    const getDistance = (pos1: THREE.Vector3, pos2: number[]) => {
+        return Math.sqrt(
+            Math.pow(pos2[0] - pos1.x, 2) +
+            Math.pow(pos2[1] - pos1.y, 2) +
+            Math.pow(pos2[2] - pos1.z, 2)
+        );
+    };
+
+    const checkForExplosionDamage = (explosionPosition: THREE.Vector3) => {
+        Object.entries(otherPlayers).forEach(([id, pos]) => {
+          // pos is now correctly typed as [number, number, number]
+          const distance = getDistance(pos, explosionPosition.toArray());
+          if (distance < explosionRadius) {
+            // Apply damage or any effect to the opponent
+            console.log(`Opponent ${id} is affected by explosion!`);
+          }
+        });
+      };
+      
+
     const handleExplosion = (position: THREE.Vector3) => {
 
         const id = Date.now();
         setFireballs((prev) => prev.slice(1)); // Remove the first fireball
         setExplosions((prev) => [...prev, { id, position }]);
+
+        checkForExplosionDamage(position); // Check for damage to opponents
 
         // Remove explosion after a second
         setTimeout(() => {
@@ -302,7 +326,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     };
 
     const gravity = -9.8 * 2;
-    const jumpStrength = 50;
+    const jumpStrength = 15;
 
     const playerSpeed = 10;
     const playerHeight = 2;
@@ -644,7 +668,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
             ))}
 
             {explosions.map((explosion) => (
-                <Explosion key={explosion.id} position={explosion.position} />
+                <Explosion key={explosion.id} position={explosion.position} explosionRadius={15} />
             ))}
             <group ref={playerRef} position={camera.position}>
                 {/* Collision box */}

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Instances, Instance } from '@react-three/drei';
+import { Billboard } from '@react-three/drei';
 
 // Particle for explosion fragments
 const ExplosionParticle = ({ 
@@ -10,7 +10,7 @@ const ExplosionParticle = ({
   color, 
   speed, 
   direction, 
-  lifespan 
+  lifespan,
 }: { 
   position: THREE.Vector3, 
   scale: number, 
@@ -54,7 +54,7 @@ const ExplosionParticle = ({
   );
 };
 
-const Explosion: React.FC<{ position: THREE.Vector3 }> = ({ position }) => {
+const Explosion: React.FC<{ position: THREE.Vector3, explosionRadius: number }> = ({ position, explosionRadius = 15 }) => {
   const [particles, setParticles] = useState<React.ReactNode[]>([]);
   const lightRef = useRef<THREE.PointLight>(null);
   const [lightIntensity, setLightIntensity] = useState(10);
@@ -112,12 +112,11 @@ const Explosion: React.FC<{ position: THREE.Vector3 }> = ({ position }) => {
     <group>
       {/* Core explosion */}
       <mesh position={position}>
-        <sphereGeometry args={[15, 16, 16]} />
+        <sphereGeometry args={[explosionRadius, 16, explosionRadius]} />
         <meshStandardMaterial 
           color="#ff5500" 
-          emissive="#ff3300"
+          emissive="#ff1300"
           emissiveIntensity={2}
-          transparent 
           opacity={Math.max(0, 1 - (Date.now() - explosionStartTime.current) / 1000 / explosionDuration)}
         />
       </mesh>

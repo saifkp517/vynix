@@ -217,11 +217,6 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
     }
   });
 
-  useEffect(() => {
-    const geometry = geometryRef.current;
-
-  }, []);
-
   return (
     <>
       {/* Sky with fog-matching background */}

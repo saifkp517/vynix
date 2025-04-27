@@ -80,7 +80,8 @@ const FirstPersonGame: React.FC = () => {
   const obstacles = useRef<THREE.Mesh[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [team, setTeam] = useState<string | null>(null);
-  const [otherPlayers, setOtherPlayers] = useState({});
+  const [otherPlayers, setOtherPlayers] = useState<{ [playerId: string]: THREE.Vector3 }>({});
+
 
 
   type Player = {
@@ -208,26 +209,27 @@ const FirstPersonGame: React.FC = () => {
             <>
               <Player
                 onPositionChange={(pos) => {
-                  socket.emit("updatePosition", pos.toArray());
+                  socket.emit("updatePosition", pos);
                 }}
                 obstacles={obstacles.current}
                 getGroundHeight={getGroundHeight}
+                otherPlayers={otherPlayers || {}}
               />
 
               {/* Other players */}
               {Object.entries(otherPlayers).map(([id, pos]) => (
                 <Opponent
                   key={id}
-                  initialPosition={Array.isArray(pos) && pos.length === 3 ? pos as [number, number, number] : undefined}
+                  initialPosition={pos}
                   onPositionChange={(pos) => {
-                    socket.emit("updatePosition", pos.toArray());
+                    socket.emit("updatePosition", pos);
                   }}
                   isRemote
                   getGroundHeight={getGroundHeight}
                 />
               ))}
               {/* Small banyan grove */}
-              <Forest
+              {/* <Forest
                 center={[80, 0, -40]}
                 radius={100}
                 density={0.01}
@@ -235,7 +237,7 @@ const FirstPersonGame: React.FC = () => {
                 getGroundHeight={getGroundHeight}
                 addObstacleRef={addObstacleRef}
 
-              />
+              /> */}
             </>
 
           )}
