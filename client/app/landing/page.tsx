@@ -164,11 +164,11 @@ const FirstPersonGame: React.FC = () => {
   }, []);
 
   // Add an obstacle to the collection
-  const addObstacleRef = (ref: THREE.Mesh | null) => {
+  const addObstacleRef = React.useCallback((ref: THREE.Mesh | null) => {
     if (ref && !obstacles.current.includes(ref)) {
       obstacles.current.push(ref);
     }
-  };
+  }, []);
 
 
   return (
@@ -226,6 +226,7 @@ const FirstPersonGame: React.FC = () => {
                   }}
                   isRemote
                   getGroundHeight={getGroundHeight}
+                  addObstacleRef={addObstacleRef}
                 />
               ))}
               {/* Small banyan grove */}
