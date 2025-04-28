@@ -690,6 +690,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
                 </mesh>
 
                 {/* Visible player mesh */}
+                {/* test comm */}
                 <mesh position={[0, -1, 0]}>
                     {/* <capsuleGeometry args={[0.5, 1, 8, 16]} /> */}
                     <meshStandardMaterial color="skyblue" />
