@@ -1,6 +1,7 @@
 // ForestGenerator.tsx
 'use client';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { ObjectLoader, MaterialLoader } from 'three';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 
@@ -36,7 +37,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
     const smallCanopy = new THREE.SphereGeometry(1.4, 8, 5);    // Lightest/least dense
 
     // Wide plate-like canopy, now thinner & flatter
-    const canopyPlate = new THREE.CylinderGeometry(8.0, 2.5, 0.8, 12, 1); // Smaller spread
+    const canopyPlate = new THREE.CylinderGeometry(8.0, 4.5, 0.8, 12, 1); // Smaller spread
 
     // Add organic variation
     [largeCanopy, mediumCanopy, smallCanopy, canopyPlate].forEach(geo => {
@@ -245,7 +246,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
       dummy.matrix.decompose(position, quaternion, scale);
 
       // Apply subtle rotation based on time
-      const windFactor = Math.sin(clock.elapsedTime * 0.5 + i) * 0.005;
+      const windFactor = Math.sin(clock.elapsedTime * 0.5 + i) * 0.2;
       dummy.rotation.x = windFactor;
       dummy.rotation.z = windFactor * 0.7;
 
@@ -459,7 +460,7 @@ const TreeColliders: React.FC<{ positions: TreePosition[], addObstacleRef: (ref:
             scale={[treePos.scale * 0.8, treePos.scale * 1.8, treePos.scale * 0.8]}
           >
             <cylinderGeometry args={[1.5, 1.5, 26, 8]} />
-            <meshBasicMaterial visible={false} />
+              <meshBasicMaterial visible={false} />
           </mesh>
         ))}
       </>

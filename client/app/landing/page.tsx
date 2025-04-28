@@ -1,7 +1,8 @@
 'use client'
 import React, { useRef, useState, useEffect } from 'react';
 import { Forest } from '@/components/game-components/obstacles/ForestGenerator';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas} from '@react-three/fiber';
+import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
 import * as THREE from 'three';
 import { Stats } from '@react-three/drei';
@@ -162,7 +163,22 @@ const FirstPersonGame: React.FC = () => {
   // Setup obstacle references
   useEffect(() => {
     obstacles.current = [];
+    
   }, []);
+
+  useEffect(() => {
+    const sound = new Howl({
+      src: ['/sounds/breeze.mp3'],
+      volume: 1,
+      preload: true,
+      loop: true,
+    });
+    sound.play();
+    return () => {
+      sound.stop();
+    };
+  }
+  , []);
 
   // Add an obstacle to the collection
   const addObstacleRef = React.useCallback((ref: THREE.Mesh | null) => {
@@ -205,7 +221,7 @@ const FirstPersonGame: React.FC = () => {
         <pointLight position={[10, 10, 10]} intensity={1} />
         <gridHelper args={[50, 50]} />
 
-        <Ground fogDistance={200} fogColor="#65888a">
+        <Ground fogDistance={25} fogColor="#65888a">
           {(getGroundHeight) => (
             <>
               <Player
@@ -233,9 +249,9 @@ const FirstPersonGame: React.FC = () => {
               ))}
               {/* Small banyan grove */}
               <Forest
-                center={[80, 0, -40]}
-                radius={100}
-                density={0.01}
+                center={[0, 0, 0]}
+                radius={300}
+                density={0.005}
                 types={["banyan"]} // Only banyan trees
                 getGroundHeight={getGroundHeight}
                 addObstacleRef={addObstacleRef}

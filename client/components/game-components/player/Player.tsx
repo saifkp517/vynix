@@ -1,7 +1,7 @@
 // Player component
 import React, { useRef, useState, useEffect } from 'react';
 import { PointerLockControls } from '@react-three/drei';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber'
 import Explosion from '../explosion/Explosion';
 import * as THREE from 'three';
 
@@ -83,6 +83,7 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obs
 
 
 const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundHeight, otherPlayers }) => {
+
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
     const [collisionNormal, setCollisionNormal] = useState<THREE.Vector3 | null>(null);

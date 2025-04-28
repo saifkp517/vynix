@@ -264,11 +264,26 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
       </mesh>
 
       {/* Lighting adjusted to match fog atmosphere */}
-      <ambientLight intensity={0} color="#D6EAF8" />
-      <directionalLight position={sunPosition} intensity={1.5} castShadow color="#FFFAF0">
+      {/* <ambientLight intensity={0} color="#D6EAF8" />
+      <directionalLight position={sunPosition} intensity={0.3} castShadow color="#FFFAF0">
         <orthographicCamera attach="shadow-camera" args={[-100, 100, 100, -100, 0.1, 200]} />
       </directionalLight>
-      <hemisphereLight args={["#B3E5FC", "#C5E1A5", 0.3]} position={[0, 50, 0]} />
+      <hemisphereLight args={["#B3E5FC", "#C5E1A5", 0.3]} position={[0, 50, 0]} /> */}
+
+      <directionalLight
+  position={sunPosition}
+  intensity={0.3} // much softer than daytime
+  castShadow
+  color="#bcd4e6" // soft bluish-white
+>
+  <orthographicCamera attach="shadow-camera" args={[-100, 100, 100, -100, 0.1, 200]} />
+</directionalLight>
+
+
+      <hemisphereLight
+        args={["#1a237e", "#0d3b66", 0.2]} // sky color, ground color, intensity
+        position={[0, 50, 0]}
+      />
 
       {/* Add Rain Effect */}
       <RainEffect
