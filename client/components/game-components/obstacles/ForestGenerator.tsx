@@ -476,6 +476,8 @@ export const Forest: React.FC<ForestProps> = ({
   getGroundHeight,
   addObstacleRef,
 }) => {
+
+  console.log("forest called")
   // Calculate tree positions only once
   const treePositions = useMemo(() => {
     const positions: TreePosition[] = [];

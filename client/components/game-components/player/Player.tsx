@@ -666,7 +666,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
         const currentTime = performance.now();
 
         // Only emit the position change every 100ms
-        if (currentTime - lastUpdateTime.current >= 1000) {
+        if (currentTime - lastUpdateTime.current >= 100) {
             onPositionChange(playerPosition.clone());
             lastUpdateTime.current = currentTime; // Update the last update time
         }

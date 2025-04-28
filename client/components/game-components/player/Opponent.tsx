@@ -62,7 +62,7 @@ export const Opponent = ({
 
   useFrame((state, delta) => {
     // Smoothly interpolate towards target position
-    currentPosition.current.lerp(targetPosition.current, 5 * delta);
+    currentPosition.current.lerp(targetPosition.current, 0.1);
 
     if (meshRef.current) {
       meshRef.current.position.copy(currentPosition.current);

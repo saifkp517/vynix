@@ -1,12 +1,11 @@
 'use client'
 import React, { useRef, useState, useEffect } from 'react';
-import { Forest } from '@/components/game-components/obstacles/ForestGenerator';
-import { Canvas} from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
 import * as THREE from 'three';
 import { Stats } from '@react-three/drei';
-import Ground from '@/components/game-components/ground/Ground';
+import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import socket from '@/lib/socket';
 import { Opponent } from '@/components/game-components/player/Opponent';
 
@@ -163,7 +162,7 @@ const FirstPersonGame: React.FC = () => {
   // Setup obstacle references
   useEffect(() => {
     obstacles.current = [];
-    
+
   }, []);
 
   useEffect(() => {
@@ -178,7 +177,7 @@ const FirstPersonGame: React.FC = () => {
       sound.stop();
     };
   }
-  , []);
+    , []);
 
   // Add an obstacle to the collection
   const addObstacleRef = React.useCallback((ref: THREE.Mesh | null) => {
@@ -187,6 +186,38 @@ const FirstPersonGame: React.FC = () => {
     }
   }, []);
 
+  const PlayerWithGroundHeight = (props) => {
+    const getGroundHeight = useGroundHeight();
+
+    return (
+      <Player
+        {...props}
+        getGroundHeight={getGroundHeight}
+      />
+    );
+  };
+
+  // Example Opponent component that uses the useGroundHeight hook
+  const OpponentWithGroundHeight = (props) => {
+    const getGroundHeight = useGroundHeight();
+
+    return (
+      <Opponent
+        {...props}
+        getGroundHeight={getGroundHeight}
+      />
+    );
+  };
+
+  const groundProps = {
+    addObstacleRef,
+    fogDistance: 200,
+    fogColor: "#65888a"
+  };
+
+  const handlePositionChange = React.useCallback((pos) => {
+    socket.emit("updatePosition", pos);
+  }, [socket]);
 
   return (
     <div className="w-full h-screen relative">
@@ -221,45 +252,27 @@ const FirstPersonGame: React.FC = () => {
         <pointLight position={[10, 10, 10]} intensity={1} />
         <gridHelper args={[50, 50]} />
 
-        <Ground fogDistance={25} fogColor="#65888a">
-          {(getGroundHeight) => (
-            <>
-              <Player
-                onPositionChange={(pos) => {
-                  socket.emit("updatePosition", pos);
-                }}
-                obstacles={obstacles.current}
-                getGroundHeight={getGroundHeight}
-                otherPlayers={otherPlayers || {}}
-              />
+        <Ground {...groundProps}>
+          <PlayerWithGroundHeight
+            onPositionChange={handlePositionChange}
+            obstacles={obstacles.current}
+            otherPlayers={otherPlayers || {}}
+          />
 
-              {/* Other players */}
-              {Object.entries(otherPlayers).map(([id, pos]) => (
-                <Opponent
-                  key={id}
-                  initialPosition={pos}
-                  onPositionChange={(pos) => {
-                    socket.emit("updatePosition", pos);
-                  }}
-                  isRemote
-                  getGroundHeight={getGroundHeight}
-                  addObstacleRef={addObstacleRef}
-                  isHit={!!hitPlayers[id]}
-                />
-              ))}
-              {/* Small banyan grove */}
-              <Forest
-                center={[0, 0, 0]}
-                radius={300}
-                density={0.005}
-                types={["banyan"]} // Only banyan trees
-                getGroundHeight={getGroundHeight}
-                addObstacleRef={addObstacleRef}
-
-              />
-            </>
-
-          )}
+          {/* Other players */}
+          {Object.entries(otherPlayers).map(([id, pos]) => (
+            <OpponentWithGroundHeight
+              key={id}
+              initialPosition={pos}
+              onPositionChange={(pos) => {
+                socket.emit("updatePosition", pos);
+                console.log("Player moved", id, pos);
+              }}
+              isRemote
+              addObstacleRef={addObstacleRef}
+              isHit={!!hitPlayers[id]}
+            />
+          ))}
         </Ground>
       </Canvas>
     </div>

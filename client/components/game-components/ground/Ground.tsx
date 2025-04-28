@@ -1,32 +1,49 @@
 import { useThree, useLoader, useFrame } from "@react-three/fiber";
 import { createNoise2D } from 'simplex-noise';
+import React, { Suspense, createContext, useContext, memo } from "react";
 import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
 import { Points, BufferGeometry, BufferAttribute } from 'three';
 import * as THREE from "three";
 import { TextureLoader } from "three";
+import { Forest } from "../obstacles/ForestGenerator";
 import { Sky } from "@react-three/drei";
 
-type GroundProps = {
-  children?: (getGroundHeight: (x: number, z: number) => number) => React.ReactNode;
-  fogDistance?: number;
-  fogColor?: string;
+// Create a context for the ground height function
+type GroundHeightContextType = {
+  getGroundHeight: (x: number, z: number) => number;
 };
 
-const RainEffect = ({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }) => {
+const GroundHeightContext = createContext<GroundHeightContextType | null>(null);
+
+// Hook to use the ground height from any child component
+export const useGroundHeight = () => {
+  const context = useContext(GroundHeightContext);
+  if (!context) {
+    throw new Error("useGroundHeight must be used within a GroundHeightProvider");
+  }
+  return context.getGroundHeight;
+};
+
+type GroundProps = {
+  children?: React.ReactNode;
+  fogDistance?: number;
+  fogColor?: string;
+  addObstacleRef: (ref: THREE.Mesh | null) => void;
+};
+
+// RainEffect component is memoized to prevent unnecessary rerenders
+const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }) => {
   const rainRef = useRef<Points>(null);
 
-  // Create raindrops
+  // Create raindrops - memoized so it's not recreated on rerenders
   const raindrops = useMemo(() => {
     const positions = new Float32Array(count * 3);
     const velocities = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
-      // Distribute raindrops randomly within the specified area
-      positions[i * 3] = (Math.random() - 0.5) * area;      // x
-      positions[i * 3 + 1] = Math.random() * 50;            // y (height)
-      positions[i * 3 + 2] = (Math.random() - 0.5) * area;  // z
-
-      // Different falling speeds for more natural effect
+      positions[i * 3] = (Math.random() - 0.5) * area;
+      positions[i * 3 + 1] = Math.random() * 50;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * area;
       velocities[i] = (Math.random() + 0.1) * intensity;
     }
 
@@ -38,12 +55,9 @@ const RainEffect = ({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10,
 
     const positions = rainRef.current.geometry.attributes.position.array;
 
-    // Update each raindrop position
     for (let i = 0; i < count; i++) {
-      // Make raindrops fall downward
       positions[i * 3 + 1] -= raindrops.velocities[i];
 
-      // Reset position if raindrop goes below ground
       if (positions[i * 3 + 1] < -5) {
         positions[i * 3 + 1] = Math.random() * 50;
         positions[i * 3] = (Math.random() - 0.5) * area;
@@ -59,7 +73,7 @@ const RainEffect = ({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10,
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          args={[raindrops.positions, 3]} // 3 = itemSize (x, y, z)
+          args={[raindrops.positions, 3]}
         />
       </bufferGeometry>
       <pointsMaterial
@@ -72,27 +86,45 @@ const RainEffect = ({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10,
       />
     </points>
   );
-};
+});
 
+// ForestWrapper component is memoized to prevent unnecessary rerenders
+const ForestWrapper = memo(({ center, radius, density, types, getGroundHeight, addObstacleRef }) => {
+  return (
+    <Forest
+      center={center}
+      radius={radius}
+      density={density}
+      types={types}
+      getGroundHeight={getGroundHeight}
+      addObstacleRef={addObstacleRef}
+    />
+  );
+});
 
-const Ground = forwardRef<THREE.Mesh, GroundProps>(({
+// Main Ground component implementation - wrapped in memo at the end
+const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
   fogDistance = 100,
-  fogColor = "#B0C4DE"
+  fogColor = "#B0C4DE",
+  addObstacleRef
 }, ref) => {
+  console.log("Ground component rendered");
+
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const initializedRef = useRef(false);
 
-  // Load textures
+  // Load textures once
   const [grassMap, roughnessMap, noiseMap] = useLoader(TextureLoader, [
     "/textures/grass.jpg",
-    "/textures/grass_rough.jpg", // You'll need to add this texture
-    "/textures/grass_normal.jpg"      // You'll need to add this texture
+    "/textures/grass_rough.jpg", 
+    "/textures/grass_normal.jpg"
   ]);
 
-  // Create noise-based roughness variation
-  const [roughnessVariation] = useState(() => {
+  // Create noise-based roughness variation - once during initial render
+  const roughnessVariation = useMemo(() => {
     const noise2D = createNoise2D();
     const size = 1024;
     const data = new Uint8Array(size * size);
@@ -101,45 +133,45 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
       for (let x = 0; x < size; x++) {
         const value =
           0.7 * noise2D(x / 40, y / 40) +
-          0.3 * noise2D(x / 10, y / 10); // small craters and big hills
-        const normalized = Math.floor((value + 1) * 127.5); // map from [-1,1] to [0,255]
+          0.3 * noise2D(x / 10, y / 10);
+        const normalized = Math.floor((value + 1) * 127.5);
         data[x + y * size] = normalized;
       }
     }
 
-    const roughnessNoiseTexture = new THREE.DataTexture(
+    const texture = new THREE.DataTexture(
       data, size, size, THREE.RedFormat, THREE.UnsignedByteType
     );
-    roughnessNoiseTexture.wrapS = roughnessNoiseTexture.wrapT = THREE.RepeatWrapping;
-    roughnessNoiseTexture.repeat.set(1, 1);
-    roughnessNoiseTexture.needsUpdate = true;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1, 1);
+    texture.needsUpdate = true;
 
-    return roughnessNoiseTexture;
-  });
+    return texture;
+  }, []);
 
+  // Define height logic - memoized so it's stable across renders
+  const getGroundHeight = useMemo(() => {
+    return (x: number, z: number): number => {
+      const primaryFrequency = 0.1;
+      const secondaryFrequency = 0.2;
+      const amplitude = 1.5;
+      const noiseAmplitude = 0.4;
 
-  // Define height logic with added noise
-  const getGroundHeight = (x: number, z: number): number => {
-    const primaryFrequency = 0.1;
-    const secondaryFrequency = 0.2;
-    const amplitude = 1.5;
-    const noiseAmplitude = 0.4;
+      const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
+      const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
 
-    // Combine multiple frequencies for more natural terrain
-    const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
+      return baseHeight + noise;
+    };
+  }, []);
 
-    // Add some noise with pseudo-random value
-    const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
+  // Create the context value - memoized to prevent unnecessary renders
+  const groundHeightContextValue = useMemo(() => ({
+    getGroundHeight
+  }), [getGroundHeight]);
 
-    return baseHeight + noise;
-  };
-
-  // Set global fog that affects everything in the scene
+  // Set global fog - with cleanup to prevent memory leaks
   useEffect(() => {
-    // Use exponential fog for more realistic distance fading
     scene.fog = new THREE.FogExp2(fogColor, 1 / (fogDistance * 1.5));
-
-    // Set background color to match fog for sky blending
     scene.background = new THREE.Color(fogColor);
 
     return () => {
@@ -148,8 +180,11 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
     };
   }, [scene, fogDistance, fogColor]);
 
-  // Process textures
-  useMemo(() => {
+  // Process textures - once during initial render
+  useEffect(() => {
+    // Skip if already processed
+    if (initializedRef.current) return;
+    
     // Grass texture setup
     grassMap.wrapS = grassMap.wrapT = THREE.RepeatWrapping;
     grassMap.repeat.set(100, 100);
@@ -167,20 +202,22 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
       noiseMap.wrapS = noiseMap.wrapT = THREE.RepeatWrapping;
       noiseMap.repeat.set(30, 30);
     }
+
+    initializedRef.current = true;
   }, [grassMap, roughnessMap, noiseMap]);
 
   const sunPosition = useMemo(() => new THREE.Vector3(100, 10, 100), []);
 
-  // Apply terrain deformation to the mesh
+  // Apply terrain deformation - once during initial render
   useEffect(() => {
     const geom = geometryRef.current;
     if (!geom) return;
 
+    // Skip if already deformed
+    if (geom.userData.deformed) return;
+
     const posAttr = geom.attributes.position;
     const vertex = new THREE.Vector3();
-    const normal = new THREE.Vector3();
-
-    // Add UV2 attribute for second texture coordinates
     const uv2 = new Float32Array(posAttr.count * 2);
 
     for (let i = 0; i < posAttr.count; i++) {
@@ -197,29 +234,38 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
       posAttr.setXYZ(i, vertex.x, vertex.y, vertex.z);
     }
 
-
-
-
     // Add second UV set for detail textures
     geom.setAttribute('uv2', new THREE.BufferAttribute(uv2, 2));
 
     posAttr.needsUpdate = true;
     geom.computeVertexNormals();
-  }, []);
+    
+    // Mark as deformed so we don't repeat this process
+    geom.userData.deformed = true;
+  }, [getGroundHeight]);
 
-  // Animate roughness variation over time for extra randomness
+  // Animate roughness variation over time
   useFrame((state) => {
-    if (materialRef.current) {
-      // Slowly shift the roughness noise texture for subtle variation
+    if (materialRef.current && roughnessVariation) {
       roughnessVariation.offset.x = state.clock.elapsedTime * 0.01;
       roughnessVariation.offset.y = state.clock.elapsedTime * 0.02;
       roughnessVariation.needsUpdate = true;
     }
   });
 
+  // Memoize forest props to prevent unnecessary rerenders
+  const forestProps = useMemo(() => ({
+    center: [0, 0, 0],
+    radius: 300,
+    density: 0.005,
+    types: ["banyan"],
+    getGroundHeight,
+    addObstacleRef
+  }), [getGroundHeight, addObstacleRef]);
+
   return (
-    <>
-      {/* Sky with fog-matching background */}
+    <GroundHeightContext.Provider value={groundHeightContextValue}>
+      {/* Sky */}
       <Sky
         distance={450000}
         sunPosition={sunPosition}
@@ -231,7 +277,7 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
         mieDirectionalG={0.7}
       />
 
-      {/* Deformed Terrain */}
+      {/* Terrain */}
       <mesh
         ref={ref}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -242,50 +288,33 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
         <meshStandardMaterial
           ref={materialRef}
           map={grassMap}
-
-          // Use the noise texture as roughness map or fallback to the roughness texture
           roughnessMap={roughnessVariation || roughnessMap}
           roughness={6}
-
-          // Add random roughness metalnessMap
           metalnessMap={noiseMap}
           metalness={0.05}
-
-          // Add displacement for micro-detail
           displacementMap={noiseMap}
           displacementScale={0.8}
-
-          // Use noise for normal variation
           normalScale={new THREE.Vector2(10.0, 10.0)}
-
-          // Adjust color to blend with fog at distance
           color={new THREE.Color(0xffffff).lerp(new THREE.Color(fogColor), 0.5)}
         />
       </mesh>
 
-      {/* Lighting adjusted to match fog atmosphere */}
-      {/* <ambientLight intensity={0} color="#D6EAF8" />
-      <directionalLight position={sunPosition} intensity={0.3} castShadow color="#FFFAF0">
+      {/* Lighting */}
+      <directionalLight
+        position={sunPosition}
+        intensity={0.3}
+        castShadow
+        color="#bcd4e6"
+      >
         <orthographicCamera attach="shadow-camera" args={[-100, 100, 100, -100, 0.1, 200]} />
       </directionalLight>
-      <hemisphereLight args={["#B3E5FC", "#C5E1A5", 0.3]} position={[0, 50, 0]} /> */}
-
-      <directionalLight
-  position={sunPosition}
-  intensity={0.3} // much softer than daytime
-  castShadow
-  color="#bcd4e6" // soft bluish-white
->
-  <orthographicCamera attach="shadow-camera" args={[-100, 100, 100, -100, 0.1, 200]} />
-</directionalLight>
-
 
       <hemisphereLight
-        args={["#1a237e", "#0d3b66", 0.2]} // sky color, ground color, intensity
+        args={["#1a237e", "#0d3b66", 0.2]}
         position={[0, 50, 0]}
       />
 
-      {/* Add Rain Effect */}
+      {/* Rain Effect - memoized component */}
       <RainEffect
         count={800}
         size={0.3}
@@ -294,13 +323,19 @@ const Ground = forwardRef<THREE.Mesh, GroundProps>(({
         area={200}
       />
 
-      {/* Fog effect - adjust as needed with rain */}
+      {/* Forest - memoized component */}
+      <ForestWrapper {...forestProps} />
+
+      {/* Fog effect */}
       <fog attach="fog" args={["#D6EAF8", 30, 100]} />
 
-      {/* Children like Player/Obstacles get access to height */}
-      {children?.(getGroundHeight)}
-    </>
+      {/* Children can use the context via useGroundHeight */}
+      {children}
+    </GroundHeightContext.Provider>
   );
 });
+
+// Wrap with memo to prevent unnecessary rerenders
+const Ground = memo(GroundBase);
 
 export default Ground;
