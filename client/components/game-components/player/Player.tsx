@@ -2,6 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber'
+import { Howl } from 'howler';
 import Explosion from '../explosion/Explosion';
 import * as THREE from 'three';
 
@@ -331,10 +332,16 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
         setExplosions((prev) => [...prev, { id, position }]);
 
         checkForExplosionDamage(position); // Check for damage to opponents
+        const sound = new Howl({
+            src: ['/sounds/explosion.mp3'],
+            volume: 1,
+        })
+        sound.play();
 
         // Remove explosion after a second
         setTimeout(() => {
             setExplosions((prev) => prev.filter((exp) => exp.id !== id));
+
         }, 1000);
     };
 
