@@ -84,7 +84,7 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obs
 
 
 const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundHeight, otherPlayers }) => {
-
+    console.log("Player component rendered")
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
     const [collisionNormal, setCollisionNormal] = useState<THREE.Vector3 | null>(null);

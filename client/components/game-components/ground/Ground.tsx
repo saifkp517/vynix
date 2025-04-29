@@ -109,7 +109,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   fogColor = "#B0C4DE",
   addObstacleRef
 }, ref) => {
-  console.log("Ground component rendered");
+
 
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);

@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
@@ -10,14 +10,12 @@ import socket from '@/lib/socket';
 import { Opponent } from '@/components/game-components/player/Opponent';
 
 // Define types for player and obstacle
-
-
 interface ObstacleProps {
   position: [number, number, number];
   getGroundHeight: (x: number, z: number) => number;
 }
 
-const Crosshair = () => (
+const Crosshair = React.memo(() => (
   <div style={{
     position: 'fixed',
     top: '50%',
@@ -28,62 +26,66 @@ const Crosshair = () => (
     transform: 'translate(-50%, -50%)',
     zIndex: 1000,
   }} />
-);
+));
 
-
-// Obstacle component with forwarded ref using a Cylinder
-const Obstacle = React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
+// Obstacle components with memoization
+const Obstacle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
   return (
     <mesh ref={ref} position={position}>
-      {/* <cylinderGeometry args={[1.75, 1.75, 1.5, 32]} />  */}
-      {/* <sphereGeometry args={[5.75]} /> */}
       <boxGeometry args={[10, 5, 3]} />
       <meshStandardMaterial color="red" />
     </mesh>
   );
-});
+}));
 
-const SphereObstacle = React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
+const SphereObstacle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
   return (
     <mesh ref={ref} position={position}>
-      {/* <cylinderGeometry args={[1.75, 1.75, 1.5, 32]} />  */}
       <sphereGeometry args={[3]} />
-      {/* <boxGeometry args={[10, 5, 3]} /> */}
       <meshStandardMaterial color="red" />
     </mesh>
   );
-});
+}));
 
-const CylinderObstacle = React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
+const CylinderObstacle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
   return (
     <mesh ref={ref} position={position} rotation={[-Math.PI / 2, 0, 0]} >
       <cylinderGeometry args={[1.75, 1.75, 15.5, 32]} />
       <meshStandardMaterial color="red" />
     </mesh>
-
   );
-});
+}));
 
-const CylinderObstacleVerticle = React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
+const CylinderObstacleVerticle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
   return (
     <mesh ref={ref} position={position} >
       <cylinderGeometry args={[1.75, 1.75, 15.5, 32]} />
       <meshStandardMaterial color="red" />
     </mesh>
-
   );
-});
+}));
 
+// Memoized Game Info component
+const GameInfo = React.memo(({ roomId, team }: { roomId: string | null, team: string | null }) => (
+  <div className="absolute top-4 left-4 bg-white text-black p-2 z-10">
+    <p>WASD to move, Mouse to look</p>
+    <p className="text-sm">Press ESC to release mouse</p>
+    <p>Room Id: {roomId}</p>
+    <p>Team: {team}</p>
+  </div>
+));
 
 // Main game component
 const FirstPersonGame: React.FC = () => {
+
+  console.log("FirstPersonGame component rendered");
   const obstacles = useRef<THREE.Mesh[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [team, setTeam] = useState<string | null>(null);
-  const [otherPlayers, setOtherPlayers] = useState<{ [playerId: string]: THREE.Vector3 }>({});
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
-
-
+  const playerPositionsRef = useRef<{ [playerId: string]: THREE.Vector3 }>({});
+  // We need to keep a state to force re-renders when players join/leave
+  const [playerIds, setPlayerIds] = useState<string[]>([]);
 
   type Player = {
     id: string;
@@ -98,8 +100,7 @@ const FirstPersonGame: React.FC = () => {
     gameStarted: boolean;
   }
 
-
-  //player connection handling
+  // Player connection handling
   useEffect(() => {
     const handleConnect = () => {
       console.log("Socket connected:", socket.id);
@@ -122,19 +123,27 @@ const FirstPersonGame: React.FC = () => {
     });
 
     socket.on("playerMoved", ({ id, position }) => {
-      console.log("plauersmoved", id, position);
-      setOtherPlayers(prevPlayers => ({
-        ...prevPlayers,
-        [id]: position,
-      }));
-    })
+      // console.log("Player moved:", id, position);
+      
+      // Store position in ref to avoid re-renders
+      playerPositionsRef.current = {
+        ...playerPositionsRef.current,
+        [id]: new THREE.Vector3(position.x, position.y, position.z)
+      };
+      
+      // Update player IDs if this is a new player
+      if (!playerIds.includes(id)) {
+        setPlayerIds(prev => [...prev, id]);
+      }
+    });
 
     socket.on("disconnect", (id) => {
-      setOtherPlayers((prev) => {
-        const updated: any = { ...prev };
-        delete updated[id];
-        return updated;
-      });
+      const updated = { ...playerPositionsRef.current };
+      delete updated[id];
+      playerPositionsRef.current = updated;
+      
+      // Update player IDs when a player leaves
+      setPlayerIds(prev => prev.filter(playerId => playerId !== id));
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -154,17 +163,14 @@ const FirstPersonGame: React.FC = () => {
       socket.off("disconnect");
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, []);
-
-
-
+  }, [playerIds]);
 
   // Setup obstacle references
   useEffect(() => {
     obstacles.current = [];
-
   }, []);
 
+  // Sound effect
   useEffect(() => {
     const sound = new Howl({
       src: ['/sounds/breeze.mp3'],
@@ -176,73 +182,73 @@ const FirstPersonGame: React.FC = () => {
     return () => {
       sound.stop();
     };
-  }
-    , []);
+  }, []);
 
   // Add an obstacle to the collection
-  const addObstacleRef = React.useCallback((ref: THREE.Mesh | null) => {
+  const addObstacleRef = useCallback((ref: THREE.Mesh | null) => {
     if (ref && !obstacles.current.includes(ref)) {
       obstacles.current.push(ref);
     }
   }, []);
 
-  const PlayerWithGroundHeight = (props) => {
+  const PlayerWithGroundHeight = React.memo((props: any) => {
     const getGroundHeight = useGroundHeight();
-
+    
     return (
       <Player
         {...props}
         getGroundHeight={getGroundHeight}
       />
     );
-  };
+  });
 
   // Example Opponent component that uses the useGroundHeight hook
-  const OpponentWithGroundHeight = (props) => {
+  const OpponentWithGroundHeight = React.memo(({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
     const getGroundHeight = useGroundHeight();
-
+    const [, forceUpdate] = useState({});
+    
+    // Use an effect to periodically check position updates
+    useEffect(() => {
+      const interval = setInterval(() => {
+        forceUpdate({});  // Force component to re-render to get latest position
+      }, 100);
+      
+      return () => clearInterval(interval);
+    }, []);
+    
+    // Get latest position from ref
+    const position = playerPositionsRef.current[playerId];
+    
+    if (!position) return null;
+    
     return (
       <Opponent
-        {...props}
+        initialPosition={position}
+        onPositionChange={(pos) => {
+          // Just for visualization, we don't actually need to emit here
+          console.log("Opponent position updated:", pos);
+        }}
+        isRemote={true}
+        addObstacleRef={addObstacleRef}
+        isHit={isHit}
         getGroundHeight={getGroundHeight}
       />
     );
-  };
+  });
 
-  const groundProps = {
+  const groundProps = useMemo(() => ({
     addObstacleRef,
-    fogDistance: 200,
+    fogDistance: 25,
     fogColor: "#65888a"
-  };
+  }), [addObstacleRef]);
 
-  const handlePositionChange = React.useCallback((pos) => {
+  const handlePositionChange = useCallback((pos: THREE.Vector3) => {
     socket.emit("updatePosition", pos);
-  }, [socket]);
+  }, []);
 
   return (
     <div className="w-full h-screen relative">
-      {/* {!gameStarted ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-20">
-          <div className="bg-white p-6 rounded shadow-lg text-center">
-            <h2 className="text-2xl mb-4">First-Person Collision Detection</h2>
-            <p className="mb-4">Click to start. Use WASD to move and mouse to look around.</p>
-            <button 
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-              onClick={() => setGameStarted(true)}
-            >
-              Start Game
-            </button>
-          </div>
-        </div>
-      ) : null} */}
-
-      {/* Instructions */}
-      <div className="absolute top-4 left-4 bg-white text-black p-2 z-10">
-        <p>WASD to move, Mouse to look</p>
-        <p className="text-sm">Press ESC to release mouse</p>
-        <p>Room Id: {roomId}</p>
-        <p>Team: {team}</p>
-      </div>
+      <GameInfo roomId={roomId} team={team} />
       <Crosshair />
 
       {/* 3D Canvas */}
@@ -256,19 +262,14 @@ const FirstPersonGame: React.FC = () => {
           <PlayerWithGroundHeight
             onPositionChange={handlePositionChange}
             obstacles={obstacles.current}
-            otherPlayers={otherPlayers || {}}
+            otherPlayers={playerPositionsRef.current}
           />
 
-          {/* Other players */}
-          {Object.entries(otherPlayers).map(([id, pos]) => (
+          {/* Other players - Now properly rendered with current IDs */}
+          {playerIds.map((id) => (
             <OpponentWithGroundHeight
               key={id}
-              initialPosition={pos}
-              onPositionChange={(pos) => {
-                socket.emit("updatePosition", pos);
-                console.log("Player moved", id, pos);
-              }}
-              isRemote
+              playerId={id}
               addObstacleRef={addObstacleRef}
               isHit={!!hitPlayers[id]}
             />

@@ -17,6 +17,7 @@ export const Opponent = ({
   addObstacleRef?: (ref: THREE.Mesh | null) => void;
   isHit?: boolean;
 }) => {
+  console.log("opponent called")
 
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -72,7 +73,7 @@ export const Opponent = ({
   return (
     <mesh ref={meshRef} position={[0, 1, 0]}>
       <sphereGeometry args={[0.5, 26, 26]} />
-      <meshStandardMaterial ref={materialRef} color="green" />
+      <meshStandardMaterial ref={materialRef} color="white" />
     </mesh>
 
   );
