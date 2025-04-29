@@ -2,6 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber'
+import socket from '@/lib/socket';
 import { Howl } from 'howler';
 import Explosion from '../explosion/Explosion';
 import * as THREE from 'three';
@@ -11,7 +12,6 @@ import * as THREE from 'three';
 interface PlayerProps {
     obstacles: any;
     getGroundHeight: (x: number, z: number) => number;
-    onPositionChange: (pos: THREE.Vector3) => void;
     otherPlayers: { [playerId: string]: THREE.Vector3 };
 }
 
@@ -83,8 +83,8 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obs
 
 
 
-const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundHeight, otherPlayers }) => {
-    console.log("Player component rendered")
+const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayers }) => {
+    
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
     const [collisionNormal, setCollisionNormal] = useState<THREE.Vector3 | null>(null);
@@ -276,6 +276,10 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
         setColliding(isColliding);
     };
 
+
+    const handlePositionChange = React.useCallback((pos: THREE.Vector3) => {
+        socket.emit("updatePosition", pos);
+    }, []);
 
 
 
@@ -667,7 +671,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
 
         // Only emit the position change every 100ms
         if (currentTime - lastUpdateTime.current >= 100) {
-            onPositionChange(playerPosition.clone());
+            handlePositionChange(playerPosition.clone());
             lastUpdateTime.current = currentTime; // Update the last update time
         }
 

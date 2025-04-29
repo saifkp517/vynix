@@ -110,7 +110,6 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   addObstacleRef
 }, ref) => {
 
-
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);

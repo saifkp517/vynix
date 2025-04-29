@@ -260,7 +260,7 @@ const FirstPersonGame: React.FC = () => {
 
         <Ground {...groundProps}>
           <PlayerWithGroundHeight
-            onPositionChange={handlePositionChange}
+            addObstacleRef={addObstacleRef}
             obstacles={obstacles.current}
             otherPlayers={playerPositionsRef.current}
           />
