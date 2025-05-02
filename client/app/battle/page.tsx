@@ -194,9 +194,9 @@ fn main() {
 
       if(user !== null) {
         if (!socketRef.current) {
-          socketRef.current = io("http://localhost:4000", {
+            socketRef.current = io(process.env.DOMAIN_URL || "http://localhost:4000", {
             withCredentials: true
-          });
+            });
     
           const handleOpponentCode = ({ code, from }: any) => {
             if (socketRef.current && from === socketRef.current.id) {

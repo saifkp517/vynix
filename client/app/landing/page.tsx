@@ -203,38 +203,28 @@ const FirstPersonGame: React.FC = () => {
   });
 
   // Example Opponent component that uses the useGroundHeight hook
-  const OpponentWithGroundHeight = React.memo(({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
-    const getGroundHeight = useGroundHeight();
-    const [, forceUpdate] = useState({});
-    
-    // Use an effect to periodically check position updates
-    useEffect(() => {
-      const interval = setInterval(() => {
-        forceUpdate({});  // Force component to re-render to get latest position
-      }, 100);
-      
-      return () => clearInterval(interval);
-    }, []);
-    
-    // Get latest position from ref
-    const position = playerPositionsRef.current[playerId];
-    
-    if (!position) return null;
-    
-    return (
-      <Opponent
-        initialPosition={position}
-        onPositionChange={(pos) => {
-          // Just for visualization, we don't actually need to emit here
-          console.log("Opponent position updated:", pos);
-        }}
-        isRemote={true}
-        addObstacleRef={addObstacleRef}
-        isHit={isHit}
-        getGroundHeight={getGroundHeight}
-      />
-    );
-  });
+  const OpponentWithGroundHeight = React.memo(
+    ({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
+      const getGroundHeight = useGroundHeight();
+      const positionRef = useRef<THREE.Vector3 | null>(null);
+  
+      useEffect(() => {
+        positionRef.current = playerPositionsRef.current[playerId] || null;
+      }, [playerId]);
+  
+      if (!playerPositionsRef.current[playerId]) return null;
+  
+      return (
+        <Opponent
+          positionRef={() => playerPositionsRef.current[playerId]} // Pass as a function
+          isRemote={true}
+          addObstacleRef={addObstacleRef}
+          isHit={isHit}
+          getGroundHeight={getGroundHeight}
+        />
+      );
+    }
+  );
 
   const groundProps = useMemo(() => ({
     addObstacleRef,

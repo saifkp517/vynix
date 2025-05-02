@@ -32,7 +32,7 @@ type GroundProps = {
 };
 
 // RainEffect component is memoized to prevent unnecessary rerenders
-const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }) => {
+const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }: any) => {
   const rainRef = useRef<Points>(null);
 
   // Create raindrops - memoized so it's not recreated on rerenders
@@ -89,7 +89,7 @@ const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity 
 });
 
 // ForestWrapper component is memoized to prevent unnecessary rerenders
-const ForestWrapper = memo(({ center, radius, density, types, getGroundHeight, addObstacleRef }) => {
+const ForestWrapper = memo(({ center, radius, density, types, getGroundHeight, addObstacleRef }: any) => {
   return (
     <Forest
       center={center}

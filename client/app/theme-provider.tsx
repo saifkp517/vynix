@@ -81,7 +81,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="dark" // Gaming apps often default to dark mode
+      defaultTheme="light" // Gaming apps often default to dark mode
       enableSystem
       disableTransitionOnChange
       {...props}

@@ -7,388 +7,285 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Trophy, Users, Timer, Eye, CheckCircle, XCircle, Zap } from 'lucide-react';
+import { 
+  Gamepad2, 
+  Users, 
+  Timer, 
+  ArrowRightToLine, 
+  UserPlus, 
+  Trophy, 
+  Globe,
+  PlusSquare 
+} from 'lucide-react';
 import Navbar from '@/components/custom/navbar/Navbar';
 import { redirect, useRouter } from 'next/navigation';
 import { useAuth } from './utils/AuthContext';
 
-
-const CodeBattlePlatform = () => {
-
+const GameNexusPlatform = () => {
   const { user, loading, loggedIn } = useAuth();
   const [username, setUsername] = useState("");
-
-  const [activeTab, setActiveTab] = useState('battles');
   const [roomCode, setRoomCode] = useState('');
-  const router = useRouter()
+  const [selectedTeamSize, setSelectedTeamSize] = useState(4);
+  const router = useRouter();
 
   useEffect(() => {
-    console.log(loading, loggedIn)
-    if(loading == false && loggedIn == false) {
-      redirect("/login")
-    } 
-    setUsername(user?.username)
+    if(loading === false && loggedIn === false) {
+      redirect("/login");
+    }
+    setUsername(user?.username);
+  }, [user, loading, loggedIn]);
 
-  }, [user])
-
-  // Demo data
-  const upcomingBattles = [
-    { id: 1, name: 'Algorithm Showdown', players: 2, difficulty: 'Medium', startTime: '10:30 AM' },
-    { id: 2, name: 'Data Structure Duel', players: 2, difficulty: 'Hard', startTime: '11:45 AM' },
-    { id: 3, name: 'Frontend Challenge', players: 2, difficulty: 'Easy', startTime: '2:15 PM' }
-  ];
-
-  const tournaments = [
-    {
-      id: 101,
-      name: 'Weekly Algorithm Tournament',
-      participants: 16,
-      rounds: 4,
-      prize: '$500',
-      status: 'Registering',
-      startDate: 'March 5, 2025'
+  // Available matches
+  const availableMatches = [
+    { 
+      id: 'nx-2425', 
+      name: 'Nebula Explorers', 
+      currentPlayers: 6, 
+      maxPlayers: 8, 
+      difficulty: 'Standard', 
+      creator: 'stellarQuest' 
     },
-    {
-      id: 102,
-      name: 'React Masters',
-      participants: 32,
-      rounds: 5,
-      prize: '$1,000',
-      status: 'Registering',
-      startDate: 'March 10, 2025'
+    { 
+      id: 'cr-1872', 
+      name: 'Cosmic Raiders', 
+      currentPlayers: 3, 
+      maxPlayers: 4, 
+      difficulty: 'Advanced', 
+      creator: 'voidWalker' 
     },
-    {
-      id: 103,
-      name: 'Backend Battle Royale',
-      participants: 8,
-      rounds: 3,
-      prize: '$300',
-      status: 'In Progress',
-      startDate: 'March 3, 2025'
+    { 
+      id: 'vx-3310', 
+      name: 'Void Explorers', 
+      currentPlayers: 2, 
+      maxPlayers: 6, 
+      difficulty: 'Standard', 
+      creator: 'nebulaHunter' 
     }
   ];
 
-  const activeBattles = [
-    {
-      id: 201,
-      name: 'Dynamic Programming Challenge',
-      players: [
-        { username: 'codemaster99', avatar: '/api/placeholder/30/30', rating: 1850 },
-        { username: 'algorithmQueen', avatar: '/api/placeholder/30/30', rating: 1920 }
-      ],
-      viewers: 24,
-      timeLeft: '14:22'
-    },
-    {
-      id: 202,
-      name: 'CSS Battle',
-      players: [
-        { username: 'frontendWizard', avatar: '/api/placeholder/30/30', rating: 1720 },
-        { username: 'designDragon', avatar: '/api/placeholder/30/30', rating: 1690 }
-      ],
-      viewers: 13,
-      timeLeft: '08:45'
-    }
+  // Recent players
+  const recentPlayers = [
+    { username: 'nebulaHunter', avatar: '/api/placeholder/30/30', status: 'online' },
+    { username: 'voidWalker', avatar: '/api/placeholder/30/30', status: 'offline' },
+    { username: 'stellarQuest', avatar: '/api/placeholder/30/30', status: 'online' },
+    { username: 'cosmicShift', avatar: '/api/placeholder/30/30', status: 'online' },
   ];
 
-  const leaderboard = [
-    { rank: 1, username: 'algorithmQueen', avatar: '/api/placeholder/30/30', rating: 1920, wins: 42, losses: 7 },
-    { rank: 2, username: 'codemaster99', avatar: '/api/placeholder/30/30', rating: 1850, wins: 38, losses: 10 },
-    { rank: 3, username: 'byteBaron', avatar: '/api/placeholder/30/30', rating: 1810, wins: 35, losses: 12 },
-    { rank: 4, username: 'syntaxSage', avatar: '/api/placeholder/30/30', rating: 1790, wins: 31, losses: 14 },
-    { rank: 5, username: 'frontendWizard', avatar: '/api/placeholder/30/30', rating: 1720, wins: 29, losses: 15 },
-  ];
+  const handleJoinMatch = () => {
+    if (roomCode.trim()) {
+      router.push(`/game?room=${roomCode}&user=${username}`);
+    }
+  };
+
+  const handleCreateMatch = () => {
+    // Generate random room code and redirect
+    const generatedCode = 'NX-' + Math.floor(1000 + Math.random() * 9000);
+    router.push(`/game?room=${generatedCode}&user=${username}&host=true&teamSize=${selectedTeamSize}`);
+  };
+
+  const handleQuickJoin = (matchId: string) => {
+    router.push(`/game?room=${matchId}&user=${username}`);
+  };
 
   return (
-    <div className="flex flex-col w-full max-w-6xl mx-auto p-4 space-y-6">
+    <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Header */}
-      <Navbar username={"test"} icon={"asd"} eloscore={123} />
+      <Navbar eloscore={231} username={username || "Guest"} icon={user?.icon || "default"} />
 
       {/* Main content */}
-      <Tabs defaultValue="battles" onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-3 mb-6">
-          <TabsTrigger value="battles">
-            <Zap className="w-4 h-4 mr-2" />
-            Battles
-          </TabsTrigger>
-          <TabsTrigger value="tournaments">
-            <Trophy className="w-4 h-4 mr-2" />
-            Tournaments
-          </TabsTrigger>
-          <TabsTrigger value="leaderboard">
-            <Users className="w-4 h-4 mr-2" />
-            Leaderboard
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Battles Tab */}
-        <TabsContent value="battles" className="space-y-6">
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Join a Battle</CardTitle>
-                  <CardDescription>Join an existing battle or create your own</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      value={roomCode}
-                      onChange={e => {
-                        setRoomCode(e.target.value)
-                      }}
-                      placeholder="Enter room code"
-                      className="flex-1"
-                    />
-                    <Button
-                      onClick={(e) => {
-                        window.location.href = `/battle?userName=${username}&elo=${100}`
-                      }}
-                    >
-                      Join
-                    </Button>
-                  </div>
-                  <div className="flex justify-center">
-                    <Button variant="outline" className="w-full">
-                      Create New Battle
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            <div className="flex-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Match</CardTitle>
-                  <CardDescription>Find an opponent at your skill level</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex gap-4 justify-center">
-                    <Button variant="default">
-                      Easy
-                    </Button>
-                    <Button variant="outline">
-                      Medium
-                    </Button>
-                    <Button variant="outline">
-                      Hard
-                    </Button>
-                  </div>
-                  <Button className="w-full mt-4">Find Match</Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          {/* <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Battles</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {upcomingBattles.map(battle => (
-                  <div key={battle.id} className="flex justify-between items-center p-3 border rounded-md">
-                    <div>
-                      <p className="font-medium">{battle.name}</p>
-                      <div className="flex gap-2 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <Users className="w-3 h-3 mr-1" />
-                          {battle.players}
-                        </span>
-                        <span>•</span>
-                        <Badge variant="outline" className={
-                          battle.difficulty === 'Easy' ? 'bg-green-100 text-green-800' :
-                          battle.difficulty === 'Medium' ? 'bg-amber-100 text-amber-800' : 
-                          'bg-red-100 text-red-800'
-                        }>
-                          {battle.difficulty}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm flex items-center">
-                        <Timer className="w-4 h-4 mr-1 text-gray-500" />
-                        {battle.startTime}
-                      </span>
-                      <Button size="sm">Join</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Battles</CardTitle>
-              <CardDescription>Watch ongoing battles in real-time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {activeBattles.map(battle => (
-                  <div key={battle.id} className="p-4 border rounded-lg">
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-semibold">{battle.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm flex items-center">
-                          <Eye className="w-4 h-4 mr-1 text-gray-500" />
-                          {battle.viewers}
-                        </span>
-                        <span className="text-sm flex items-center">
-                          <Timer className="w-4 h-4 mr-1 text-gray-500" />
-                          {battle.timeLeft}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Avatar>
-                          <AvatarImage src={battle.players[0].avatar} />
-                          <AvatarFallback>{battle.players[0].username.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{battle.players[0].username}</p>
-                          <Badge variant="outline" className="bg-amber-100">
-                            {battle.players[0].rating}
-                          </Badge>
-                        </div>
-                      </div>
-                      
-                      <div className="text-xl font-bold">VS</div>
-                      
-                      <div className="flex items-center gap-2">
-                        <div className="text-right">
-                          <p className="font-medium">{battle.players[1].username}</p>
-                          <Badge variant="outline" className="bg-amber-100">
-                            {battle.players[1].rating}
-                          </Badge>
-                        </div>
-                        <Avatar>
-                          <AvatarImage src={battle.players[1].avatar} />
-                          <AvatarFallback>{battle.players[1].username.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 flex justify-end">
-                      <Button size="sm">
-                        <Eye className="w-4 h-4 mr-2" />
-                        Watch
+      <div className="flex-1 w-full max-w-6xl mx-auto p-4 space-y-6">
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Main Panel */}
+          <div className="md:col-span-2 space-y-6">
+            <Card className="bg-gray-900 border-gray-800 text-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-2xl flex items-center">
+                  <Gamepad2 className="w-6 h-6 mr-2 text-purple-400" />
+                  Game Nexus
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Enter the void with your team
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-medium text-gray-400">JOIN EXISTING MATCH</h3>
+                    <div className="flex gap-2">
+                      <Input
+                        value={roomCode}
+                        onChange={e => setRoomCode(e.target.value)}
+                        placeholder="Enter room code"
+                        className="flex-1 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
+                      />
+                      <Button
+                        onClick={handleJoinMatch}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        <ArrowRightToLine className="w-4 h-4 mr-2" />
+                        Join
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card> */}
-        </TabsContent>
-
-        {/* Tournaments Tab */}
-        <TabsContent value="tournaments" className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-4">
-            {tournaments.map(tournament => (
-              <Card key={tournament.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{tournament.name}</CardTitle>
-                      <CardDescription>Starts on {tournament.startDate}</CardDescription>
-                    </div>
-                    <Badge className={
-                      tournament.status === 'Registering' ? 'bg-green-100 text-green-800' :
-                        'bg-blue-100 text-blue-800'
-                    }>
-                      {tournament.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Participants</p>
-                      <p className="font-medium">{tournament.participants}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Rounds</p>
-                      <p className="font-medium">{tournament.rounds}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Prize</p>
-                      <p className="font-medium text-amber-600">{tournament.prize}</p>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button className="w-full">
-                    {tournament.status === 'Registering' ? 'Register' : 'View Bracket'}
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Tournament</CardTitle>
-              <CardDescription>Set up your own coding tournament</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">Create Tournament</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Leaderboard Tab */}
-        <TabsContent value="leaderboard">
-          <Card>
-            <CardHeader>
-              <CardTitle>Global Leaderboard</CardTitle>
-              <CardDescription>Top performers this month</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-96">
-                <div className="space-y-1">
-                  {leaderboard.map((player, index) => (
-                    <div
-                      key={player.username}
-                      className={`flex items-center p-3 rounded-md ${index === 0 ? 'bg-amber-50' : index === 1 ? 'bg-slate-50' : index === 2 ? 'bg-orange-50' : ''}`}
-                    >
-                      <div className="w-8 text-center font-semibold">
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : player.rank}
+                  
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-medium text-gray-400">CREATE NEW MATCH</h3>
+                    <div className="flex gap-2">
+                      <div className="flex-1 grid grid-cols-3 gap-2">
+                        <Button 
+                          variant={selectedTeamSize === 2 ? "default" : "outline"} 
+                          onClick={() => setSelectedTeamSize(2)}
+                          className={selectedTeamSize === 2 ? "bg-purple-600 hover:bg-purple-700" : "border-gray-700 text-gray-300"}
+                        >
+                          2v2
+                        </Button>
+                        <Button 
+                          variant={selectedTeamSize === 3 ? "default" : "outline"} 
+                          onClick={() => setSelectedTeamSize(3)}
+                          className={selectedTeamSize === 3 ? "bg-purple-600 hover:bg-purple-700" : "border-gray-700 text-gray-300"}
+                        >
+                          3v3
+                        </Button>
+                        <Button 
+                          variant={selectedTeamSize === 4 ? "default" : "outline"} 
+                          onClick={() => setSelectedTeamSize(4)}
+                          className={selectedTeamSize === 4 ? "bg-purple-600 hover:bg-purple-700" : "border-gray-700 text-gray-300"}
+                        >
+                          4v4
+                        </Button>
                       </div>
-                      <Avatar className="mx-3">
-                        <AvatarImage src={player.avatar} />
-                        <AvatarFallback>{player.username.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium">{player.username}</p>
-                        <div className="flex text-sm text-gray-500">
-                          <span className="flex items-center text-green-600">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            {player.wins}
+                      <Button
+                        onClick={handleCreateMatch}
+                        className="bg-cyan-600 hover:bg-cyan-700"
+                      >
+                        <PlusSquare className="w-4 h-4 mr-2" />
+                        Create
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-900 border-gray-800 text-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl flex items-center">
+                  <Globe className="w-5 h-5 mr-2 text-cyan-400" />
+                  Available Matches
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Join an existing game session
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-80 pr-4">
+                  <div className="space-y-3">
+                    {availableMatches.map(match => (
+                      <div key={match.id} className="flex justify-between items-center p-4 border border-gray-800 rounded-md bg-gray-800/50 hover:bg-gray-800 transition-colors">
+                        <div>
+                          <p className="font-medium text-lg">{match.name}</p>
+                          <div className="flex gap-2 text-sm text-gray-400">
+                            <span className="flex items-center">
+                              <Users className="w-3 h-3 mr-1" />
+                              {match.currentPlayers}/{match.maxPlayers}
+                            </span>
+                            <span>•</span>
+                            <Badge variant="outline" className={
+                              match.difficulty === 'Standard' ? 'bg-cyan-900/30 text-cyan-300 border-cyan-700' : 
+                              match.difficulty === 'Advanced' ? 'bg-purple-900/30 text-purple-300 border-purple-700' : 
+                              'bg-orange-900/30 text-orange-300 border-orange-700'
+                            }>
+                              {match.difficulty}
+                            </Badge>
+                            <span>•</span>
+                            <span className="text-gray-500">ID: {match.id}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm flex items-center text-gray-400">
+                            By: {match.creator}
                           </span>
-                          <span className="mx-1">•</span>
-                          <span className="flex items-center text-red-600">
-                            <XCircle className="w-3 h-3 mr-1" />
-                            {player.losses}
-                          </span>
+                          <Button size="sm" onClick={() => handleQuickJoin(match.id)} className="bg-cyan-600 hover:bg-cyan-700">
+                            <ArrowRightToLine className="w-4 h-4 mr-1" />
+                            Join
+                          </Button>
                         </div>
                       </div>
-                      <Badge variant="outline" className="bg-amber-100">
-                        <Trophy className="w-3 h-3 mr-1 text-amber-500" />
-                        {player.rating}
-                      </Badge>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Side Panel */}
+          <div className="space-y-6">
+            <Card className="bg-gray-900 border-gray-800 text-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl flex items-center">
+                  <Trophy className="w-5 h-5 mr-2 text-amber-400" />
+                  Your Stats
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800 p-4 rounded-md text-center">
+                    <p className="text-gray-400 text-sm">Matches Played</p>
+                    <p className="text-2xl font-bold text-white">42</p>
+                  </div>
+                  <div className="bg-gray-800 p-4 rounded-md text-center">
+                    <p className="text-gray-400 text-sm">Win Rate</p>
+                    <p className="text-2xl font-bold text-cyan-400">68%</p>
+                  </div>
+                  <div className="bg-gray-800 p-4 rounded-md text-center">
+                    <p className="text-gray-400 text-sm">Level</p>
+                    <p className="text-2xl font-bold text-purple-400">17</p>
+                  </div>
+                  <div className="bg-gray-800 p-4 rounded-md text-center">
+                    <p className="text-gray-400 text-sm">Top Rank</p>
+                    <p className="text-2xl font-bold text-amber-400">Diamond</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-900 border-gray-800 text-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl flex items-center">
+                  <Users className="w-5 h-5 mr-2 text-cyan-400" />
+                  Recent Players
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recentPlayers.map(player => (
+                    <div key={player.username} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-800">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="border border-gray-700">
+                          <AvatarImage src={player.avatar} />
+                          <AvatarFallback className="bg-gray-800">{player.username.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{player.username}</p>
+                          <div className="flex items-center text-sm">
+                            <span className={`w-2 h-2 rounded-full mr-2 ${player.status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                            <span className="text-gray-400">{player.status}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-8 border-gray-700">
+                        <UserPlus className="w-4 h-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default CodeBattlePlatform;
+export default GameNexusPlatform;
