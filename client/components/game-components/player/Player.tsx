@@ -350,9 +350,9 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     };
 
     const gravity = -9.8 * 2;
-    const jumpStrength = 15;
+    const jumpStrength = 10;
 
-    const playerSpeed = 10;
+    const playerSpeed = 5;
     const playerHeight = 1.5;
     const controlsRef = useRef<any>(null);
 
@@ -666,6 +666,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         }
 
         playerPosition.copy(camera.position)
+        
 
         const currentTime = performance.now();
 

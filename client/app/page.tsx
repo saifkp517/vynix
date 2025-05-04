@@ -7,285 +7,399 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Gamepad2, 
-  Users, 
-  Timer, 
-  ArrowRightToLine, 
-  UserPlus, 
-  Trophy, 
-  Globe,
-  PlusSquare 
-} from 'lucide-react';
+import { Trophy, Users, Timer, Eye, CheckCircle, XCircle, Zap } from 'lucide-react';
 import Navbar from '@/components/custom/navbar/Navbar';
 import { redirect, useRouter } from 'next/navigation';
 import { useAuth } from './utils/AuthContext';
+import { useThemeConfig } from './theme-provider';
 
-const GameNexusPlatform = () => {
+const CodeBattlePlatform = () => {
   const { user, loading, loggedIn } = useAuth();
+  const { theme } = useThemeConfig();
   const [username, setUsername] = useState("");
+  const [activeTab, setActiveTab] = useState('battles');
   const [roomCode, setRoomCode] = useState('');
-  const [selectedTeamSize, setSelectedTeamSize] = useState(4);
   const router = useRouter();
 
   useEffect(() => {
-    if(loading === false && loggedIn === false) {
-      redirect("/login");
+    console.log(loading, loggedIn)
+    if (loading == false && loggedIn == false) {
+      redirect("/login")
     }
-    setUsername(user?.username);
-  }, [user, loading, loggedIn]);
+    setUsername(user?.username)
+  }, [user]);
 
-  // Available matches
-  const availableMatches = [
-    { 
-      id: 'nx-2425', 
-      name: 'Nebula Explorers', 
-      currentPlayers: 6, 
-      maxPlayers: 8, 
-      difficulty: 'Standard', 
-      creator: 'stellarQuest' 
+  // Demo data
+  const upcomingBattles = [
+    { id: 1, name: 'Algorithm Showdown', numberOfPlayers: 2 },
+    { id: 2, name: 'Data Structure Duel', numberOfPlayers: 2 },
+    { id: 3, name: 'Frontend Challenge', numberOfPlayers: 2 }
+  ];
+
+  const tournaments = [
+    {
+      id: 101,
+      name: 'Weekly Algorithm Tournament',
+      participants: 16,
+      rounds: 4,
+      prize: '$500',
+      status: 'Registering',
+      startDate: 'March 5, 2025'
     },
-    { 
-      id: 'cr-1872', 
-      name: 'Cosmic Raiders', 
-      currentPlayers: 3, 
-      maxPlayers: 4, 
-      difficulty: 'Advanced', 
-      creator: 'voidWalker' 
+    {
+      id: 102,
+      name: 'React Masters',
+      participants: 32,
+      rounds: 5,
+      prize: '$1,000',
+      status: 'Registering',
+      startDate: 'March 10, 2025'
     },
-    { 
-      id: 'vx-3310', 
-      name: 'Void Explorers', 
-      currentPlayers: 2, 
-      maxPlayers: 6, 
-      difficulty: 'Standard', 
-      creator: 'nebulaHunter' 
+    {
+      id: 103,
+      name: 'Backend Battle Royale',
+      participants: 8,
+      rounds: 3,
+      prize: '$300',
+      status: 'In Progress',
+      startDate: 'March 3, 2025'
     }
   ];
 
-  // Recent players
-  const recentPlayers = [
-    { username: 'nebulaHunter', avatar: '/api/placeholder/30/30', status: 'online' },
-    { username: 'voidWalker', avatar: '/api/placeholder/30/30', status: 'offline' },
-    { username: 'stellarQuest', avatar: '/api/placeholder/30/30', status: 'online' },
-    { username: 'cosmicShift', avatar: '/api/placeholder/30/30', status: 'online' },
+  const activeBattles = [
+    {
+      id: 201,
+      name: 'Dynamic Programming Challenge',
+      players: [
+        { username: 'codemaster99', avatar: '/api/placeholder/30/30', rating: 1850 },
+        { username: 'algorithmQueen', avatar: '/api/placeholder/30/30', rating: 1920 }
+      ],
+      viewers: 24,
+      timeLeft: '14:22'
+    },
+    {
+      id: 202,
+      name: 'CSS Battle',
+      players: [
+        { username: 'frontendWizard', avatar: '/api/placeholder/30/30', rating: 1720 },
+        { username: 'designDragon', avatar: '/api/placeholder/30/30', rating: 1690 }
+      ],
+      viewers: 13,
+      timeLeft: '08:45'
+    }
   ];
 
-  const handleJoinMatch = () => {
-    if (roomCode.trim()) {
-      router.push(`/game?room=${roomCode}&user=${username}`);
-    }
-  };
-
-  const handleCreateMatch = () => {
-    // Generate random room code and redirect
-    const generatedCode = 'NX-' + Math.floor(1000 + Math.random() * 9000);
-    router.push(`/game?room=${generatedCode}&user=${username}&host=true&teamSize=${selectedTeamSize}`);
-  };
-
-  const handleQuickJoin = (matchId: string) => {
-    router.push(`/game?room=${matchId}&user=${username}`);
-  };
+  const leaderboard = [
+    { rank: 1, username: 'algorithmQueen', avatar: '/api/placeholder/30/30', rating: 1920, wins: 42, losses: 7 },
+    { rank: 2, username: 'codemaster99', avatar: '/api/placeholder/30/30', rating: 1850, wins: 38, losses: 10 },
+    { rank: 3, username: 'byteBaron', avatar: '/api/placeholder/30/30', rating: 1810, wins: 35, losses: 12 },
+    { rank: 4, username: 'syntaxSage', avatar: '/api/placeholder/30/30', rating: 1790, wins: 31, losses: 14 },
+    { rank: 5, username: 'frontendWizard', avatar: '/api/placeholder/30/30', rating: 1720, wins: 29, losses: 15 },
+  ];
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className={`flex flex-col w-full mx-auto p-4 space-y-6 ${
+      theme.name === 'dark' 
+        ? 'bg-gray-900 text-white' 
+        : 'bg-gray-50 text-gray-900'
+    }`}>
       {/* Header */}
-      <Navbar eloscore={231} username={username || "Guest"} icon={user?.icon || "default"} />
+      <Navbar username={"test"} icon={"asd"} eloscore={123} />
 
       {/* Main content */}
-      <div className="flex-1 w-full max-w-6xl mx-auto p-4 space-y-6">
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Main Panel */}
-          <div className="md:col-span-2 space-y-6">
-            <Card className="bg-gray-900 border-gray-800 text-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-2xl flex items-center">
-                  <Gamepad2 className="w-6 h-6 mr-2 text-purple-400" />
-                  Game Nexus
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Enter the void with your team
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-gray-400">JOIN EXISTING MATCH</h3>
-                    <div className="flex gap-2">
-                      <Input
-                        value={roomCode}
-                        onChange={e => setRoomCode(e.target.value)}
-                        placeholder="Enter room code"
-                        className="flex-1 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
-                      />
-                      <Button
-                        onClick={handleJoinMatch}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        <ArrowRightToLine className="w-4 h-4 mr-2" />
-                        Join
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-gray-400">CREATE NEW MATCH</h3>
-                    <div className="flex gap-2">
-                      <div className="flex-1 grid grid-cols-3 gap-2">
-                        <Button 
-                          variant={selectedTeamSize === 2 ? "default" : "outline"} 
-                          onClick={() => setSelectedTeamSize(2)}
-                          className={selectedTeamSize === 2 ? "bg-purple-600 hover:bg-purple-700" : "border-gray-700 text-gray-300"}
-                        >
-                          2v2
-                        </Button>
-                        <Button 
-                          variant={selectedTeamSize === 3 ? "default" : "outline"} 
-                          onClick={() => setSelectedTeamSize(3)}
-                          className={selectedTeamSize === 3 ? "bg-purple-600 hover:bg-purple-700" : "border-gray-700 text-gray-300"}
-                        >
-                          3v3
-                        </Button>
-                        <Button 
-                          variant={selectedTeamSize === 4 ? "default" : "outline"} 
-                          onClick={() => setSelectedTeamSize(4)}
-                          className={selectedTeamSize === 4 ? "bg-purple-600 hover:bg-purple-700" : "border-gray-700 text-gray-300"}
-                        >
-                          4v4
-                        </Button>
-                      </div>
-                      <Button
-                        onClick={handleCreateMatch}
-                        className="bg-cyan-600 hover:bg-cyan-700"
-                      >
-                        <PlusSquare className="w-4 h-4 mr-2" />
-                        Create
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      <Tabs defaultValue="battles" onValueChange={setActiveTab} className="w-full">
+        <TabsList className={`grid grid-cols-3 mb-6 ${
+          theme.name === 'dark' ? 'bg-gray-800' : 'bg-white shadow-sm'
+        }`}>
+          <TabsTrigger value="battles" aria-label="Battles" className="flex items-center gap-2">
+            <Zap className="w-5 h-5" />
+            <span className="hidden sm:inline">Battles</span>
+          </TabsTrigger>
+          <TabsTrigger value="tournaments" aria-label="Tournaments" className="flex items-center gap-2">
+            <Trophy className="w-5 h-5" />
+            <span className="hidden sm:inline">Tournaments</span>
+          </TabsTrigger>
+            <TabsTrigger value="leaderboard" aria-label="Leaderboard" className="flex items-center gap-2">
+            <Eye className="w-5 h-5" />
+            <span className="hidden sm:inline">Store</span>
+            </TabsTrigger>
+        </TabsList>
 
-            <Card className="bg-gray-900 border-gray-800 text-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl flex items-center">
-                  <Globe className="w-5 h-5 mr-2 text-cyan-400" />
-                  Available Matches
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Join an existing game session
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-80 pr-4">
-                  <div className="space-y-3">
-                    {availableMatches.map(match => (
-                      <div key={match.id} className="flex justify-between items-center p-4 border border-gray-800 rounded-md bg-gray-800/50 hover:bg-gray-800 transition-colors">
-                        <div>
-                          <p className="font-medium text-lg">{match.name}</p>
-                          <div className="flex gap-2 text-sm text-gray-400">
-                            <span className="flex items-center">
-                              <Users className="w-3 h-3 mr-1" />
-                              {match.currentPlayers}/{match.maxPlayers}
-                            </span>
-                            <span>•</span>
-                            <Badge variant="outline" className={
-                              match.difficulty === 'Standard' ? 'bg-cyan-900/30 text-cyan-300 border-cyan-700' : 
-                              match.difficulty === 'Advanced' ? 'bg-purple-900/30 text-purple-300 border-purple-700' : 
-                              'bg-orange-900/30 text-orange-300 border-orange-700'
-                            }>
-                              {match.difficulty}
-                            </Badge>
-                            <span>•</span>
-                            <span className="text-gray-500">ID: {match.id}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm flex items-center text-gray-400">
-                            By: {match.creator}
-                          </span>
-                          <Button size="sm" onClick={() => handleQuickJoin(match.id)} className="bg-cyan-600 hover:bg-cyan-700">
-                            <ArrowRightToLine className="w-4 h-4 mr-1" />
-                            Join
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+        {/* Battles Tab */}
+        <TabsContent value="battles" className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <Card className={
+                theme.name === 'dark' 
+                  ? 'bg-gray-800 border-gray-700' 
+                  : 'bg-white border-gray-200 shadow-sm'
+              }>
+                <CardHeader>
+                  <CardTitle>Join a Battle</CardTitle>
+                  <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Join an existing battle or create your own</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      value={roomCode}
+                      onChange={e => {
+                        setRoomCode(e.target.value)
+                      }}
+                      placeholder="Enter room code"
+                      className={`flex-1 ${
+                        theme.name === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-gray-50 border-gray-200'
+                      }`}
+                    />
+                    <Button
+                      onClick={(e) => {
+                        window.location.href = `/battle?userName=${username}&elo=${100}`
+                      }}
+                      className={
+                        theme.name === 'dark' 
+                          ? 'bg-gray-500 hover:bg-gray-400' 
+                          : 'bg-gray-300 hover:bg-gray-500 text-white'
+                      }
+                    >
+                      Join
+                    </Button>
                   </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                  <div className="flex justify-center">
+                    <Button 
+                      variant="outline" 
+                      className={`w-full ${
+                        theme.name === 'dark' 
+                          ? 'border-gray-600 hover:bg-gray-700 text-white' 
+                          : 'border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      Create New Battle
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
-          {/* Side Panel */}
-          <div className="space-y-6">
-            <Card className="bg-gray-900 border-gray-800 text-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl flex items-center">
-                  <Trophy className="w-5 h-5 mr-2 text-amber-400" />
-                  Your Stats
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-800 p-4 rounded-md text-center">
-                    <p className="text-gray-400 text-sm">Matches Played</p>
-                    <p className="text-2xl font-bold text-white">42</p>
-                  </div>
-                  <div className="bg-gray-800 p-4 rounded-md text-center">
-                    <p className="text-gray-400 text-sm">Win Rate</p>
-                    <p className="text-2xl font-bold text-cyan-400">68%</p>
-                  </div>
-                  <div className="bg-gray-800 p-4 rounded-md text-center">
-                    <p className="text-gray-400 text-sm">Level</p>
-                    <p className="text-2xl font-bold text-purple-400">17</p>
-                  </div>
-                  <div className="bg-gray-800 p-4 rounded-md text-center">
-                    <p className="text-gray-400 text-sm">Top Rank</p>
-                    <p className="text-2xl font-bold text-amber-400">Diamond</p>
-                  </div>
+          <Card className={
+            theme.name === 'dark' 
+              ? 'bg-gray-800 border-gray-700' 
+              : 'bg-white border-gray-200 shadow-sm'
+          }>
+            <CardHeader>
+              <CardTitle>
+                <div className="flex items-center">
+                  Active Matches
+                  <span className="relative ml-2 mb-2">
+                    <span className="absolute inline-flex h-2 w-2 rounded-full bg-green-500 opacity-75 animate-ping"></span>
+                    <span className="absolute inline-flex h-2 w-2 rounded-full bg-green-600"></span>
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gray-900 border-gray-800 text-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl flex items-center">
-                  <Users className="w-5 h-5 mr-2 text-cyan-400" />
-                  Recent Players
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {recentPlayers.map(player => (
-                    <div key={player.username} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-800">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="border border-gray-700">
-                          <AvatarImage src={player.avatar} />
-                          <AvatarFallback className="bg-gray-800">{player.username.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{player.username}</p>
-                          <div className="flex items-center text-sm">
-                            <span className={`w-2 h-2 rounded-full mr-2 ${player.status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`}></span>
-                            <span className="text-gray-400">{player.status}</span>
-                          </div>
-                        </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {upcomingBattles.map(battle => (
+                  <div 
+                    key={battle.id} 
+                    className={`flex flex-col sm:flex-row justify-between items-center p-3 border rounded-md ${
+                      theme.name === 'dark' 
+                        ? 'border-gray-700 bg-gray-700/50' 
+                        : 'border-gray-200 bg-white shadow-sm'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">MatchId: {battle.id}</p>
                       </div>
-                      <Button size="sm" variant="outline" className="h-8 border-gray-700">
-                        <UserPlus className="w-4 h-4" />
-                      </Button>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="flex items-center gap-3 mt-2 sm:mt-0">
+                      <span className={`text-sm flex items-center ${
+                        theme.name === 'dark' ? 'text-gray-300' : 'text-gray-600'
+                      }`}>
+                        <Users className="w-4 h-4 mr-1" />
+                        {battle.numberOfPlayers}/10
+                      </span>
+                      <Button 
+                        size="sm"
+                        className={
+                          theme.name === 'dark' 
+                            ? 'bg-blue-600 hover:bg-blue-700' 
+                            : 'bg-blue-500 hover:bg-blue-600 text-white'
+                        }
+                      >Join</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tournaments Tab */}
+        <TabsContent value="tournaments" className="space-y-6">
+          <span className={`text-xl font-semibold ${theme.name === 'dark' ? 'text-gray-300' : 'text-gray-400'}`}>Coming Soon</span>
+
+          <div className="grid md:grid-cols-2 gap-4 relative">
+            <div className="absolute inset-0 flex items-center justify-center bg-transparent opacity-0 rounded-2xl z-10">
+            </div>
+            <div className="blur-sm pointer-events-none">
+              {tournaments.map(tournament => (
+                <Card key={tournament.id} className={
+                  theme.name === 'dark' 
+                    ? 'bg-gray-800 border-gray-700' 
+                    : 'bg-white border-gray-200 shadow-sm'
+                }>
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle>{tournament.name}</CardTitle>
+                        <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Starts on {tournament.startDate}</CardDescription>
+                      </div>
+                      <Badge className={
+                        tournament.status === 'Registering' 
+                          ? theme.name === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'
+                          : theme.name === 'dark' ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-800'
+                      }>
+                        {tournament.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      <div>
+                        <p className={`text-sm ${
+                        theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      }`}>Participants</p>
+                        <p className="font-medium">{tournament.participants}</p>
+                      </div>
+                      <div>
+                        <p className={`text-sm ${
+                        theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      }`}>Rounds</p>
+                        <p className="font-medium">{tournament.rounds}</p>
+                      </div>
+                      <div>
+                        <p className={`text-sm ${
+                        theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      }`}>Prize</p>
+                        <p className={`font-medium ${theme.name === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>{tournament.prize}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      className={`w-full ${
+                        theme.name === 'dark' 
+                          ? 'bg-blue-600 hover:bg-blue-700' 
+                          : 'bg-blue-500 hover:bg-blue-600 text-white'
+                      }`}
+                    >
+                      {tournament.status === 'Registering' ? 'Register' : 'View Bracket'}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+
+          <Card className={
+            theme.name === 'dark' 
+              ? 'bg-gray-800 border-gray-700' 
+              : 'bg-white border-gray-200 shadow-sm'
+          }>
+            <CardHeader>
+              <CardTitle>Create Tournament</CardTitle>
+              <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Set up your own coding tournament</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                className={`w-full ${
+                  theme.name === 'dark' 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                }`}
+              >Create Tournament</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Leaderboard Tab */}
+        <TabsContent value="leaderboard">
+          <span className={`text-xl font-semibold ${theme.name === 'dark' ? 'text-gray-300' : 'text-gray-400'}`}>Coming Soon</span>
+
+          <div className="grid md:grid-cols-2 gap-4 relative">
+            <div className="absolute inset-0 flex items-center justify-center bg-transparent opacity-0 rounded-2xl z-10">
+            </div>
+            <div className="blur-sm pointer-events-none">
+              <Card className={
+                theme.name === 'dark' 
+                  ? 'bg-gray-800 border-gray-700' 
+                  : 'bg-white border-gray-200 shadow-sm'
+              }>
+                <CardHeader>
+                  <CardTitle>Global Leaderboard</CardTitle>
+                  <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Top performers this month</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-96">
+                    <div className="space-y-1">
+                      {leaderboard.map((player, index) => (
+                        <div
+                          key={player.username}
+                          className={`flex items-center p-3 rounded-md ${
+                            theme.name === 'dark' 
+                              ? index === 0 ? 'bg-amber-900/30' : index === 1 ? 'bg-gray-700' : index === 2 ? 'bg-orange-900/30' : ''
+                              : index === 0 ? 'bg-amber-100' : index === 1 ? 'bg-slate-100' : index === 2 ? 'bg-orange-100' : 'bg-white'
+                          }`}
+                        >
+                          <div className="w-8 text-center font-semibold">
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : player.rank}
+                          </div>
+                          <Avatar className="mx-3">
+                            <AvatarImage src={player.avatar} />
+                            <AvatarFallback>{player.username.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="font-medium">{player.username}</p>
+                            <div className={`flex text-sm ${
+                              theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              <span className={`flex items-center ${theme.name === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                {player.wins}
+                              </span>
+                              <span className="mx-1">•</span>
+                              <span className={`flex items-center ${theme.name === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
+                                <XCircle className="w-3 h-3 mr-1" />
+                                {player.losses}
+                              </span>
+                            </div>
+                          </div>
+                          <Badge 
+                            variant="outline" 
+                            className={
+                              theme.name === 'dark' 
+                                ? 'bg-amber-900/50 text-amber-300 border-amber-700' 
+                                : 'bg-amber-200 text-amber-800 border-amber-300'
+                            }
+                          >
+                            <Trophy className={`w-3 h-3 mr-1 ${theme.name === 'dark' ? 'text-amber-400' : 'text-amber-500'}`} />
+                            {player.rating}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
 
-export default GameNexusPlatform;
+export default CodeBattlePlatform;

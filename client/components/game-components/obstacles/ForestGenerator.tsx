@@ -6,11 +6,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 
 interface ForestProps {
-  center: [number, number, number];
-  radius: number;
-  density: number; // trees per unit
-  types: string[]; // Tree types
-  getGroundHeight: (x: number, z: number) => number;
+  treePositions: TreePosition[];
   addObstacleRef: (ref: THREE.Mesh | null) => void;
 }
 
@@ -469,38 +465,13 @@ const TreeColliders: React.FC<{ positions: TreePosition[], addObstacleRef: (ref:
 
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
-  center,
-  radius,
-  density,
-  types,
-  getGroundHeight,
+  treePositions,
   addObstacleRef,
 }) => {
 
   console.log("forest called")
   // Calculate tree positions only once
-  const treePositions = useMemo(() => {
-    const positions: TreePosition[] = [];
-    const treeCount = Math.floor(radius * radius * density);
 
-    // Calculate unique positions for trees
-    for (let i = 0; i < treeCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.sqrt(Math.random()) * radius;
-
-      const x = center[0] + Math.cos(angle) * dist;
-      const z = center[2] + Math.sin(angle) * dist;
-      const y = getGroundHeight(x, z) + 1.5;
-
-      positions.push({
-        position: [x, y, z] as [number, number, number],
-        rotation: Math.random() * Math.PI * 2,
-        scale: 0.8 + Math.random() * 0.4
-      });
-    }
-
-    return positions;
-  }, [center, radius, density, getGroundHeight]);
 
   return (
     <group name="forest">
