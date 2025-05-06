@@ -2,6 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber'
+import socket from '@/lib/socket';
 import { Howl } from 'howler';
 import Explosion from '../explosion/Explosion';
 import * as THREE from 'three';
@@ -11,19 +12,48 @@ import * as THREE from 'three';
 interface PlayerProps {
     obstacles: any;
     getGroundHeight: (x: number, z: number) => number;
-    onPositionChange: (pos: THREE.Vector3) => void;
     otherPlayers: { [playerId: string]: THREE.Vector3 };
 }
 
 type FireballProps = {
     position: THREE.Vector3;
+    getGroundHeight: (x: number, z: number) => number;
     direction: THREE.Vector3;
     speed?: number;
     obstacles?: THREE.Mesh[];
     onExplode: (position: THREE.Vector3) => void;
 };
 
-const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obstacles, onExplode }) => {
+type GunProps = {
+    camera: THREE.Camera
+}
+
+const Gun = ({ camera }: { camera: THREE.Camera }) => {
+    const gunRef = useRef<THREE.Mesh>(null)
+
+    useFrame(() => {
+        if (gunRef.current) {
+            // Get direction the camera is facing
+            const direction = new THREE.Vector3()
+            camera.getWorldDirection(direction)
+
+            // Position the gun slightly in front and to the right of the camera
+
+            gunRef.current.quaternion.copy(camera.quaternion)
+        }
+    })
+
+    return (
+        <mesh ref={gunRef} position={[0.5, -0.3, -0.8]}>
+            <boxGeometry args={[0.1, 0.1, 0.5]} />
+            <meshStandardMaterial color="gray" />
+        </mesh>
+    )
+}
+
+
+
+const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, direction, speed = 6, obstacles, onExplode }) => {
     const fireballRef = useRef<THREE.Mesh>(null);
     const startTime = useRef<number>(Date.now());
 
@@ -51,7 +81,8 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obs
         // Collision detection with ground and obstacles
         const fireballPosition = fireballRef.current.position.clone();
 
-        if (fireballPosition.y <= 0) {
+
+        if (fireballPosition.y <= getGroundHeight(fireballPosition.x, fireballPosition.z)) {
             onExplode(fireballPosition);
             return;
         }
@@ -83,7 +114,7 @@ const Fireball: React.FC<FireballProps> = ({ position, direction, speed = 6, obs
 
 
 
-const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundHeight, otherPlayers }) => {
+const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayers }) => {
 
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
@@ -93,6 +124,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     const jumpDirection = useRef(new THREE.Vector3());
     const isJumpingRef = useRef(false);
     const [fireballs, setFireballs] = useState<{ id: number; position: THREE.Vector3; direction: THREE.Vector3 }[]>([]);
+    const shootCooldown = useRef(false); // Ref to manage shooting cooldown
     const [collisionType, setCollisionType] = useState("");
     const [explosions, setExplosions] = useState<{ id: number; position: THREE.Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
@@ -100,6 +132,38 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
 
 
+    const raycaster = new THREE.Raycaster();
+    const shootDirection = new THREE.Vector3();
+    const recoilProgress = useRef(0);
+    const isRecoiling = useRef(false);
+    const gunRef = useRef<THREE.Group | null>(null);
+    
+
+    function handleShoot() {
+        console.log("shot")
+
+        // Get direction camera is facing
+        camera.getWorldDirection(shootDirection);
+
+        // Set ray origin and direction
+        raycaster.set(camera.position, shootDirection);
+
+        // Raycast against all mesh objects in the scene
+        const intersects = raycaster.intersectObjects(obstacles); // true = recursive
+
+        if (intersects.length > 0) {
+            const firstHit = intersects[0];
+            console.log('🔫 Hit:', firstHit.object.name, 'at', firstHit.point);
+
+            // Optional: show visual effect or apply logic
+            // e.g., firstHit.object.material.color.set('red');
+        }
+
+
+        // Start recoil
+        isRecoiling.current = true;
+        recoilProgress.current = 0;
+    }
 
     const checkCollisions = (playerPosition: THREE.Vector3) => {
 
@@ -277,9 +341,13 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     };
 
 
+    const handlePositionChange = React.useCallback((pos: THREE.Vector3) => {
+        socket.emit("updatePosition", pos);
+    }, []);
 
 
-    const handleShoot = () => {
+
+    const handleFireballShoot = () => {
         if (!playerRef.current) return;
 
         const startPosition = playerRef.current.position.clone();
@@ -346,10 +414,10 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     };
 
     const gravity = -9.8 * 2;
-    const jumpStrength = 15;
+    const jumpStrength = 10;
 
-    const playerSpeed = 10;
-    const playerHeight = 2;
+    const playerSpeed = 5;
+    const playerHeight = 1.5;
     const controlsRef = useRef<any>(null);
 
     const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -372,6 +440,16 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
                 case 'KeyS': setMoveState(prev => ({ ...prev, backward: true })); break;
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: true })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
+                case 'KeyQ': {
+                    if (!shootCooldown.current) {
+                        handleFireballShoot();
+                        shootCooldown.current = true;
+                        setTimeout(() => {
+                            shootCooldown.current = false;
+                        }, 60000); // 1 minute cooldown
+                    }
+                    break;
+                }
                 case 'Space':
                     jumpRequested.current = true;
                     break;
@@ -392,12 +470,12 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
 
         document.addEventListener('keydown', handleKeyDown);
         document.addEventListener('keyup', handleKeyUp);
-        document.addEventListener('mousedown', handleShoot)
+        document.addEventListener('mousedown', (e) => handleShoot());
 
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
             document.removeEventListener('keyup', handleKeyUp);
-            document.addEventListener('mousedown', handleShoot)
+            window.removeEventListener('mousedown', (e) => handleShoot());
         };
     }, []);
 
@@ -405,6 +483,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
         if (!controlsRef.current?.isLocked) return;
+
 
         let isGrounded = false;
 
@@ -661,13 +740,40 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
             }
         }
 
+
+
+        //sync player rotation with camera
+        if (playerRef.current) {
+            playerRef.current.position.copy(camera.position);
+            // Sync rotation — full 3D (quaternion handles X, Y, Z correctly)
+            playerRef.current.quaternion.copy(camera.quaternion);
+        }
+
+        //gun mechanics
+        if (!gunRef.current) return;
+
+        if (isRecoiling.current) {
+            recoilProgress.current += delta * 1; // Fast in
+            if (recoilProgress.current >= 1) {
+                recoilProgress.current = 1;
+                isRecoiling.current = false;
+            }
+
+            const zOffset = -0.1 * Math.sin(recoilProgress.current * Math.PI); // quick back and forth
+            gunRef.current.position.z = -0.6 + zOffset;
+        } else {
+            // Ensure it stays forward if no shooting
+            gunRef.current.position.z = -0.6;
+        }
+
         playerPosition.copy(camera.position)
+
 
         const currentTime = performance.now();
 
         // Only emit the position change every 100ms
         if (currentTime - lastUpdateTime.current >= 100) {
-            onPositionChange(playerPosition.clone());
+            handlePositionChange(playerPosition.clone());
             lastUpdateTime.current = currentTime; // Update the last update time
         }
 
@@ -681,6 +787,7 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
                 <Fireball
                     key={fireball.id}
                     position={fireball.position}
+                    getGroundHeight={getGroundHeight}
                     direction={fireball.direction}
                     obstacles={obstacles || []} // Pass obstacle references here
                     onExplode={handleExplosion}
@@ -701,6 +808,21 @@ const Player: React.FC<PlayerProps> = ({ onPositionChange, obstacles, getGroundH
                     {/* <capsuleGeometry args={[0.5, 1, 8, 16]} /> */}
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
+
+                {/* Gun (attached to player's right hand) */}
+                <group ref={gunRef} position={[0.5, -0.5, -0.5]}>
+                    {/* Gun body */}
+                    <mesh>
+                        <boxGeometry args={[0.4, 0.2, 1]} />
+                        <meshStandardMaterial color="gray" />
+                    </mesh>
+
+                    {/* Gun barrel */}
+                    <mesh position={[0, 0, -0.7]}>
+                        <cylinderGeometry args={[0.05, 0.05, 0.5, 16]} />
+                        <meshStandardMaterial color="black" />
+                    </mesh>
+                </group>
             </group>
         </>
     );

@@ -21,18 +21,19 @@ const app = express();
 const httpServer = createServer(app)
 const io = new Server(httpServer, {
     cors: {
-        origin: "http://localhost:3000",
+        origin: ["http://localhost:3000", "https://vynix-git-multiplayer-my-team-e0738a04.vercel.app"],
         credentials: true
     }
-})
+});
 
-//middleware
 app.use(cors({
-    origin: "http://localhost:3000", // Allow frontend on port 3000
+    origin: ["http://localhost:3000", "https://vynix-git-multiplayer-my-team-e0738a04.vercel.app"], // Allow frontend origins
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Allowed HTTP methods
     allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
     credentials: true // Allow cookies and credentials
 }));
+
+
 app.use(express.json());
 app.use(cookieParser());
 

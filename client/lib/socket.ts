@@ -1,6 +1,7 @@
 // socket.ts
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:4000");
+console.log("Connecting to socket server at: ", process.env.DOMAIN_URL);
+const socket = io(process.env.DOMAIN_URL);
 
 export default socket;
