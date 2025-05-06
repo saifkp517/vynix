@@ -13,6 +13,12 @@ type GroundHeightContextType = {
   getGroundHeight: (x: number, z: number) => number;
 };
 
+interface TreePosition {
+  position: [number, number, number];
+  rotation: number;
+  scale: number;
+}
+
 const GroundHeightContext = createContext<GroundHeightContextType | null>(null);
 
 // Hook to use the ground height from any child component
@@ -32,7 +38,7 @@ type GroundProps = {
 };
 
 // RainEffect component is memoized to prevent unnecessary rerenders
-const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }) => {
+const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }: any) => {
   const rainRef = useRef<Points>(null);
 
   // Create raindrops - memoized so it's not recreated on rerenders
@@ -88,15 +94,47 @@ const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity 
   );
 });
 
+
+
 // ForestWrapper component is memoized to prevent unnecessary rerenders
-const ForestWrapper = memo(({ center, radius, density, types, getGroundHeight, addObstacleRef }) => {
+const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef }: any) => {
+
+  const treePositions = useMemo(() => {
+    const positions: TreePosition[] = [];
+    const treeCount = Math.floor(radius * radius * density);
+
+    // Seeded random number generator
+    const seed = 12345; // Replace with a consistent seed value
+    let random = (function (seed) {
+      let value = seed;
+      return () => {
+        value = (value * 9301 + 49297) % 233280;
+        return value / 233280;
+      };
+    })(seed);
+
+    // Calculate unique positions for trees
+    for (let i = 0; i < treeCount; i++) {
+      const angle = random() * Math.PI * 2;
+      const dist = Math.sqrt(random()) * radius;
+
+      const x = center[0] + Math.cos(angle) * dist;
+      const z = center[2] + Math.sin(angle) * dist;
+      const y = getGroundHeight(x, z) + 1.5;
+
+      positions.push({
+        position: [x, y, z] as [number, number, number],
+        rotation: random() * Math.PI * 2,
+        scale: 0.8 + random() * 0.4
+      });
+    }
+
+    return positions;
+  }, [center, radius, density, getGroundHeight]);
+
   return (
     <Forest
-      center={center}
-      radius={radius}
-      density={density}
-      types={types}
-      getGroundHeight={getGroundHeight}
+      treePositions={treePositions}
       addObstacleRef={addObstacleRef}
     />
   );
@@ -109,7 +147,6 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   fogColor = "#B0C4DE",
   addObstacleRef
 }, ref) => {
-  console.log("Ground component rendered");
 
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
@@ -119,7 +156,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Load textures once
   const [grassMap, roughnessMap, noiseMap] = useLoader(TextureLoader, [
     "/textures/grass.jpg",
-    "/textures/grass_rough.jpg", 
+    "/textures/grass_rough.jpg",
     "/textures/grass_normal.jpg"
   ]);
 
@@ -152,10 +189,11 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Define height logic - memoized so it's stable across renders
   const getGroundHeight = useMemo(() => {
     return (x: number, z: number): number => {
-      const primaryFrequency = 0.1;
+      const primaryFrequency = 0.05;
+      // Higher frequency = more hills, lower frequency = larger hills
       const secondaryFrequency = 0.2;
-      const amplitude = 1.5;
-      const noiseAmplitude = 0.4;
+      const amplitude = 5; // increases height of hills
+      const noiseAmplitude = 0.2; // increases noise variation
 
       const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
       const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
@@ -184,7 +222,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   useEffect(() => {
     // Skip if already processed
     if (initializedRef.current) return;
-    
+
     // Grass texture setup
     grassMap.wrapS = grassMap.wrapT = THREE.RepeatWrapping;
     grassMap.repeat.set(100, 100);
@@ -239,7 +277,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
     posAttr.needsUpdate = true;
     geom.computeVertexNormals();
-    
+
     // Mark as deformed so we don't repeat this process
     geom.userData.deformed = true;
   }, [getGroundHeight]);
@@ -257,7 +295,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const forestProps = useMemo(() => ({
     center: [0, 0, 0],
     radius: 300,
-    density: 0.005,
+    density: 0.01,
     types: ["banyan"],
     getGroundHeight,
     addObstacleRef
@@ -320,7 +358,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         size={0.3}
         color="#A9CCE3"
         intensity={1.2}
-        area={200}
+        area={2000}
       />
 
       {/* Forest - memoized component */}

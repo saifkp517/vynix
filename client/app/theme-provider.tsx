@@ -69,6 +69,7 @@ export function ThemeConfigProvider({
       document.documentElement.classList.add(getUIStyleClass(theme.uiStyle));
     }
   };
+  
 
   return (
     <ThemeConfigContext.Provider value={{ theme, updateTheme }}>
@@ -87,7 +88,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       {...props}
     >
       <ThemeConfigProvider>
-        {children}
+      {children}
       </ThemeConfigProvider>
     </NextThemesProvider>
   );

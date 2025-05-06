@@ -1,19 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import { FBXLoader } from 'three-stdlib';
 import * as THREE from "three";
 
 export const Opponent = ({
-  initialPosition = new THREE.Vector3(0, 0, 0),
+  positionRef,
   isRemote = false,
   getGroundHeight,
-  onPositionChange,
   addObstacleRef,
   isHit = false
 }: {
-  initialPosition?: THREE.Vector3;
+  positionRef: () => THREE.Vector3 | null;
   isRemote?: boolean;
   getGroundHeight: (x: number, z: number) => number;
-  onPositionChange?: (position: THREE.Vector3) => void;
   addObstacleRef?: (ref: THREE.Mesh | null) => void;
   isHit?: boolean;
 }) => {
@@ -21,58 +20,68 @@ export const Opponent = ({
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  const targetPosition = useRef(new THREE.Vector3(initialPosition.x, initialPosition.y, initialPosition.z));
-  // This is the current visible position
-  const currentPosition = useRef(new THREE.Vector3(initialPosition.x, initialPosition.y, initialPosition.z));
+  const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
 
-  const { camera } = useThree();
+  const [model, setModel] = useState<THREE.Group | undefined>();
+
+  const url = '/assets/robot.fbx'; // Replace with your model URL
 
   useEffect(() => {
-    if (meshRef.current) {
-      const x = initialPosition.x;
-      const z = initialPosition.z;
-      const y = getGroundHeight(x, z);
-      meshRef.current.position.set(x, y, z);
-      targetPosition.current.set(initialPosition.x, initialPosition.y, initialPosition.z);
+    const loader = new FBXLoader();
+    loader.load(url, (fbx) => {
+      fbx.scale.set(0.01, 0.01, 0.01); // Adjust scale as needed
+      setModel(fbx);
+    });
+  }, [url]);
 
+  useEffect(() => {
+    if (addObstacleRef) {
+      addObstacleRef(meshRef.current);
+    }
+  
+    // Cleanup function to remove the reference when the component unmounts
+    return () => {
       if (addObstacleRef) {
-        addObstacleRef(meshRef.current);
+        addObstacleRef(null);
       }
-    }
-  }, [initialPosition, getGroundHeight, addObstacleRef]);
+    };
+  }, [addObstacleRef, meshRef]);
+  
+
 
   useEffect(() => {
-    if (!isRemote && meshRef.current && onPositionChange) {
-      const pos = meshRef.current.position;
-      onPositionChange(new THREE.Vector3(pos.x, pos.y, pos.z));
+    // Initialize position from the first value
+    const pos = positionRef(); // This returns the latest ref'd position
+    
+    if (pos) {
+      targetPosition.current.copy(pos);
+      currentPosition.current.copy(pos);
     }
-  }, [isRemote, onPositionChange]);
+  }, []);
 
-  useEffect(() => {
-    if (materialRef.current) {
-      if (isHit) {
-        materialRef.current.color.set('red'); // when hit
-        // Optional: reset back after 0.5 seconds
-        setTimeout(() => {
-          materialRef.current?.color.set('green');
-        }, 500);
-      }
+
+  // This is the current visible position
+
+
+  useFrame((_, delta) => {
+    const pos = positionRef(); // get fresh position every frame
+    if (pos) {
+      targetPosition.current.copy(pos);
+      targetPosition.current.y = targetPosition.current.y - 0.8; // Adjust height based on ground
     }
-  }, [isHit]);
 
-  useFrame((state, delta) => {
-    // Smoothly interpolate towards target position
-    currentPosition.current.lerp(targetPosition.current, 0.1);
+    currentPosition.current.lerp(targetPosition.current, delta * 0.5);
 
     if (meshRef.current) {
       meshRef.current.position.copy(currentPosition.current);
-      meshRef.current.lookAt(camera.position);
     }
   });
+  
   return (
-    <mesh ref={meshRef} position={[0, 1, 0]}>
-      <sphereGeometry args={[0.5, 26, 26]} />
-      <meshStandardMaterial ref={materialRef} color="green" />
+    <mesh ref={meshRef} position={[0, -10, 0]}>
+      {model && <primitive object={model} />}
+
     </mesh>
 
   );

@@ -43,8 +43,12 @@ export default function LoginPage() {
     ]);
 
     useEffect(() => {
-        console.log(user)
-    })
+        if (user) {
+            redirect("/");
+        }
+    }, [user]);
+    
+
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -52,7 +56,6 @@ export default function LoginPage() {
         setSuccess("");
 
         if (isLogin) {
-
             const result = await loginUser(email, password);
             if (result.success) {
                 setSuccess("Logging in...");
