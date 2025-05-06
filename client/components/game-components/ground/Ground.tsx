@@ -189,10 +189,11 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Define height logic - memoized so it's stable across renders
   const getGroundHeight = useMemo(() => {
     return (x: number, z: number): number => {
-      const primaryFrequency = 0.1;
+      const primaryFrequency = 0.05;
+      // Higher frequency = more hills, lower frequency = larger hills
       const secondaryFrequency = 0.2;
-      const amplitude = 1.5;
-      const noiseAmplitude = 0.4;
+      const amplitude = 5; // increases height of hills
+      const noiseAmplitude = 0.2; // increases noise variation
 
       const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
       const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
@@ -294,7 +295,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const forestProps = useMemo(() => ({
     center: [0, 0, 0],
     radius: 300,
-    density: 0.005,
+    density: 0.001,
     types: ["banyan"],
     getGroundHeight,
     addObstacleRef
@@ -357,7 +358,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         size={0.3}
         color="#A9CCE3"
         intensity={1.2}
-        area={200}
+        area={2000}
       />
 
       {/* Forest - memoized component */}

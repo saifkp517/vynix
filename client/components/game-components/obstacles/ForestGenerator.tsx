@@ -184,7 +184,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
     }
 
     if (ctx) {
-    // Create vertical striations
+      // Create vertical striations
       for (let i = 0; i < 40; i++) {
         const x = Math.random() * 256;
         const width = 2 + Math.random() * 8;
@@ -443,6 +443,7 @@ const TreeColliders: React.FC<{ positions: TreePosition[], addObstacleRef: (ref:
       <>
         {positions.map((treePos, index) => (
           <mesh
+            name='tree'
             key={`tree-collider-${index}`}
             ref={(ref) => {
               // Store ref in our local array
@@ -456,7 +457,7 @@ const TreeColliders: React.FC<{ positions: TreePosition[], addObstacleRef: (ref:
             scale={[treePos.scale * 0.8, treePos.scale * 1.8, treePos.scale * 0.8]}
           >
             <cylinderGeometry args={[1.5, 1.5, 26, 8]} />
-              <meshBasicMaterial visible={false} />
+            <meshBasicMaterial visible={false} />
           </mesh>
         ))}
       </>
