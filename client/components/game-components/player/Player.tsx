@@ -136,7 +136,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     const shootDirection = new THREE.Vector3();
     const recoilProgress = useRef(0);
     const isRecoiling = useRef(false);
-    const gunRef = useRef(null);
+    const gunRef = useRef<THREE.Group | null>(null);
+    
 
     function handleShoot() {
         console.log("shot")
@@ -752,7 +753,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         if (!gunRef.current) return;
 
         if (isRecoiling.current) {
-            recoilProgress.current += delta * 10; // Fast in
+            recoilProgress.current += delta * 1; // Fast in
             if (recoilProgress.current >= 1) {
                 recoilProgress.current = 1;
                 isRecoiling.current = false;

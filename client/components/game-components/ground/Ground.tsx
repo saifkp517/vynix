@@ -295,7 +295,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const forestProps = useMemo(() => ({
     center: [0, 0, 0],
     radius: 300,
-    density: 0.001,
+    density: 0.01,
     types: ["banyan"],
     getGroundHeight,
     addObstacleRef
