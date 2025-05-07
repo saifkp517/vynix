@@ -19,18 +19,23 @@ const prisma = new PrismaClient();
 
 const app = express();
 const httpServer = createServer(app)
+const allowedOrigins = [
+    "http://localhost:3000",
+    "https://vynix-git-main-my-team-e0738a04.vercel.app",
+];
+
 const io = new Server(httpServer, {
     cors: {
-        origin: ["http://localhost:3000", "https://vynix-git-multiplayer-my-team-e0738a04.vercel.app"],
+        origin: allowedOrigins,
         credentials: true
     }
 });
 
 app.use(cors({
-    origin: ["http://localhost:3000", "https://vynix-git-multiplayer-my-team-e0738a04.vercel.app"], // Allow frontend origins
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Allowed HTTP methods
-    allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
-    credentials: true // Allow cookies and credentials
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
 }));
 
 
@@ -218,20 +223,82 @@ type Player = {
     id: string;
     team: string;
     position?: Position;
+    playerCenter: Position;
 }
 
 type Room = {
     id: string;
     players: Player[];
     maxPlayers: number;
+    treePositions: Position[]
     gameStarted: boolean;
+}
+
+interface TreePosition {
+    position: [number, number, number];
+    rotation: number;
+    scale: number;
 }
 
 const rooms: Room[] = [];
 
+
+
 function findOrCreateRoom(userId: string, socketId: string) {
     let room = rooms.find(r => r.players.length < r.maxPlayers);
     if (!room) {
+
+        const getGroundHeight = (x: number, z: number):number => {
+            const primaryFrequency = 0.05;
+            // Higher frequency = more hills, lower frequency = larger hills
+            const secondaryFrequency = 0.2;
+            const amplitude = 5; // increases height of hills
+            const noiseAmplitude = 0.2; // increases noise variation
+      
+            const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
+            const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
+      
+            return baseHeight + noise;
+        }
+
+        const generateTreePositions = () => {
+
+            const radius = 1000;
+            const density = 0.01;
+            const center = [0,0,0];
+
+            const positions: TreePosition[] = [];
+            const treeCount = Math.floor(radius * radius * density);
+
+            // Seeded random number generator
+            const seed = 12345; // Replace with a consistent seed value
+            let random = (function (seed) {
+                let value = seed;
+                return () => {
+                    value = (value * 9301 + 49297) % 233280;
+                    return value / 233280;
+                };
+            })(seed);
+
+            // Calculate unique positions for trees
+            for (let i = 0; i < treeCount; i++) {
+                const angle = random() * Math.PI * 2;
+                const dist = Math.sqrt(random()) * radius;
+
+                const x = center[0] + Math.cos(angle) * dist;
+                const z = center[2] + Math.sin(angle) * dist;
+                const y = getGroundHeight(x, z) + 1.5;
+
+                positions.push({
+                    position: [x, y, z] as [number, number, number],
+                    rotation: random() * Math.PI * 2,
+                    scale: 0.8 + random() * 0.4
+                });
+            }
+
+            return positions;
+        }
+
         room = {
             id: uuidv4(),
             players: [],
@@ -256,11 +323,17 @@ function findOrCreateRoom(userId: string, socketId: string) {
 
 io.on('connection', (socket: AuthenticatedSocket) => {
 
+    const innerRadius = 150;
+
+
     console.log('User connected:', socket.id);
 
     socket.emit("currentPlayers", players);
 
     socket.on("joinRoom", (userId) => {
+
+       
+
         console.log('user has joined room', userId)
         const room = findOrCreateRoom(userId, socket.id);
         socket.join(room.id);
@@ -270,6 +343,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         const newPlayer: Player = {
             id: userId,
+            playerCenter: {x: 0, y: 0, z: 0},
             team: team
         }
         room.players.push(newPlayer)
@@ -282,10 +356,26 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
 
     socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] })
-    
+
+    let newCenter: Position = { x: 0, y: 0, z: 0 };
 
     socket.on('updatePosition', (position) => {
+
+        let distance = Math.sqrt(
+            Math.pow(position.x - newCenter.x, 2) +
+            Math.pow(position.y - 0, 2) +
+            Math.pow(position.z - newCenter.z, 2)
+        );
+        if (distance > innerRadius) {
+            console.log("Player is outside the inner radius, updating position...");
+            socket.emit('updateForest', { id: socket.id, position });
+            newCenter = position;
+        }
+
+
         players[socket.id] = position;
+
+        socket.broadcast.emit('playerMoved', { id: socket.id, position });
         socket.broadcast.emit('playerMoved', { id: socket.id, position });
     });
 

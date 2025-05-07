@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { ObjectLoader, MaterialLoader } from 'three';
 import * as THREE from 'three';
+import socket from '@/lib/socket';
 import { useFrame } from '@react-three/fiber';
 
 interface ForestProps {
@@ -470,7 +471,11 @@ export const Forest: React.FC<ForestProps> = ({
   addObstacleRef,
 }) => {
 
-  console.log("forest called")
+  useEffect(() => {
+    socket.on("updateForest", (id, position) => {
+      console.log(":", id, position);
+    })
+  }, []);
   // Calculate tree positions only once
 
 

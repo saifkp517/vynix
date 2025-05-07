@@ -294,7 +294,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Memoize forest props to prevent unnecessary rerenders
   const forestProps = useMemo(() => ({
     center: [0, 0, 0],
-    radius: 300,
+    radius: 200,
     density: 0.01,
     types: ["banyan"],
     getGroundHeight,

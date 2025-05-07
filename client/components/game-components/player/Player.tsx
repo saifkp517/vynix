@@ -416,7 +416,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     const gravity = -9.8 * 2;
     const jumpStrength = 10;
 
-    const playerSpeed = 5;
+    const playerSpeed = 10;
     const playerHeight = 1.5;
     const controlsRef = useRef<any>(null);
 
@@ -446,7 +446,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                         shootCooldown.current = true;
                         setTimeout(() => {
                             shootCooldown.current = false;
-                        }, 60000); // 1 minute cooldown
+                        }, 5000); // 1 minute cooldown
                     }
                     break;
                 }
