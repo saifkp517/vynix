@@ -5,7 +5,9 @@ import { useFrame, useThree } from '@react-three/fiber'
 import socket from '@/lib/socket';
 import { Howl } from 'howler';
 import Explosion from '../explosion/Explosion';
+import Gun from './Gun';
 import * as THREE from 'three';
+import { EventEmitter } from 'events';
 
 
 
@@ -28,28 +30,7 @@ type GunProps = {
     camera: THREE.Camera
 }
 
-const Gun = ({ camera }: { camera: THREE.Camera }) => {
-    const gunRef = useRef<THREE.Mesh>(null)
 
-    useFrame(() => {
-        if (gunRef.current) {
-            // Get direction the camera is facing
-            const direction = new THREE.Vector3()
-            camera.getWorldDirection(direction)
-
-            // Position the gun slightly in front and to the right of the camera
-
-            gunRef.current.quaternion.copy(camera.quaternion)
-        }
-    })
-
-    return (
-        <mesh ref={gunRef} position={[0.5, -0.3, -0.8]}>
-            <boxGeometry args={[0.1, 0.1, 0.5]} />
-            <meshStandardMaterial color="gray" />
-        </mesh>
-    )
-}
 
 
 
@@ -136,11 +117,11 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     const shootDirection = new THREE.Vector3();
     const recoilProgress = useRef(0);
     const isRecoiling = useRef(false);
-    const gunRef = useRef<THREE.Group | null>(null);
-    
+    const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
+
+    const shootEvent = useRef(new EventEmitter());
 
     function handleShoot() {
-        console.log("shot")
 
         // Get direction camera is facing
         camera.getWorldDirection(shootDirection);
@@ -157,6 +138,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
             // Optional: show visual effect or apply logic
             // e.g., firstHit.object.material.color.set('red');
+        } else {
+            console.log("missed")
         }
 
 
@@ -416,7 +399,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     const gravity = -9.8 * 2;
     const jumpStrength = 10;
 
-    const playerSpeed = 10;
+    const playerSpeed = 6;
     const playerHeight = 1.5;
     const controlsRef = useRef<any>(null);
 
@@ -434,6 +417,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
     // Handle keyboard input
     useEffect(() => {
+        let shootingInterval: NodeJS.Timeout | null = null;
+
         const handleKeyDown = (e: KeyboardEvent) => {
             switch (e.code) {
                 case 'KeyW': setMoveState(prev => ({ ...prev, forward: true })); break;
@@ -454,6 +439,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                     jumpRequested.current = true;
                     break;
             }
+
+                
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
@@ -468,14 +455,37 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
             }
         };
 
+        const handleMouseDown = () => {
+            if (!shootingInterval) {
+                shootingInterval = setInterval(() => {
+                    handleShoot();
+                }, 200); // Adjust shooting interval as needed
+                shootEvent.current.emit("start");
+            }
+        };
+
+        const handleMouseUp = () => {
+            if (shootingInterval) {
+                clearInterval(shootingInterval);
+                shootingInterval = null;
+                shootEvent.current.emit("stop");
+            }
+        };
+
         document.addEventListener('keydown', handleKeyDown);
         document.addEventListener('keyup', handleKeyUp);
-        document.addEventListener('mousedown', (e) => handleShoot());
+        document.addEventListener('mousedown', handleMouseDown);
+        document.addEventListener('mouseup', handleMouseUp);
 
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
             document.removeEventListener('keyup', handleKeyUp);
-            window.removeEventListener('mousedown', (e) => handleShoot());
+            document.removeEventListener('mousedown', handleMouseDown);
+            document.removeEventListener('mouseup', handleMouseUp);
+
+            if (shootingInterval) {
+                clearInterval(shootingInterval);
+            }
         };
     }, []);
 
@@ -565,7 +575,6 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
         //collision detection handling
         if (colliding) {
-            console.log("yes")
             isJumpingRef.current = false;
             const normal = collisionNormal!.clone().normalize();
 
@@ -575,7 +584,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
             // Check if the player is on top of something
             const isOnTop = normal.y > 0.7;
 
-            console.log(collisionType)
+            // console.log(collisionType)
             if (collisionType === "sphere") {
                 // Spherical collision handling
                 if (isOnTop) {
@@ -749,8 +758,29 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
             playerRef.current.quaternion.copy(camera.quaternion);
         }
 
+
+        playerPosition.copy(camera.position)
+
+
+        const currentTime = performance.now();
+
+        // Only emit the position change every 100ms
+        if (currentTime - lastUpdateTime.current >= 100) {
+            handlePositionChange(playerPosition.clone());
+            lastUpdateTime.current = currentTime; // Update the last update time
+        }
+
+        checkCollisions(playerPosition);
+
+
+
+
+
+
         //gun mechanics
         if (!gunRef.current) return;
+
+
 
         if (isRecoiling.current) {
             recoilProgress.current += delta * 1; // Fast in
@@ -765,19 +795,6 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
             // Ensure it stays forward if no shooting
             gunRef.current.position.z = -0.6;
         }
-
-        playerPosition.copy(camera.position)
-
-
-        const currentTime = performance.now();
-
-        // Only emit the position change every 100ms
-        if (currentTime - lastUpdateTime.current >= 100) {
-            handlePositionChange(playerPosition.clone());
-            lastUpdateTime.current = currentTime; // Update the last update time
-        }
-
-        checkCollisions(playerPosition);
     });
 
     return (
@@ -810,19 +827,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
-                <group ref={gunRef} position={[0.5, -0.5, -0.5]}>
-                    {/* Gun body */}
-                    <mesh>
-                        <boxGeometry args={[0.4, 0.2, 1]} />
-                        <meshStandardMaterial color="gray" />
-                    </mesh>
-
-                    {/* Gun barrel */}
-                    <mesh position={[0, 0, -0.7]}>
-                        <cylinderGeometry args={[0.05, 0.05, 0.5, 16]} />
-                        <meshStandardMaterial color="black" />
-                    </mesh>
-                </group>
+                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} />
             </group>
         </>
     );
