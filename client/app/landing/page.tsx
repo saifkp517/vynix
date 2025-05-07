@@ -228,7 +228,7 @@ const FirstPersonGame: React.FC = () => {
 
   const groundProps = useMemo(() => ({
     addObstacleRef,
-    fogDistance: 25,
+    fogDistance: 10,
     fogColor: "#65888a"
   }), [addObstacleRef]);
 

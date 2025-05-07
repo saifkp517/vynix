@@ -294,7 +294,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Memoize forest props to prevent unnecessary rerenders
   const forestProps = useMemo(() => ({
     center: [0, 0, 0],
-    radius: 200,
+    radius: 100,
     density: 0.01,
     types: ["banyan"],
     getGroundHeight,
@@ -305,7 +305,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     <GroundHeightContext.Provider value={groundHeightContextValue}>
       {/* Sky */}
       <Sky
-        distance={450000}
+        distance={2000}
         sunPosition={sunPosition}
         inclination={0.6}
         azimuth={0.25}
@@ -353,13 +353,13 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       />
 
       {/* Rain Effect - memoized component */}
-      <RainEffect
-        count={800}
+      {/* <RainEffect
+        count={400}
         size={0.3}
         color="#A9CCE3"
         intensity={1.2}
-        area={2000}
-      />
+        area={100}
+      /> */}
 
       {/* Forest - memoized component */}
       <ForestWrapper {...forestProps} />

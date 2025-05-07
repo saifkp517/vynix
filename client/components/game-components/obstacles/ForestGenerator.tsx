@@ -465,6 +465,156 @@ const TreeColliders: React.FC<{ positions: TreePosition[], addObstacleRef: (ref:
     );
   };
 
+
+function BushesAroundTrees({ treePositions = [] }: { treePositions: [number, number, number][] }) {
+  const bushRef = useRef<THREE.InstancedMesh | null>(null)
+
+  // Create a single large bush mesh per tree
+  const matrices = useMemo(() => {
+    const result: THREE.Matrix4[] = []
+
+    treePositions.forEach((treePos) => {
+      const center = new THREE.Vector3(...treePos)
+
+      // Create a single complex bush per tree with multiple segments
+      const segments = 8 + Math.floor(Math.random() * 5) // 8-12 segments
+      const baseRadius = 3.0
+      const heightVariation = 0.6
+
+      for (let i = 0; i < segments; i++) {
+        // Create segments that connect to form one continuous-looking bush
+        const angle = (i / segments) * Math.PI * 2
+
+        // Irregular radius to create organic shape
+        const radius = baseRadius * (0.7 + Math.random() * 0.6)
+
+        const x = center.x + Math.cos(angle) * radius
+        const z = center.z + Math.sin(angle) * radius
+
+        // Slight height variation
+        const y = center.y - 0.2 + Math.random() * heightVariation
+
+        const position = new THREE.Vector3(x, y, z)
+
+        // Make segments closer to the tree larger for a natural appearance
+        const proximity = 1.0 - (Math.sqrt((x - center.x) ** 2 + (z - center.z) ** 2) / (baseRadius * 1.5))
+        const baseSizeFactor = 1.0 + proximity * 0.8
+
+        // Large overlapping segments for a unified bush look
+        const sizeFactor = baseSizeFactor * (1.5 + Math.random() * 0.5)
+
+        // Non-uniform scaling for organic shape
+        const scaleX = sizeFactor * (0.9 + Math.random() * 0.2)
+        const scaleY = sizeFactor * (0.8 + Math.random() * 0.4)
+        const scaleZ = sizeFactor * (0.9 + Math.random() * 0.2)
+
+        const scale = new THREE.Vector3(scaleX, scaleY, scaleZ)
+
+        // Random rotation for natural variation
+        const rotation = new THREE.Quaternion()
+        rotation.setFromEuler(new THREE.Euler(
+          Math.random() * 0.3, // Limit x rotation for a more bush-like shape
+          Math.random() * Math.PI * 2,
+          Math.random() * 0.3  // Limit z rotation
+        ))
+
+        const matrix = new THREE.Matrix4()
+        matrix.compose(position, rotation, scale)
+
+        result.push(matrix)
+      }
+
+      // Add some additional "filler" segments to make the bush look more solid
+      const fillerCount = 6 + Math.floor(Math.random() * 4)
+      for (let i = 0; i < fillerCount; i++) {
+        const angle = Math.random() * Math.PI * 2
+        // Position these slightly inward for depth
+        const radius = baseRadius * (0.5 + Math.random() * 0.5)
+
+        const x = center.x + Math.cos(angle) * radius
+        const z = center.z + Math.sin(angle) * radius
+        const y = center.y - 0.1 + Math.random() * (heightVariation * 0.8)
+
+        const position = new THREE.Vector3(x, y, z)
+
+        // Smaller inner segments
+        const sizeFactor = 1.2 + Math.random() * 0.6
+        const scale = new THREE.Vector3(
+          sizeFactor * (0.8 + Math.random() * 0.4),
+          sizeFactor * (0.8 + Math.random() * 0.4),
+          sizeFactor * (0.8 + Math.random() * 0.4)
+        )
+
+        const rotation = new THREE.Quaternion()
+        rotation.setFromEuler(new THREE.Euler(
+          Math.random() * 0.3,
+          Math.random() * Math.PI * 2,
+          Math.random() * 0.3
+        ))
+
+        const matrix = new THREE.Matrix4()
+        matrix.compose(position, rotation, scale)
+
+        result.push(matrix)
+      }
+    })
+
+    return result
+  }, [treePositions])
+
+  useEffect(() => {
+    if (!bushRef.current) return
+
+    matrices.forEach((matrix, i) => {
+      if (bushRef.current) {
+        bushRef.current.setMatrixAt(i, matrix);
+      }
+    })
+
+    bushRef.current.instanceMatrix.needsUpdate = true
+  }, [matrices])
+
+  // Custom noise-based bush geometry for a more natural look
+  const bushGeometry = useMemo(() => {
+    // Start with a sphere but perturb the vertices for an organic look
+    const baseGeometry = new THREE.SphereGeometry(1, 8, 8)
+    const positions = baseGeometry.attributes.position
+
+    // Add noise to vertices
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i)
+      const y = positions.getY(i)
+      const z = positions.getZ(i)
+
+      // Apply noise-based displacement
+      const noise = Math.sin(x * 5) * 0.1 + Math.cos(y * 4) * 0.1 + Math.sin(z * 6) * 0.1
+
+      positions.setX(i, x * (1 + noise * 0.3))
+      positions.setY(i, y * (1 + noise * 0.2))
+      positions.setZ(i, z * (1 + noise * 0.3))
+    }
+
+    baseGeometry.computeVertexNormals()
+    return baseGeometry
+  }, [])
+
+  // Create different green shades for a natural gradient effect
+  const bushMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: '#2d633d',
+      roughness: 0.9,
+      flatShading: true,
+      vertexColors: false
+    })
+  }, [])
+
+  return (
+    <instancedMesh
+      ref={bushRef}
+      args={[bushGeometry, bushMaterial, matrices.length]}
+    />
+  )
+}
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
   treePositions,
@@ -483,6 +633,7 @@ export const Forest: React.FC<ForestProps> = ({
     <group name="forest">
       <BanyanTreeVisual positions={treePositions} />
       <TreeColliders positions={treePositions} addObstacleRef={addObstacleRef} />
+      <BushesAroundTrees treePositions={treePositions.map(tree => tree.position)} />
     </group>
   );
 };

@@ -47,7 +47,6 @@ const ExplosionParticle = ({
         color={color} 
         emissive={color} 
         emissiveIntensity={2} 
-        transparent 
         opacity={opacity} 
       />
     </mesh>
@@ -55,107 +54,133 @@ const ExplosionParticle = ({
 };
 
 const Explosion: React.FC<{ position: THREE.Vector3, explosionRadius: number }> = ({ position, explosionRadius = 15 }) => {
-  const [particles, setParticles] = useState<React.ReactNode[]>([]);
   const lightRef = useRef<THREE.PointLight>(null);
-  const [lightIntensity, setLightIntensity] = useState(10);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const shockwaveRef = useRef<THREE.Mesh>(null);
+  const smokeRingRef = useRef<THREE.Mesh>(null);
+  
+  const [lightIntensity, setLightIntensity] = useState(15);
   const explosionStartTime = useRef(Date.now());
-  const explosionDuration = 2; // seconds
+  const explosionDuration = 2.5; // seconds
   
-  // Generate particles on mount
-  useEffect(() => {
-    const newParticles = [];
-    const particleCount = 30;
-    const colors = ['#ff7700', '#ff5500', '#ff3300', '#ffcc00', '#ff9900'];
-    
-    for (let i = 0; i < particleCount; i++) {
-      // Random direction
-      const direction = new THREE.Vector3(
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1
-      ).normalize();
-      
-      // Random properties
-      const speed = 0.05 + Math.random() * 0.2;
-      const scale = 0.2 + Math.random() * 0.8;
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const lifespan = 0.8 + Math.random() * 1.2;
-      
-      newParticles.push(
-        <ExplosionParticle 
-          key={i}
-          position={position.clone()}
-          scale={scale}
-          color={color}
-          speed={speed}
-          direction={direction}
-          lifespan={lifespan}
-        />
-      );
-    }
-    
-    setParticles(newParticles);
-  }, [position]);
-  
-  // Handle explosion light and core fading
+  // Handle explosion animation
   useFrame(() => {
-    if (!lightRef.current) return;
+    if (!lightRef.current || !coreRef.current || !shockwaveRef.current || !smokeRingRef.current) return;
     
     const elapsed = (Date.now() - explosionStartTime.current) / 1000;
     const lifePercentage = Math.min(elapsed / explosionDuration, 1);
     
-    // Fade out light intensity
-    setLightIntensity(10 * (1 - lifePercentage));
+    // Core explosion animation
+    const coreScale = 1 + lifePercentage * 0.5; // Core slightly expands
+    coreRef.current.scale.set(coreScale, coreScale, coreScale);
+    
+    // Material updates
+    const coreMaterial = coreRef.current.material as THREE.MeshStandardMaterial;
+    coreMaterial.opacity = Math.max(0, 1 - lifePercentage * 1.2);
+    coreMaterial.emissiveIntensity = 3 * (1 - lifePercentage);
+    
+    // Shockwave animation
+    const shockwaveSize = Math.min(1, elapsed * 2) * explosionRadius * 1.5;
+    const shockwaveMaterial = shockwaveRef.current.material as THREE.MeshBasicMaterial;
+    shockwaveRef.current.scale.set(shockwaveSize, shockwaveSize, shockwaveSize);
+    shockwaveMaterial.opacity = Math.max(0, 0.8 - lifePercentage * 1.2);
+    
+    // Smoke ring animation
+    const smokeRingSize = 1 + lifePercentage * 3;
+    smokeRingRef.current.scale.set(smokeRingSize, smokeRingSize, smokeRingSize);
+    const smokeRingMaterial = smokeRingRef.current.material as THREE.MeshBasicMaterial;
+    smokeRingMaterial.opacity = Math.max(0, 0.7 - lifePercentage);
+    
+    // Fade out light intensity with a pulse effect
+    const pulseEffect = Math.max(0, 1 - (elapsed / 0.3)) * Math.sin(elapsed * 10) * 0.2;
+    setLightIntensity(15 * (1 - lifePercentage) + pulseEffect);
   });
-  
+
   return (
     <group>
-      {/* Core explosion */}
-      <mesh position={position}>
-        <sphereGeometry args={[explosionRadius, 16, explosionRadius]} />
+      {/* Enhanced core explosion */}
+      <mesh 
+        ref={coreRef} 
+        position={position}
+      >
+        <sphereGeometry args={[explosionRadius * 0.6, 32, 32]} />
         <meshStandardMaterial 
-          color="#ff5500" 
-          emissive="#ff1300"
-          emissiveIntensity={2}
-          opacity={Math.max(0, 1 - (Date.now() - explosionStartTime.current) / 1000 / explosionDuration)}
+          color="#ff3300" 
+          emissive="#ff7700"
+          emissiveIntensity={3}
+          transparent
+          opacity={1}
+          roughness={0.4}
+          metalness={0.6}
         />
       </mesh>
       
-      {/* Explosion light */}
+      {/* Secondary inner glow */}
+      <mesh position={position}>
+        <sphereGeometry args={[explosionRadius * 0.4, 24, 24]} />
+        <meshStandardMaterial 
+          color="#ffdd00" 
+          emissive="#ffff00"
+          emissiveIntensity={5}
+          transparent
+          opacity={Math.max(0, 1 - (Date.now() - explosionStartTime.current) / 1000 / (explosionDuration * 0.7))}
+        />
+      </mesh>
+      
+      {/* Improved explosion light with color transition */}
       <pointLight 
         ref={lightRef}
         position={position} 
-        color="#ff7700" 
+        color={new THREE.Color(1.0, 0.5, 0.2)} 
         intensity={lightIntensity} 
-        distance={10} 
+        distance={explosionRadius * 3}
+        decay={1.5} 
+      />
+      
+      {/* Secondary light source */}
+      <pointLight 
+        position={position} 
+        color={new THREE.Color(1.0, 0.8, 0.4)} 
+        intensity={lightIntensity * 0.5} 
+        distance={explosionRadius * 2}
         decay={2} 
       />
       
-      {/* Smoke ring */}
+      {/* Improved smoke ring */}
       <Billboard position={position}>
-        <mesh>
-          <ringGeometry args={[0.5, 3, 32]} />
+        <mesh ref={smokeRingRef}>
+          <ringGeometry args={[explosionRadius * 0.5, explosionRadius * 1.2, 64]} />
           <meshBasicMaterial 
-            color="#555555" 
+            color="#444444" 
             transparent 
-            opacity={Math.max(0, 0.5 - (Date.now() - explosionStartTime.current) / 1000 / explosionDuration)}
+            opacity={0.7}
             side={THREE.DoubleSide}
           />
         </mesh>
       </Billboard>
       
-      {/* Particles */}
-      {particles}
-      
-      {/* Shockwave */}
+      {/* Enhanced shockwave */}
       <Billboard position={position}>
-        <mesh>
-          <ringGeometry args={[0, 3 * Math.min(1, (Date.now() - explosionStartTime.current) / 500), 32]} />
+        <mesh ref={shockwaveRef}>
+          <ringGeometry args={[0, explosionRadius, 64]} />
           <meshBasicMaterial 
             color="#ffaa77" 
             transparent 
-            opacity={Math.max(0, 0.7 - (Date.now() - explosionStartTime.current) / 1000 / (explosionDuration * 0.5))}
+            opacity={0.8}
             side={THREE.DoubleSide}
+          />
+        </mesh>
+      </Billboard>
+      
+      {/* Hot center flare */}
+      <Billboard position={position}>
+        <mesh>
+          <planeGeometry args={[explosionRadius * 1.5, explosionRadius * 1.5]} />
+          <meshBasicMaterial 
+            color="#ffffff" 
+            transparent 
+            opacity={Math.max(0, 0.9 - (Date.now() - explosionStartTime.current) / 1000 / (explosionDuration * 0.3))}
+            blending={THREE.AdditiveBlending}
           />
         </mesh>
       </Billboard>
