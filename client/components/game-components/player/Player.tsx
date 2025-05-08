@@ -425,7 +425,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyS': setMoveState(prev => ({ ...prev, backward: true })); break;
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: true })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
-                case 'KeyQ': {
+                case 'KeyG': {
                     if (!shootCooldown.current) {
                         handleFireballShoot();
                         shootCooldown.current = true;

@@ -248,37 +248,42 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     let room = rooms.find(r => r.players.length < r.maxPlayers);
     if (!room) {
 
-        const getGroundHeight = (x: number, z: number):number => {
+        const getGroundHeight = (x: number, z: number): number => {
             const primaryFrequency = 0.05;
             // Higher frequency = more hills, lower frequency = larger hills
             const secondaryFrequency = 0.2;
             const amplitude = 5; // increases height of hills
             const noiseAmplitude = 0.2; // increases noise variation
-      
+
             const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
             const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
-      
+
             return baseHeight + noise;
+        }
+
+        // Mulberry32 seeded RNG
+        function mulberry32(seed: number) {
+            return function () {
+                seed |= 0;
+                seed = seed + 0x6D2B79F5 | 0;
+                var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
         }
 
         const generateTreePositions = () => {
 
             const radius = 2000;
             const density = 0.01;
-            const center = [0,0,0];
+            const center = [0, 0, 0];
 
             const positions: TreePosition[] = [];
             const treeCount = Math.floor(radius * radius * density);
 
             // Seeded random number generator
             const seed = 12345; // Replace with a consistent seed value
-            let random = (function (seed) {
-                let value = seed;
-                return () => {
-                    value = (value * 9301 + 49297) % 233280;
-                    return value / 233280;
-                };
-            })(seed);
+            let random = mulberry32(seed);
 
             // Calculate unique positions for trees
             for (let i = 0; i < treeCount; i++) {
@@ -311,7 +316,6 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
     } else {
         if (userId) {
-            console.log(`User ${JSON.stringify(userId, null, 2)} is joining room: ${room.id}`);
             console.log(`User ${userId} joined room: ${room.id}`);
         } else {
             console.log("User ID is required to join a room.");
@@ -327,14 +331,12 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
     const innerRadius = 50;
 
-
     console.log('User connected:', socket.id);
 
     socket.emit("currentPlayers", players);
 
     socket.on("joinRoom", (userId) => {
 
-        console.log('user has joined room', userId)
         const room = findOrCreateRoom(userId, socket.id, socket);
         socket.join(room.id);
 
@@ -343,19 +345,22 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         const newPlayer: Player = {
             id: userId,
-            playerCenter: {x: 0, y: 0, z: 0},
+            playerCenter: { x: 0, y: 0, z: 0 },
             team: team
         }
         room.players.push(newPlayer)
         socket.emit('roomAssigned', { room: room, team });
-
+        console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
     })
-
-
 
     socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] })
 
     let newCenter: Position = { x: 0, y: 0, z: 0 };
+
+    socket.on("requestForestUpdate", () => {
+        console.log("requested")
+        socket.emit('updateForest', { id: socket.id, position: {x: 0, y: 0, z: 0}});
+    })
 
     socket.on('updatePosition', (position) => {
 
@@ -371,7 +376,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             newCenter = position;
         }
 
-
         players[socket.id] = position;
 
         socket.broadcast.emit('playerMoved', { id: socket.id, position });
@@ -380,118 +384,25 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
     socket.on("disconnect", () => {
         console.log('User disconnected:', socket.id);
+
+        // Remove player from players map
         delete players[socket.id];
+
+        // Remove player from their room
+        for (const room of rooms) {
+            const playerIndex = room.players.findIndex(player => player.id === socket.id);
+            if (playerIndex !== -1) {
+                room.players.splice(playerIndex, 1);
+                console.log(`Player ${socket.id} removed from room ${room.id}`);
+                console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
+                break;
+            }
+        }
+
         io.emit('playerDisconnected', socket.id);
-    })
+    });
+});
 
-    // socket.on("findMatch", (playerData) => {
-    //     const { userId, eloRating } = playerData;
-
-    //     const player: Player = { userId, eloRating, socket, socketId: socket.id }
-
-    //     console.log(`Player ${userId} search for a match....`);
-
-    //     const opponent = matchMakingSystem.findMatch(player);
-
-    //     if (opponent) {
-    //         console.log(`Match found: ${player.userId} vs ${opponent.userId}`);
-
-    //         player.socket?.emit("matchFound", { opponentId: opponent.userId });
-    //         opponent.socket?.emit("matchFound", { opponentId: player.userId });
-
-    //     } else {
-    //         matchMakingSystem.addPlayer(player);
-
-    //         socket.emit("waiting", { message: "Waiting for an Opponenent" });
-    //     }
-    // });
-
-    // socket.on('joinRoom', (userid) => {
-    //     console.log('user has joined room')
-    //     const roomId = findOrCreateRoom(userid, socket.id);
-    //     socket.join(roomId);
-
-    //     const players = activeRooms[roomId].players;
-    //     console.log(players)
-    //     socket.emit('roomAssigned', { roomId });
-
-    //     io.to(roomId).emit('updatePlayers', players);
-
-    //     if (players.length === 2) {
-    //         io.to(roomId).emit('startBattle', { roomId, players })
-    //     }
-    // })
-
-    // //sync code across both players
-    // socket.on('codeUpdate', ({ roomId, code }) => {
-
-    //     socket.to(roomId).emit('opponentCode', {
-    //         code,
-    //         from: socket.id,
-    //     });
-    // });
-
-    // socket.on('disconnect', () => {
-    //     console.log(`User ${socket.user} disconnected`);
-    //     removePlayer(socket.id);
-    // })
-})
-
-
-
-
-// function removePlayer(socketId: string) {
-//     for (const roomId in activeRooms) {
-
-//         activeRooms[roomId].players = activeRooms[roomId].players.filter(
-//             (player) => player.socketId !== socketId
-//         );
-
-//         if (activeRooms[roomId].players.length == 1) {
-//             const winner = activeRooms[roomId].players[0];
-//             io.to(winner.socketId).emit("gameOver", {
-//                 winner: winner.userId,
-//                 message: "Your Opponent has been disconnected. You WIN!"
-//             })
-
-//             delete activeRooms[roomId];
-
-//         } else if (activeRooms[roomId].players.length === 0) {
-//             delete activeRooms[roomId]; // Cleanup empty rooms
-//         }
-//     }
-// }
-
-// const matchMakingSystem = new MatchMaking();
-
-
-
-
-
-// function categorizeProblems(dir: string) {
-//     const categories: Categories = {};
-
-//     const folders = fs.readdirSync(dir, { withFileTypes: true });
-
-//     folders.forEach((folder) => {
-//         if (folder.isDirectory()) {
-//             const folderPath = path.join(dir, folder.name);
-
-//             const problems = fs.readdirSync(folderPath).filter(file => file.endsWith('.py'));
-
-//             categories[folder.name] = problems;
-
-//         }
-
-
-//     })
-
-//     return categories;
-// }
-
-const baseDir = '../../coding-problems'
-
-// const categorizedData = categorizeProblems(baseDir);
 
 
 //db setup

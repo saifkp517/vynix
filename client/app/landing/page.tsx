@@ -6,6 +6,7 @@ import Player from '@/components/game-components/player/Player';
 import * as THREE from 'three';
 import { Stats } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
+import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
 import { Opponent } from '@/components/game-components/player/Opponent';
 
@@ -73,16 +74,6 @@ const CylinderObstacleVerticle = React.memo(React.forwardRef<THREE.Mesh, Obstacl
   );
 }));
 
-// Memoized Game Info component
-const GameInfo = React.memo(({ roomId, team }: { roomId: string | null, team: string | null }) => (
-  <div className="absolute top-4 left-4 bg-white text-black p-2 z-10">
-    <p>WASD to move, Mouse to look</p>
-    <p className="text-sm">Press ESC to release mouse</p>
-    <p>Room Id: {roomId}</p>
-    <p>Team: {team}</p>
-  </div>
-));
-
 // Main game component
 const FirstPersonGame: React.FC = () => {
 
@@ -109,11 +100,16 @@ const FirstPersonGame: React.FC = () => {
     gameStarted: boolean;
   }
 
+  //prevent multiple joins requests by same user
+  const hasJoinedRoom = useRef(false);
+
   // Player connection handling
   useEffect(() => {
     const handleConnect = () => {
-      console.log("Socket connected:", socket.id);
-      socket.emit("joinRoom", socket.id);
+      if (!hasJoinedRoom.current) {
+        hasJoinedRoom.current = true;
+        socket.emit("joinRoom", socket.id);
+      }
     };
 
     // Handle the connect event
@@ -174,7 +170,7 @@ const FirstPersonGame: React.FC = () => {
       socket.off("joinedRoom");
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [playerIds]);
+  }, []);
 
   // Setup obstacle references
   useEffect(() => {
@@ -239,15 +235,11 @@ const FirstPersonGame: React.FC = () => {
 
   const groundProps = {
     addObstacleRef,
-    fogDistance: 1000,
+    fogDistance: 10,
     treePositions: treePositions.current,
     fogColor: "#65888a"
   };
 
-
-  const handlePositionChange = useCallback((pos: THREE.Vector3) => {
-    socket.emit("updatePosition", pos);
-  }, []);
 
   const isReady =
     typeof roomId === "string" &&
@@ -259,7 +251,15 @@ const FirstPersonGame: React.FC = () => {
     <div className="w-full h-screen relative">
       {isReady ? (
         <>
-          <GameInfo roomId={roomId} team={team} />
+          <GameInfo
+            roomId={roomId}
+            team={team}
+            bulletsInChamber={6}
+            bulletsAvailable={30}
+            explosionTimeout={3000}
+            health={100}
+            kills={0}
+          />
           <Crosshair />
 
           <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
