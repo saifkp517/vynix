@@ -79,9 +79,9 @@ export const Opponent = ({
   });
   
   return (
-    <mesh ref={meshRef} position={[0, -10, 0]}>
-      {model && <primitive object={model} />}
-
+    <mesh name="Player" ref={meshRef} position={[0, -10, 0]}>
+      <boxGeometry args={[0.5, 2, 0.1]} />
+      <meshStandardMaterial ref={materialRef} color={isHit ? "red" : "blue"} />
     </mesh>
 
   );

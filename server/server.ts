@@ -230,7 +230,7 @@ type Room = {
     id: string;
     players: Player[];
     maxPlayers: number;
-    treePositions: Position[]
+    treePositions: TreePosition[]
     gameStarted: boolean;
 }
 
@@ -244,7 +244,7 @@ const rooms: Room[] = [];
 
 
 
-function findOrCreateRoom(userId: string, socketId: string) {
+function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     let room = rooms.find(r => r.players.length < r.maxPlayers);
     if (!room) {
 
@@ -263,7 +263,7 @@ function findOrCreateRoom(userId: string, socketId: string) {
 
         const generateTreePositions = () => {
 
-            const radius = 1000;
+            const radius = 2000;
             const density = 0.01;
             const center = [0,0,0];
 
@@ -303,10 +303,12 @@ function findOrCreateRoom(userId: string, socketId: string) {
             id: uuidv4(),
             players: [],
             maxPlayers: 10,
+            treePositions: generateTreePositions(),
             gameStarted: false
         };
         rooms.push(room);
         console.log(`New room created: ${room.id}`);
+
     } else {
         if (userId) {
             console.log(`User ${JSON.stringify(userId, null, 2)} is joining room: ${room.id}`);
@@ -323,7 +325,7 @@ function findOrCreateRoom(userId: string, socketId: string) {
 
 io.on('connection', (socket: AuthenticatedSocket) => {
 
-    const innerRadius = 150;
+    const innerRadius = 50;
 
 
     console.log('User connected:', socket.id);
@@ -332,10 +334,8 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
     socket.on("joinRoom", (userId) => {
 
-       
-
         console.log('user has joined room', userId)
-        const room = findOrCreateRoom(userId, socket.id);
+        const room = findOrCreateRoom(userId, socket.id, socket);
         socket.join(room.id);
 
         //assign team to player
@@ -347,9 +347,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             team: team
         }
         room.players.push(newPlayer)
-        socket.emit('roomAssigned', { roomId: room.id, team });
-
-        console.log(rooms);
+        socket.emit('roomAssigned', { room: room, team });
 
     })
 
@@ -367,8 +365,9 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             Math.pow(position.z - newCenter.z, 2)
         );
         if (distance > innerRadius) {
+            console.log(position)
             console.log("Player is outside the inner radius, updating position...");
-            socket.emit('updateForest', { id: socket.id, position });
+            socket.emit('updateForest', { id: socket.id, position: position });
             newCenter = position;
         }
 
@@ -382,7 +381,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
     socket.on("disconnect", () => {
         console.log('User disconnected:', socket.id);
         delete players[socket.id];
-        console.log(players)
         io.emit('playerDisconnected', socket.id);
     })
 
@@ -494,23 +492,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 const baseDir = '../../coding-problems'
 
 // const categorizedData = categorizeProblems(baseDir);
-
-
-const readFirstFileInCategory = (category: string, categories: Categories) => {
-    // const categories = categorizeProblems(baseDir);
-
-    if (!categories[category] || categories[category].length === 0) {
-        console.log(`No files found in category: ${category}`);
-        return;
-    }
-
-    const firstFile = categories[category][0];
-    const filePath = path.join(baseDir, category, firstFile);
-
-    const content = fs.readFileSync(filePath, 'utf-8');
-    console.log(`Contents of ${firstFile} in ${category} category:\n`);
-    console.log(content);
-};
 
 
 //db setup

@@ -15,6 +15,14 @@ interface ObstacleProps {
   getGroundHeight: (x: number, z: number) => number;
 }
 
+interface TreePosition {
+  position: [number, number, number];
+  rotation: number;
+  scale: number;
+}
+
+
+
 const Crosshair = React.memo(() => (
   <div style={{
     position: 'fixed',
@@ -81,6 +89,7 @@ const FirstPersonGame: React.FC = () => {
   console.log("FirstPersonGame component rendered");
   const obstacles = useRef<THREE.Mesh[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const treePositions = useRef<TreePosition[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
   const playerPositionsRef = useRef<{ [playerId: string]: THREE.Vector3 }>({});
@@ -116,21 +125,22 @@ const FirstPersonGame: React.FC = () => {
     }
 
     // Room and team assignment
-    socket.on("roomAssigned", ({ roomId, team }) => {
-      console.log(`Assigned to room: ${roomId}`);
-      setRoomId(roomId);
+    socket.on("roomAssigned", ({ room, team }) => {
+      console.log(`Assigned to room: ${room.id}`);
+      setRoomId(room.id);
+      treePositions.current = room.treePositions
       setTeam(team);
     });
 
     socket.on("playerMoved", ({ id, position }) => {
       // console.log("Player moved:", id, position);
-      
+
       // Store position in ref to avoid re-renders
       playerPositionsRef.current = {
         ...playerPositionsRef.current,
         [id]: new THREE.Vector3(position.x, position.y, position.z)
       };
-      
+
       // Update player IDs if this is a new player
       if (!playerIds.includes(id)) {
         setPlayerIds(prev => [...prev, id]);
@@ -141,7 +151,7 @@ const FirstPersonGame: React.FC = () => {
       const updated = { ...playerPositionsRef.current };
       delete updated[id];
       playerPositionsRef.current = updated;
-      
+
       // Update player IDs when a player leaves
       setPlayerIds(prev => prev.filter(playerId => playerId !== id));
     });
@@ -161,6 +171,7 @@ const FirstPersonGame: React.FC = () => {
       socket.off("roomAssigned");
       socket.off("playerMoved");
       socket.off("disconnect");
+      socket.off("joinedRoom");
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [playerIds]);
@@ -193,7 +204,7 @@ const FirstPersonGame: React.FC = () => {
 
   const PlayerWithGroundHeight = React.memo((props: any) => {
     const getGroundHeight = useGroundHeight();
-    
+
     return (
       <Player
         {...props}
@@ -207,13 +218,13 @@ const FirstPersonGame: React.FC = () => {
     ({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
       const getGroundHeight = useGroundHeight();
       const positionRef = useRef<THREE.Vector3 | null>(null);
-  
+
       useEffect(() => {
         positionRef.current = playerPositionsRef.current[playerId] || null;
       }, [playerId]);
-  
+
       if (!playerPositionsRef.current[playerId]) return null;
-  
+
       return (
         <Opponent
           positionRef={() => playerPositionsRef.current[playerId]} // Pass as a function
@@ -226,46 +237,60 @@ const FirstPersonGame: React.FC = () => {
     }
   );
 
-  const groundProps = useMemo(() => ({
+  const groundProps = {
     addObstacleRef,
-    fogDistance: 10,
+    fogDistance: 1000,
+    treePositions: treePositions.current,
     fogColor: "#65888a"
-  }), [addObstacleRef]);
+  };
+
 
   const handlePositionChange = useCallback((pos: THREE.Vector3) => {
     socket.emit("updatePosition", pos);
   }, []);
 
+  const isReady =
+    typeof roomId === "string" &&
+    Array.isArray(treePositions.current) &&
+    treePositions.current.length > 0;
+
+
   return (
     <div className="w-full h-screen relative">
-      <GameInfo roomId={roomId} team={team} />
-      <Crosshair />
+      {isReady ? (
+        <>
+          <GameInfo roomId={roomId} team={team} />
+          <Crosshair />
 
-      {/* 3D Canvas */}
-      <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
-        <Stats />
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} intensity={1} />
-        <gridHelper args={[50, 50]} />
+          <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
+            <Stats />
+            <ambientLight intensity={0.5} />
+            <pointLight position={[10, 10, 10]} intensity={1} />
+            <gridHelper args={[50, 50]} />
 
-        <Ground {...groundProps}>
-          <PlayerWithGroundHeight
-            addObstacleRef={addObstacleRef}
-            obstacles={obstacles.current}
-            otherPlayers={playerPositionsRef.current}
-          />
+            <Ground {...groundProps}>
+              <PlayerWithGroundHeight
+                addObstacleRef={addObstacleRef}
+                obstacles={obstacles.current}
+                otherPlayers={playerPositionsRef.current}
+              />
 
-          {/* Other players - Now properly rendered with current IDs */}
-          {playerIds.map((id) => (
-            <OpponentWithGroundHeight
-              key={id}
-              playerId={id}
-              addObstacleRef={addObstacleRef}
-              isHit={!!hitPlayers[id]}
-            />
-          ))}
-        </Ground>
-      </Canvas>
+              {playerIds.map((id) => (
+                <OpponentWithGroundHeight
+                  key={id}
+                  playerId={id}
+                  addObstacleRef={addObstacleRef}
+                  isHit={!!hitPlayers[id]}
+                />
+              ))}
+            </Ground>
+          </Canvas>
+        </>
+      ) : (
+        <div className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+          Joining room...
+        </div>
+      )}
     </div>
   );
 };

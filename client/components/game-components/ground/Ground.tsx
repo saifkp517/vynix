@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
 import { Points, BufferGeometry, BufferAttribute } from 'three';
 import * as THREE from "three";
 import { TextureLoader } from "three";
+import socket from "@/lib/socket";
 import { Forest } from "../obstacles/ForestGenerator";
 import { Sky } from "@react-three/drei";
 
@@ -33,6 +34,7 @@ export const useGroundHeight = () => {
 type GroundProps = {
   children?: React.ReactNode;
   fogDistance?: number;
+  treePositions?: TreePosition[],
   fogColor?: string;
   addObstacleRef: (ref: THREE.Mesh | null) => void;
 };
@@ -97,40 +99,7 @@ const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity 
 
 
 // ForestWrapper component is memoized to prevent unnecessary rerenders
-const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef }: any) => {
-
-  const treePositions = useMemo(() => {
-    const positions: TreePosition[] = [];
-    const treeCount = Math.floor(radius * radius * density);
-
-    // Seeded random number generator
-    const seed = 12345; // Replace with a consistent seed value
-    let random = (function (seed) {
-      let value = seed;
-      return () => {
-        value = (value * 9301 + 49297) % 233280;
-        return value / 233280;
-      };
-    })(seed);
-
-    // Calculate unique positions for trees
-    for (let i = 0; i < treeCount; i++) {
-      const angle = random() * Math.PI * 2;
-      const dist = Math.sqrt(random()) * radius;
-
-      const x = center[0] + Math.cos(angle) * dist;
-      const z = center[2] + Math.sin(angle) * dist;
-      const y = getGroundHeight(x, z) + 1.5;
-
-      positions.push({
-        position: [x, y, z] as [number, number, number],
-        rotation: random() * Math.PI * 2,
-        scale: 0.8 + random() * 0.4
-      });
-    }
-
-    return positions;
-  }, [center, radius, density, getGroundHeight]);
+const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef, treePositions }: any) => {
 
   return (
     <Forest
@@ -144,9 +113,11 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
   fogDistance = 100,
+  treePositions,
   fogColor = "#B0C4DE",
   addObstacleRef
 }, ref) => {
+
 
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
@@ -295,6 +266,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const forestProps = useMemo(() => ({
     center: [0, 0, 0],
     radius: 100,
+    treePositions: treePositions,
     density: 0.01,
     types: ["banyan"],
     getGroundHeight,
@@ -353,18 +325,22 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       />
 
       {/* Rain Effect - memoized component */}
-      {/* <RainEffect
+      <RainEffect
         count={400}
         size={0.3}
         color="#A9CCE3"
         intensity={1.2}
         area={100}
-      /> */}
+      />
 
-      {/* Forest - memoized component */}
-      <ForestWrapper {...forestProps} />
+      {treePositions ? (
+        /* Forest - memoized component */
+        <ForestWrapper {...forestProps} />
+      ) : (
+        <Suspense fallback={<div>Loading components...</div>} />
+      )}
 
-      {/* Fog effect */}
+
       <fog attach="fog" args={["#D6EAF8", 30, 100]} />
 
       {/* Children can use the context via useGroundHeight */}

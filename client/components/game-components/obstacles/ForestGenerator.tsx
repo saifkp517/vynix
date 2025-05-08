@@ -615,26 +615,46 @@ function BushesAroundTrees({ treePositions = [] }: { treePositions: [number, num
     />
   )
 }
+
+const MAX_TREES = 100;
+const RADIUS = 100;
+
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
   treePositions,
   addObstacleRef,
 }) => {
 
+  const [visibleTrees, setVisibleTrees] = useState<any[]>([]); // Trees within radius
+  const poolRef = useRef<any[]>([]); // Reusable tree pool
+  const currentPosRef = useRef<[number, number, number]>([0, 0, 0]); // Drone or user position
+
+
   useEffect(() => {
-    socket.on("updateForest", (id, position) => {
-      console.log(":", id, position);
-    })
-  }, []);
+    socket.on("updateForest", ({  id, position}) => {
+      console.log(position)
+      console.log(visibleTrees)
+      currentPosRef.current = position;
+      const filtered = treePositions.filter((tree) => {
+        const dx = tree.position[0] - position.x;
+        const dy = tree.position[1] - position.y;
+        const dz = tree.position[2] - position.z;
+        return dx * dx + dy * dy + dz * dz <= RADIUS * RADIUS;
+      }).slice(0, MAX_TREES); // Limit to MAX_TREES
+
+
+      setVisibleTrees(filtered);
+    });
+  }, [treePositions]);
   // Calculate tree positions only once
 
+  const newTreePos = useRef(new Array(MAX_TREES).fill([0, 0, 0]));
 
   return (
     <group name="forest">
-      <BanyanTreeVisual positions={treePositions} />
-      <TreeColliders positions={treePositions} addObstacleRef={addObstacleRef} />
-      <BushesAroundTrees treePositions={treePositions.map(tree => tree.position)} />
-    </group>
+      <BanyanTreeVisual positions={visibleTrees} />
+      <TreeColliders positions={visibleTrees} addObstacleRef={addObstacleRef} />
+    </group>  
   );
 };
 
