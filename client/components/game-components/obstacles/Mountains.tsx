@@ -8,6 +8,7 @@ export const Mountains = () => {
   const simplex = useMemo(() => new SimplexNoise(), []);
   
   const generateMountainGeometry = useCallback((width, height, detail) => {
+
     const geometry = new THREE.PlaneGeometry(width, height, detail, detail);
     const positions = geometry.attributes.position;
     
@@ -32,10 +33,10 @@ export const Mountains = () => {
   }, [simplex]);
   
   // Mountain colors with slight variation
-const northColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#6D8299'), 0.6);
-const southColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#A1B5C8'), 0.4);
-const eastColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#7B93A8'), 0.5);
-const westColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#9BB0C1'), 0.3);
+const northColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#6D8299'), 1);
+const southColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#A1B5C8'), 1);
+const eastColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#7B93A8'), 1);
+const westColor = new THREE.Color('#8FA3BF').lerp(new THREE.Color('#9BB0C1'), 1);
 
   return (
     <>

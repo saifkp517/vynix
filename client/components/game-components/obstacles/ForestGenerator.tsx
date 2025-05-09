@@ -624,9 +624,8 @@ function BushesAroundTrees({ treePositions = [] }: { treePositions: [number, num
 }
 
 
-const RADIUS = 100;
+const RADIUS = 200;
 const densityFactor = 0.005 //this must not change, unless changes made in server
-const MAX_TREES = Math.floor(Math.PI * RADIUS * RADIUS * densityFactor);
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
   treePositions,
@@ -648,8 +647,7 @@ export const Forest: React.FC<ForestProps> = ({
           const dz = tree.position[2] - position.z;
           return dx * dx + dy * dy + dz * dz <= RADIUS * RADIUS;
         })
-        .slice(0, MAX_TREES);
-        console.log(MAX_TREES)
+        console.log(filtered.length)
       setVisibleTrees(filtered);
     };
 
@@ -666,7 +664,6 @@ export const Forest: React.FC<ForestProps> = ({
 
   // Calculate tree positions only once
 
-  const newTreePos = useRef(new Array(MAX_TREES).fill([0, 0, 0]));
 
   return (
     <group name="forest">

@@ -235,7 +235,7 @@ const FirstPersonGame: React.FC = () => {
 
   const groundProps = {
     addObstacleRef,
-    fogDistance: 20,
+    fogDistance: 25,
     treePositions: treePositions.current,
     fogColor: "#65888a"
   };
