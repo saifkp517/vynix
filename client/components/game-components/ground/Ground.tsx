@@ -8,6 +8,7 @@ import { TextureLoader } from "three";
 import socket from "@/lib/socket";
 import { Forest } from "../obstacles/ForestGenerator";
 import { Sky } from "@react-three/drei";
+import { Mountains } from "../obstacles/Mountains";
 
 // Create a context for the ground height function
 type GroundHeightContextType = {
@@ -287,6 +288,8 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         mieDirectionalG={0.7}
       />
 
+      <Mountains />
+
       {/* Terrain */}
       <mesh
         ref={ref}
@@ -294,7 +297,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         position={[0, -0.1, 0]}
         receiveShadow
       >
-        <planeGeometry ref={geometryRef} args={[2000, 2000, 1024, 1024]} />
+        <planeGeometry ref={geometryRef} args={[1000, 1000, 512, 512]} />
         <meshStandardMaterial
           ref={materialRef}
           map={grassMap}
@@ -333,6 +336,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         area={100}
       />
 
+
       {treePositions ? (
         /* Forest - memoized component */
         <ForestWrapper {...forestProps} />
@@ -340,8 +344,6 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         <Suspense fallback={<div>Loading components...</div>} />
       )}
 
-
-      <fog attach="fog" args={["#D6EAF8", 30, 100]} />
 
       {/* Children can use the context via useGroundHeight */}
       {children}

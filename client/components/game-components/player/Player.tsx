@@ -126,22 +126,34 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         // Get direction camera is facing
         camera.getWorldDirection(shootDirection);
 
+        const groundY = getGroundHeight(camera.position.x, camera.position.z);
+
         // Set ray origin and direction
         raycaster.set(camera.position, shootDirection);
 
         // Raycast against all mesh objects in the scene
-        const intersects = raycaster.intersectObjects(obstacles); // true = recursive
+        const intersects = raycaster.intersectObjects(obstacles, true); // true = recursive
 
         if (intersects.length > 0) {
             const firstHit = intersects[0];
-            console.log('🔫 Hit:', firstHit.object.name, 'at', firstHit.point);
 
-            // Optional: show visual effect or apply logic
-            // e.g., firstHit.object.material.color.set('red');
+            const hitX = firstHit.point.x;
+            const hitZ = firstHit.point.z;
+            const hitY = firstHit.point.y;
+
+            const groundY = getGroundHeight(hitX, hitZ);
+
+            const threshold = 0.1; // Tolerance for noise or minor overlap
+
+            if (hitY <= groundY + threshold) {
+                console.log("🚫 Shot blocked by terrain at", { x: hitX, y: groundY, z: hitZ });
+            } else {
+                console.log("🔫 Hit:", firstHit.object.name, "at", firstHit.point);
+                // Apply logic to the object (damage, highlight, etc.)
+            }
         } else {
-            console.log("missed")
+            console.log("missed");
         }
-
 
         // Start recoil
         isRecoiling.current = true;
@@ -399,7 +411,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     const gravity = -9.8 * 2;
     const jumpStrength = 10;
 
-    const playerSpeed = 6;
+    const playerSpeed = useRef(6);
     const playerHeight = 1.5;
     const controlsRef = useRef<any>(null);
 
@@ -425,6 +437,10 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyS': setMoveState(prev => ({ ...prev, backward: true })); break;
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: true })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    playerSpeed.current = 12;
+                    break;
                 case 'KeyG': {
                     if (!shootCooldown.current) {
                         handleFireballShoot();
@@ -440,7 +456,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                     break;
             }
 
-                
+
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
@@ -449,6 +465,10 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyS': setMoveState(prev => ({ ...prev, backward: false })); break;
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: false })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: false })); break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    playerSpeed.current = 6;
+                    break;
                 case 'Space':
                     jumpRequested.current = false;
                     break;
@@ -515,7 +535,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         // Apply movement in the camera direction
         const frontVector = new THREE.Vector3(0, 0, Number(moveState.forward) - Number(moveState.backward));
         const sideVector = new THREE.Vector3(Number(moveState.left) - Number(moveState.right), 0, 0);
-        const horizontalMove = frontVector.add(sideVector).normalize().multiplyScalar(playerSpeed * delta);
+        const horizontalMove = frontVector.add(sideVector).normalize().multiplyScalar(playerSpeed.current * delta);
 
         // Combine and normalize movement vector
         const moveVector = new THREE.Vector3(
@@ -553,7 +573,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
         //work later
         // if (isJumpingRef.current && moveState.forward == false) {
-        //     camera.position.addScaledVector(jumpDirection.current, playerSpeed / 2 * delta);
+        //     camera.position.addScaledVector(jumpDirection.current, playerSpeed.current / 2 * delta);
         // }
 
         // Apply gravity
@@ -598,7 +618,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                     cameraDirection.normalize();
 
                     if (jumpRequested.current) {
-                        cameraDirection.normalize().multiplyScalar(playerSpeed);
+                        cameraDirection.normalize().multiplyScalar(playerSpeed.current);
 
                         velocity.current.y = jumpStrength;
                         isJumpingRef.current = true;
@@ -706,7 +726,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                     cameraDirection.normalize();
 
                     if (jumpRequested.current) {
-                        cameraDirection.normalize().multiplyScalar(playerSpeed);
+                        cameraDirection.normalize().multiplyScalar(playerSpeed.current);
 
                         velocity.current.y = jumpStrength;
                         isJumpingRef.current = true;

@@ -271,15 +271,14 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
                 return ((t ^ t >>> 14) >>> 0) / 4294967296;
             };
         }
-
         const generateTreePositions = () => {
 
-            const radius = 2000;
-            const density = 0.01;
+            const radius = 1000;
+            const densityFactor = 0.005; // Adjust this value to control tree density (higher = more trees)
             const center = [0, 0, 0];
 
             const positions: TreePosition[] = [];
-            const treeCount = Math.floor(radius * radius * density);
+            const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
             // Seeded random number generator
             const seed = 12345; // Replace with a consistent seed value
@@ -287,18 +286,18 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
             // Calculate unique positions for trees
             for (let i = 0; i < treeCount; i++) {
-                const angle = random() * Math.PI * 2;
-                const dist = Math.sqrt(random()) * radius;
+            const angle = random() * Math.PI * 2;
+            const dist = Math.sqrt(random()) * radius;
 
-                const x = center[0] + Math.cos(angle) * dist;
-                const z = center[2] + Math.sin(angle) * dist;
-                const y = getGroundHeight(x, z) + 1.5;
+            const x = center[0] + Math.cos(angle) * dist;
+            const z = center[2] + Math.sin(angle) * dist;
+            const y = getGroundHeight(x, z) + 1.5;
 
-                positions.push({
-                    position: [x, y, z] as [number, number, number],
-                    rotation: random() * Math.PI * 2,
-                    scale: 0.8 + random() * 0.4
-                });
+            positions.push({
+                position: [x, y, z] as [number, number, number],
+                rotation: random() * Math.PI * 2,
+                scale: 0.8 + random() * 0.4
+            });
             }
 
             return positions;
@@ -329,7 +328,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
 io.on('connection', (socket: AuthenticatedSocket) => {
 
-    const innerRadius = 50;
+    const innerRadius = 25;
 
     console.log('User connected:', socket.id);
 

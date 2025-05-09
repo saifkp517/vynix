@@ -196,7 +196,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent }) => {
     }, [isReloading]);
 
     return (
-        <group ref={gunRef} position={[0.5, -0.5, -0.5]}>
+        <group ref={gunRef} position={[0.5, -0.3, -0.5]}>
             {/* Gun body */}
             <mesh>
                 <boxGeometry args={[0.4, 0.2, 1]} />
@@ -215,7 +215,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent }) => {
                 <meshStandardMaterial color="darkgray" />
             </mesh>
 
-            {/* Muzzle flash */}
+            {/* Muzzle flash. */}
             {muzzleFlash && (
                 <>
                     {/* Central flash */}
