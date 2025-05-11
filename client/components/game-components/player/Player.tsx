@@ -847,7 +847,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
-                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} />
+                {/* <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} /> */}
             </group>
         </>
     );

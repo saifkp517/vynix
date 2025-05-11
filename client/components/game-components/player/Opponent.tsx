@@ -23,18 +23,6 @@ export const Opponent = ({
   const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
 
-  const [model, setModel] = useState<THREE.Group | undefined>();
-
-  const url = '/assets/robot.fbx'; // Replace with your model URL
-
-  useEffect(() => {
-    const loader = new FBXLoader();
-    loader.load(url, (fbx) => {
-      fbx.scale.set(0.01, 0.01, 0.01); // Adjust scale as needed
-      setModel(fbx);
-    });
-  }, [url]);
-
   useEffect(() => {
     if (addObstacleRef) {
       addObstacleRef(meshRef.current);

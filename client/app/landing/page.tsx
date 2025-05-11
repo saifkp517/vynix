@@ -1,5 +1,6 @@
 'use client'
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
@@ -84,8 +85,9 @@ const FirstPersonGame: React.FC = () => {
   const [team, setTeam] = useState<string | null>(null);
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
   const playerPositionsRef = useRef<{ [playerId: string]: THREE.Vector3 }>({});
+  const [localPlayerId, setLocalPlayerId] = useState("");
   // We need to keep a state to force re-renders when players join/leave
-  const [playerIds, setPlayerIds] = useState<string[]>([]);
+  const playerIdsRef = useRef<string[]>([]);
 
   type Player = {
     id: string;
@@ -109,6 +111,7 @@ const FirstPersonGame: React.FC = () => {
       if (!hasJoinedRoom.current) {
         hasJoinedRoom.current = true;
         socket.emit("joinRoom", socket.id);
+        setLocalPlayerId(socket.id || "124");
       }
     };
 
@@ -138,8 +141,8 @@ const FirstPersonGame: React.FC = () => {
       };
 
       // Update player IDs if this is a new player
-      if (!playerIds.includes(id)) {
-        setPlayerIds(prev => [...prev, id]);
+      if (!playerIdsRef.current.includes(id)) {
+        playerIdsRef.current = [...playerIdsRef.current, id];
       }
     });
 
@@ -149,7 +152,7 @@ const FirstPersonGame: React.FC = () => {
       playerPositionsRef.current = updated;
 
       // Update player IDs when a player leaves
-      setPlayerIds(prev => prev.filter(playerId => playerId !== id));
+      playerIdsRef.current = playerIdsRef.current.filter(playerId => playerId !== id);
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -246,7 +249,6 @@ const FirstPersonGame: React.FC = () => {
     Array.isArray(treePositions.current) &&
     treePositions.current.length > 0;
 
-
   return (
     <div className="w-full h-screen relative">
       {isReady ? (
@@ -275,7 +277,8 @@ const FirstPersonGame: React.FC = () => {
                 otherPlayers={playerPositionsRef.current}
               />
 
-              {playerIds.map((id) => (
+              {playerIdsRef.current
+                .map((id) => (
                 <OpponentWithGroundHeight
                   key={id}
                   playerId={id}
