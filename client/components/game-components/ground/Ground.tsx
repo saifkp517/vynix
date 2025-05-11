@@ -315,7 +315,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       {/* Lighting */}
       <directionalLight
         position={sunPosition}
-        intensity={0.3}
+        intensity={0.01}
         castShadow
         color="#bcd4e6"
       >
@@ -324,7 +324,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
       <hemisphereLight
         args={["#1a237e", "#0d3b66", 0.2]}
-        position={[0, 50, 0]}
+        position={[0, 200, 0]}
       />
 
       {/* Rain Effect - memoized component */}
@@ -337,8 +337,9 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       />
 
 
+      {/* Forest */}
       {treePositions ? (
-        /* Forest - memoized component */
+
         <ForestWrapper {...forestProps} />
       ) : (
         <Suspense fallback={<div>Loading components...</div>} />

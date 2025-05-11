@@ -624,8 +624,7 @@ function BushesAroundTrees({ treePositions = [] }: { treePositions: [number, num
 }
 
 
-const RADIUS = 200;
-const densityFactor = 0.005 //this must not change, unless changes made in server
+const RADIUS = 150;
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
   treePositions,

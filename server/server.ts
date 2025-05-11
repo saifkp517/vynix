@@ -22,6 +22,7 @@ const httpServer = createServer(app)
 const allowedOrigins = [
     "http://localhost:3000",
     "https://vynix-git-main-my-team-e0738a04.vercel.app",
+    "https://vynix-git-lod-my-team-e0738a04.vercel.app"
 ];
 
 const io = new Server(httpServer, {
@@ -328,7 +329,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
 io.on('connection', (socket: AuthenticatedSocket) => {
 
-    const innerRadius = 25;
+    const innerRadius = 100;
 
     console.log('User connected:', socket.id);
 

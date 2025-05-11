@@ -68,7 +68,6 @@ export const Opponent = ({
     const pos = positionRef(); // get fresh position every frame
     if (pos) {
       targetPosition.current.copy(pos);
-      targetPosition.current.y = targetPosition.current.y - 0.8; // Adjust height based on ground
     }
 
     currentPosition.current.lerp(targetPosition.current, delta * 0.5);

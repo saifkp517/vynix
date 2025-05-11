@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Heart, Crosshair, Target, Clock, Users } from 'lucide-react';
+import { Shield, Heart, Crosshair, Target, Clock, Users  } from 'lucide-react';
 
 interface GameInfoProps {
   roomId: string | null;
@@ -12,7 +12,13 @@ interface GameInfoProps {
 }
 
 // Reusable HUD Box component
-const HudBox = ({ children, position, className = "" }) => (
+interface HudBoxProps {
+  children: React.ReactNode;
+  position: string;
+  className?: string;
+}
+
+const HudBox: React.FC<HudBoxProps> = ({ children, position, className = "" }) => (
   <div className={`fixed ${position} bg-gray-900/40 text-white p-3 rounded-lg shadow-lg border border-gray-700/40 backdrop-blur-sm z-20 ${className}`}>
     {children}
   </div>
@@ -31,14 +37,14 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             </div>
             <span className="font-bold text-red-400">{health}%</span>
           </div>
-          
+
           <div className="w-full bg-gray-700/60 rounded-full h-2">
-            <div 
-              className="bg-red-500 h-2 rounded-full" 
+            <div
+              className="bg-red-500 h-2 rounded-full"
               style={{ width: `${health}%` }}
             />
           </div>
-          
+
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center">
               <Crosshair size={18} className="text-yellow-400 mr-2" />
@@ -57,29 +63,20 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         </HudBox>
 
         {/* Ammo - Bottom Right */}
-        <HudBox position="bottom-4 right-4" className="w-48">
+        <HudBox position="bottom-4 right-4" className="px-2 py-1 text-xs bg-black/70 rounded shadow flex items-center space-x-3">
           <div className="flex items-center space-x-1">
-            <Target size={18} className="text-orange-400" />
-            <span className="text-sm font-medium">Ammo</span>
+            <Target size={14} className="text-orange-400" />
+            <span className="text-orange-400 font-semibold">{bulletsInChamber}</span>
           </div>
-          
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs">Chamber:</span>
-            <div className="flex space-x-1">
-              {[...Array(6)].map((_, i) => (
-                <div 
-                  key={i} 
-                  className={`w-3 h-8 rounded ${i < bulletsInChamber ? 'bg-orange-400' : 'bg-gray-700/60'}`}
-                />
-              ))}
-            </div>
+          <div className="flex items-center space-x-1">
+            /
           </div>
-          
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs">Reserve:</span>
-            <span className="font-bold text-orange-400">{bulletsAvailable}</span>
+          <div className="flex items-center space-x-1">
+
+            <span className="text-gray-200 font-semibold">{bulletsAvailable}</span>
           </div>
         </HudBox>
+
 
         {/* Controls - Bottom Left */}
         <HudBox position="bottom-4 left-4" className="w-48">
@@ -99,19 +96,18 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             <Users size={18} className="text-cyan-400 mr-2" />
             <span className="text-sm font-medium text-cyan-400">Game Info</span>
           </div>
-          
+
           <div className="flex justify-between text-xs mb-1">
             <span>Room:</span>
             <span className="font-medium">{roomId ?? 'Not joined'}</span>
           </div>
-          
+
           <div className="flex justify-between text-xs">
             <span>Team:</span>
-            <span 
-              className={`font-medium ${
-                team === 'red' ? 'text-red-400' : 
+            <span
+              className={`font-medium ${team === 'red' ? 'text-red-400' :
                 team === 'blue' ? 'text-blue-400' : 'text-gray-300'
-              }`}
+                }`}
             >
               {team ?? 'No team'}
             </span>

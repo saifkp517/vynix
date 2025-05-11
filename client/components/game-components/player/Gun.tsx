@@ -14,8 +14,8 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent }) => {
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const [muzzleFlash, setMuzzleFlash] = useState(false);
     const [isReloading, setIsReloading] = useState(false);
-    const [ammo, setAmmo] = useState(30);
-    const maxAmmo = 30;
+    const [ammo, setAmmo] = useState(10);
+    const maxAmmo = 10;
 
     const raycaster = useRef(new THREE.Raycaster());
     const muzzleFlashTimeout = useRef<NodeJS.Timeout | null>(null);
