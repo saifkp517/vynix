@@ -321,7 +321,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         position={[0, -0.1, 0]}
         receiveShadow
       >
-        <planeGeometry ref={geometryRef} args={[1000, 1000, 512, 512]} />
+        <planeGeometry ref={geometryRef} args={[1500, 1500, 512, 512]} />
         <meshStandardMaterial
           ref={materialRef}
           map={grassMap}
@@ -339,7 +339,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       {/* Lighting */}
       <directionalLight
         position={sunPosition}
-        intensity={0.01}
+        intensity={10}
         castShadow
         color="#bcd4e6"
       >
@@ -363,12 +363,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
 
       {/* Forest */}
-      {treePositions ? (
+      {/* {treePositions ? (
 
         <ForestWrapper {...forestProps} />
       ) : (
         <Suspense fallback={<div>Loading components...</div>} />
-      )}
+      )} */}
 
 
       {/* Children can use the context via useGroundHeight */}

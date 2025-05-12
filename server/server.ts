@@ -94,7 +94,40 @@ interface TreePosition {
 
 const rooms: Room[] = [];
 
+const CELL_SIZE = 300;
+type Grid = Map<string, Set<string>>;
+const grid: Grid = new Map();
 
+function getCellKey(position: Position): string {
+    const cellX = Math.floor(position.x / CELL_SIZE);
+    const cellZ = Math.floor(position.z / CELL_SIZE);
+
+    return `${cellX}_${cellZ}`;
+}
+
+function getNearbyPlayers(socket: Socket, centerKey: string): string[] {
+    const [xStr, zStr] = centerKey.split("_");
+    const x = parseInt(xStr);
+    const z = parseInt(zStr);
+
+    const nearby: Set<string> = new Set();
+
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+            const key = `${x + dx}_${z + dz}`;
+            const cell = grid.get(key);
+            if (cell) {
+                for (const id of cell) {
+                    nearby.add(id);
+                }
+            }
+        }
+    }
+
+    // Return as array without the current player
+    nearby.delete(socket.id);
+    return Array.from(nearby);
+}
 
 function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     let room = rooms.find(r => r.players.length < r.maxPlayers);
@@ -138,18 +171,18 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
             // Calculate unique positions for trees
             for (let i = 0; i < treeCount; i++) {
-            const angle = random() * Math.PI * 2;
-            const dist = Math.sqrt(random()) * radius;
+                const angle = random() * Math.PI * 2;
+                const dist = Math.sqrt(random()) * radius;
 
-            const x = center[0] + Math.cos(angle) * dist;
-            const z = center[2] + Math.sin(angle) * dist;
-            const y = getGroundHeight(x, z) + 1.5;
+                const x = center[0] + Math.cos(angle) * dist;
+                const z = center[2] + Math.sin(angle) * dist;
+                const y = getGroundHeight(x, z) + 1.5;
 
-            positions.push({
-                position: [x, y, z] as [number, number, number],
-                rotation: random() * Math.PI * 2,
-                scale: 0.8 + random() * 0.4
-            });
+                positions.push({
+                    position: [x, y, z] as [number, number, number],
+                    rotation: random() * Math.PI * 2,
+                    scale: 0.8 + random() * 0.4
+                });
             }
 
             return positions;
@@ -210,7 +243,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
     socket.on("requestForestUpdate", () => {
         console.log("requested")
-        socket.emit('updateForest', { id: socket.id, position: {x: 0, y: 0, z: 0}});
+        socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
     })
 
     socket.on('updatePosition', (position) => {
@@ -229,8 +262,24 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         players[socket.id] = position;
 
-        socket.broadcast.emit('playerMoved', { id: socket.id, position });
-        socket.broadcast.emit('playerMoved', { id: socket.id, position });
+        const cellKey = getCellKey(position);
+
+        //remove player from old cell
+        for (const [key, set] of grid.entries()) {
+            if (set.has(socket.id)) set.delete(socket.id);
+        }
+
+        //add player to new cell
+        if (!grid.has(cellKey)) grid.set(cellKey, new Set());
+        grid.get(cellKey)?.add(socket.id);
+
+        //broadcast only to players within my grid
+        const nearbySocketIds = getNearbyPlayers(socket, cellKey);
+        for (const id of nearbySocketIds) {
+            console.log("sent")
+            io.to(id).emit('playerMoved', { id: socket.id, position });
+        }
+
     });
 
     socket.on("disconnect", () => {
@@ -253,7 +302,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         io.emit('playerDisconnected', socket.id);
     });
 });
-
 
 
 //db setup

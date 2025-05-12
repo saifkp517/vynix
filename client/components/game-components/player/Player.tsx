@@ -409,7 +409,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     };
 
     const gravity = -9.8 * 2;
-    const jumpStrength = 10;
+    const jumpStrength = 50;
 
     const playerSpeed = useRef(6);
     const playerHeight = 1.5;
@@ -439,7 +439,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 12;
+                    playerSpeed.current = 30;
                     break;
                 case 'KeyG': {
                     if (!shootCooldown.current) {

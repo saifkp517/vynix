@@ -87,7 +87,7 @@ const FirstPersonGame: React.FC = () => {
   const playerPositionsRef = useRef<{ [playerId: string]: THREE.Vector3 }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   // We need to keep a state to force re-renders when players join/leave
-  const playerIdsRef = useRef<string[]>([]);
+  const [playerIds, setPlayerIds] = useState<string[]>([]);
 
   type Player = {
     id: string;
@@ -132,7 +132,6 @@ const FirstPersonGame: React.FC = () => {
     });
 
     socket.on("playerMoved", ({ id, position }) => {
-      // console.log("Player moved:", id, position);
 
       // Store position in ref to avoid re-renders
       playerPositionsRef.current = {
@@ -140,10 +139,14 @@ const FirstPersonGame: React.FC = () => {
         [id]: new THREE.Vector3(position.x, position.y, position.z)
       };
 
-      // Update player IDs if this is a new player
-      if (!playerIdsRef.current.includes(id)) {
-        playerIdsRef.current = [...playerIdsRef.current, id];
-      }
+      // Trigger re-render if this is a new player
+      setPlayerIds((prevIds) => {
+        if (!prevIds.includes(id)) {
+          return [...prevIds, id];
+        }
+        return prevIds; // no change, no re-render
+      });
+
     });
 
     socket.on("disconnect", (id) => {
@@ -152,7 +155,12 @@ const FirstPersonGame: React.FC = () => {
       playerPositionsRef.current = updated;
 
       // Update player IDs when a player leaves
-      playerIdsRef.current = playerIdsRef.current.filter(playerId => playerId !== id);
+      setPlayerIds((prevIds) => {
+        if (!prevIds.includes(id)) {
+          return [...prevIds, id];
+        }
+        return prevIds; // no change, no re-render
+      });
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -214,10 +222,12 @@ const FirstPersonGame: React.FC = () => {
 
   // Example Opponent component that uses the useGroundHeight hook
   const OpponentWithGroundHeight = React.memo(
+
     ({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
       const getGroundHeight = useGroundHeight();
       const positionRef = useRef<THREE.Vector3 | null>(null);
 
+      console.log("Rendering OpponentWithGroundHeight for:", playerId);
       useEffect(() => {
         positionRef.current = playerPositionsRef.current[playerId] || null;
       }, [playerId]);
@@ -238,7 +248,7 @@ const FirstPersonGame: React.FC = () => {
 
   const groundProps = {
     addObstacleRef,
-    fogDistance: 25,
+    fogDistance: 2500,
     treePositions: treePositions.current,
     fogColor: "#65888a"
   };
@@ -255,6 +265,7 @@ const FirstPersonGame: React.FC = () => {
         <>
           <GameInfo
             roomId={roomId}
+            userid={localPlayerId}
             team={team}
             bulletsInChamber={6}
             bulletsAvailable={30}
@@ -277,15 +288,15 @@ const FirstPersonGame: React.FC = () => {
                 otherPlayers={playerPositionsRef.current}
               />
 
-              {playerIdsRef.current
+              {playerIds
                 .map((id) => (
-                <OpponentWithGroundHeight
-                  key={id}
-                  playerId={id}
-                  addObstacleRef={addObstacleRef}
-                  isHit={!!hitPlayers[id]}
-                />
-              ))}
+                  <OpponentWithGroundHeight
+                    key={id}
+                    playerId={id}
+                    addObstacleRef={addObstacleRef}
+                    isHit={!!hitPlayers[id]}
+                  />
+                ))}
             </Ground>
           </Canvas>
         </>

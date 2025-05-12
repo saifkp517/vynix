@@ -3,6 +3,7 @@ import { Shield, Heart, Crosshair, Target, Clock, Users  } from 'lucide-react';
 
 interface GameInfoProps {
   roomId: string | null;
+  userid: string | null;
   team: string | null;
   bulletsInChamber: number;
   bulletsAvailable: number;
@@ -25,7 +26,7 @@ const HudBox: React.FC<HudBoxProps> = ({ children, position, className = "" }) =
 );
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, team, bulletsInChamber, bulletsAvailable, explosionTimeout, health, kills }) => {
+  ({ roomId, userid, team, bulletsInChamber, bulletsAvailable, explosionTimeout, health, kills }) => {
     return (
       <>
         {/* Health & Kills - Top Left */}
@@ -100,6 +101,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           <div className="flex justify-between text-xs mb-1">
             <span>Room:</span>
             <span className="font-medium">{roomId ?? 'Not joined'}</span>
+            <span className="font-medium">{userid ?? 'Not joined'}</span>
           </div>
 
           <div className="flex justify-between text-xs">
