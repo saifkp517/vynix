@@ -41,61 +41,72 @@ type GroundProps = {
 };
 
 // RainEffect component is memoized to prevent unnecessary rerenders
-const RainEffect = memo(({ count = 5000, size = 2, color = "#D6EAF8", intensity = 10, area = 100 }: any) => {
-  const rainRef = useRef<Points>(null);
+const RainEffect = memo(
+  ({
+    count = 5000,
+    size = 2,
+    color = "#D6EAF8",
+    intensity = 10,
+    area = 100,
+    center
+  }: any) => {
+    const rainRef = useRef<Points>(null);
+    console.log(center)
 
-  // Create raindrops - memoized so it's not recreated on rerenders
-  const raindrops = useMemo(() => {
-    const positions = new Float32Array(count * 3);
-    const velocities = new Float32Array(count);
+    // Create raindrops - memoized so it's not recreated on rerenders
+    const raindrops = useMemo(() => {
+      const positions = new Float32Array(count * 3);
+      const velocities = new Float32Array(count);
 
-    for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * area;
-      positions[i * 3 + 1] = Math.random() * 50;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * area;
-      velocities[i] = (Math.random() + 0.1) * intensity;
-    }
+      const rainFallHeight = 100;
 
-    return { positions, velocities };
-  }, [count, area, intensity]);
-
-  useFrame((state, delta) => {
-    if (!rainRef.current) return;
-
-    const positions = rainRef.current.geometry.attributes.position.array;
-
-    for (let i = 0; i < count; i++) {
-      positions[i * 3 + 1] -= raindrops.velocities[i];
-
-      if (positions[i * 3 + 1] < -5) {
-        positions[i * 3 + 1] = Math.random() * 50;
-        positions[i * 3] = (Math.random() - 0.5) * area;
-        positions[i * 3 + 2] = (Math.random() - 0.5) * area;
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * area + center[0];
+        positions[i * 3 + 1] = Math.random() * rainFallHeight + center[1];
+        positions[i * 3 + 2] = (Math.random() - 0.5) * area + center[2];
+        velocities[i] = (Math.random() + 0.1) * intensity;
       }
-    }
 
-    rainRef.current.geometry.attributes.position.needsUpdate = true;
-  });
+      return { positions, velocities };
+    }, [count, area, intensity]);
 
-  return (
-    <points ref={rainRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[raindrops.positions, 3]}
+    useFrame((state, delta) => {
+      if (!rainRef.current) return;
+
+      const positions = rainRef.current.geometry.attributes.position.array;
+
+      for (let i = 0; i < count; i++) {
+        positions[i * 3 + 1] -= raindrops.velocities[i];
+
+        if (positions[i * 3 + 1] < -5) {
+          positions[i * 3] = (Math.random() - 0.5) * area + center[0];
+          positions[i * 3 + 1] = Math.random() * 100 + center[1];
+          positions[i * 3 + 2] = (Math.random() - 0.5) * area + center[2];
+        }
+      }
+
+      rainRef.current.geometry.attributes.position.needsUpdate = true;
+    });
+
+    return (
+      <points ref={rainRef} frustumCulled={false}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            args={[raindrops.positions, 3]}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          attach="material"
+          color={color}
+          size={size}
+          fog={true}
+          transparent={true}
         />
-      </bufferGeometry>
-      <pointsMaterial
-        attach="material"
-        color={color}
-        size={size}
-        fog={true}
-        transparent={true}
-        opacity={0.6}
-      />
-    </points>
-  );
-});
+      </points>
+    );
+  }
+);
 
 
 
@@ -123,6 +134,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const initializedRef = useRef(false);
 
   // Load textures once
@@ -131,6 +143,18 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     "/textures/grass_rough.jpg",
     "/textures/grass_normal.jpg"
   ]);
+
+  useEffect(() => {
+    socket.on('updateForest', ({ id, position }) => {
+      setTargetPosition([position.x, position.y, position.z]);
+    });
+
+    return () => {
+      socket.off("updateForest", ({ id, position }: any) => {
+        setTargetPosition([position.x, position.y, position.z]);
+      });
+    };
+  }, [])
 
   // Create noise-based roughness variation - once during initial render
   const roughnessVariation = useMemo(() => {
@@ -216,7 +240,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     initializedRef.current = true;
   }, [grassMap, roughnessMap, noiseMap]);
 
-  const sunPosition = useMemo(() => new THREE.Vector3(100, 10, 100), []);
+  const sunPosition = useMemo(() => new THREE.Vector3(100, 300, 100), []);
 
   // Apply terrain deformation - once during initial render
   useEffect(() => {
@@ -278,7 +302,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     <GroundHeightContext.Provider value={groundHeightContextValue}>
       {/* Sky */}
       <Sky
-        distance={2000}
+        distance={1000}
         sunPosition={sunPosition}
         inclination={0.6}
         azimuth={0.25}
@@ -329,11 +353,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
       {/* Rain Effect - memoized component */}
       <RainEffect
-        count={400}
+        count={600}
         size={0.3}
         color="#A9CCE3"
         intensity={1.2}
-        area={100}
+        area={300}
+        center={targetPosition}
       />
 
 

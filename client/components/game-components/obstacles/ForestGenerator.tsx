@@ -624,7 +624,7 @@ function BushesAroundTrees({ treePositions = [] }: { treePositions: [number, num
 }
 
 
-const RADIUS = 150;
+const RADIUS = 200;
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
   treePositions,
