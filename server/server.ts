@@ -61,7 +61,10 @@ type Position = {
 };
 
 type PlayerMap = {
-    [socketId: string]: Position;
+    [socketId: string]: {
+        position: Position;
+        velocity: Position;
+    };
 };
 
 let players: PlayerMap = {};
@@ -94,7 +97,7 @@ interface TreePosition {
 
 const rooms: Room[] = [];
 
-const CELL_SIZE = 300;
+const CELL_SIZE = 100;
 type Grid = Map<string, Set<string>>;
 const grid: Grid = new Map();
 
@@ -246,7 +249,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
     })
 
-    socket.on('updatePosition', (position) => {
+    socket.on('updatePosition', (position, velocity) => {
 
         let distance = Math.sqrt(
             Math.pow(position.x - newCenter.x, 2) +
@@ -260,7 +263,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             newCenter = position;
         }
 
-        players[socket.id] = position;
+        players[socket.id] = {position, velocity};
 
         const cellKey = getCellKey(position);
 
@@ -276,8 +279,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         //broadcast only to players within my grid
         const nearbySocketIds = getNearbyPlayers(socket, cellKey);
         for (const id of nearbySocketIds) {
-            console.log("sent")
-            io.to(id).emit('playerMoved', { id: socket.id, position });
+            io.to(id).emit('playerMoved', { id: socket.id, position, velocity });
         }
 
     });

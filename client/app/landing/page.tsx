@@ -23,7 +23,19 @@ interface TreePosition {
   scale: number;
 }
 
+type Player = {
+  id: string;
+  team?: string;
+  position?: THREE.Vector3;
+  velocity?: THREE.Vector3;
+}
 
+type Room = {
+  roomId: string;
+  players: Player[];
+  maxPlayers: number;
+  gameStarted: boolean;
+}
 
 const Crosshair = React.memo(() => (
   <div style={{
@@ -84,23 +96,12 @@ const FirstPersonGame: React.FC = () => {
   const treePositions = useRef<TreePosition[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
-  const playerPositionsRef = useRef<{ [playerId: string]: THREE.Vector3 }>({});
+  const playerDataRef = useRef<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   // We need to keep a state to force re-renders when players join/leave
   const [playerIds, setPlayerIds] = useState<string[]>([]);
 
-  type Player = {
-    id: string;
-    team?: string;
-    position?: THREE.Vector3;
-  }
 
-  type Room = {
-    roomId: string;
-    players: Player[];
-    maxPlayers: number;
-    gameStarted: boolean;
-  }
 
   //prevent multiple joins requests by same user
   const hasJoinedRoom = useRef(false);
@@ -130,14 +131,19 @@ const FirstPersonGame: React.FC = () => {
       treePositions.current = room.treePositions
       setTeam(team);
     });
+    socket.on("playerMoved", ({ id, position, velocity }) => {
 
-    socket.on("playerMoved", ({ id, position }) => {
+      console.log("Opponent Velocity: ", velocity)
 
-      // Store position in ref to avoid re-renders
-      playerPositionsRef.current = {
-        ...playerPositionsRef.current,
-        [id]: new THREE.Vector3(position.x, position.y, position.z)
+      // Store position and velocity in ref to avoid re-renders
+      playerDataRef.current = {
+        ...playerDataRef.current,
+        [id]: {
+          position: new THREE.Vector3(position.x, position.y, position.z),
+          velocity: new THREE.Vector3(velocity.x, velocity.y, velocity.z),
+        },
       };
+
 
       // Trigger re-render if this is a new player
       setPlayerIds((prevIds) => {
@@ -150,9 +156,9 @@ const FirstPersonGame: React.FC = () => {
     });
 
     socket.on("disconnect", (id) => {
-      const updated = { ...playerPositionsRef.current };
+      const updated = { ...playerDataRef.current };
       delete updated[id];
-      playerPositionsRef.current = updated;
+      playerDataRef.current = updated;
 
       // Update player IDs when a player leaves
       setPlayerIds((prevIds) => {
@@ -226,17 +232,20 @@ const FirstPersonGame: React.FC = () => {
     ({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
       const getGroundHeight = useGroundHeight();
       const positionRef = useRef<THREE.Vector3 | null>(null);
+      const velocityRef = useRef<THREE.Vector3 | null>(null);
 
       console.log("Rendering OpponentWithGroundHeight for:", playerId);
       useEffect(() => {
-        positionRef.current = playerPositionsRef.current[playerId] || null;
+        positionRef.current = playerDataRef.current[playerId].position || null;
+        velocityRef.current = playerDataRef.current[playerId].velocity || null;
       }, [playerId]);
 
-      if (!playerPositionsRef.current[playerId]) return null;
+      if (!playerDataRef.current[playerId]) return null;
 
       return (
         <Opponent
-          positionRef={() => playerPositionsRef.current[playerId]} // Pass as a function
+          positionRef={() => playerDataRef.current[playerId].position} // Pass as a function
+          velocityRef={() => playerDataRef.current[playerId].velocity} // Pass as a function}
           isRemote={true}
           addObstacleRef={addObstacleRef}
           isHit={isHit}
@@ -285,7 +294,7 @@ const FirstPersonGame: React.FC = () => {
               <PlayerWithGroundHeight
                 addObstacleRef={addObstacleRef}
                 obstacles={obstacles.current}
-                otherPlayers={playerPositionsRef.current}
+                otherPlayers={playerDataRef.current}
               />
 
               {playerIds

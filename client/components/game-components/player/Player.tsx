@@ -336,8 +336,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     };
 
 
-    const handlePositionChange = React.useCallback((pos: THREE.Vector3) => {
-        socket.emit("updatePosition", pos);
+    const handlePositionChange = React.useCallback((pos: THREE.Vector3, velocity: THREE.Vector3) => {
+        socket.emit("updatePosition", pos, velocity);
     }, []);
 
 
@@ -408,8 +408,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         }, 1000);
     };
 
-    const gravity = -9.8 * 2;
-    const jumpStrength = 50;
+    const gravity = -9.8 * 4;
+    const jumpStrength = 15;
 
     const playerSpeed = useRef(6);
     const playerHeight = 1.5;
@@ -557,6 +557,9 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         moveVector.applyQuaternion(moveQuat);
 
         const playerPosition = camera.position.clone();
+
+        velocity.current.set(moveVector.x / delta, velocity.current.y, moveVector.z / delta);
+
 
         // Step 2: Apply movement
         camera.position.add(moveVector);
@@ -786,7 +789,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
         // Only emit the position change every 100ms
         if (currentTime - lastUpdateTime.current >= 100) {
-            handlePositionChange(playerPosition.clone());
+            handlePositionChange(playerPosition.clone(), velocity.current.clone());
             lastUpdateTime.current = currentTime; // Update the last update time
         }
 
