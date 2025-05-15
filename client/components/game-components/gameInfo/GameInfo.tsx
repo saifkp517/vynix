@@ -1,5 +1,6 @@
-import React from 'react';
-import { Shield, Heart, Crosshair, Target, Clock, Users  } from 'lucide-react';
+import React, { RefObject, useEffect, useState } from 'react';
+import socket from '@/lib/socket';
+import { Heart, Crosshair, Target, Users } from 'lucide-react';
 
 interface GameInfoProps {
   roomId: string | null;
@@ -10,6 +11,7 @@ interface GameInfoProps {
   explosionTimeout: number | null; // Seconds until explosion (e.g., grenade)
   health: number; // Player health (0-100)
   kills: number;
+  pingRef: RefObject<number>;
 }
 
 // Reusable HUD Box component
@@ -26,7 +28,18 @@ const HudBox: React.FC<HudBoxProps> = ({ children, position, className = "" }) =
 );
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, bulletsInChamber, bulletsAvailable, explosionTimeout, health, kills }) => {
+  ({ roomId, userid, team, bulletsInChamber, bulletsAvailable, explosionTimeout, health, kills, pingRef }) => {
+
+    const [pingInfo, setPingInfo] = useState(0);
+    
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setPingInfo(pingRef.current || 0);
+      }, 1000);
+      return () => clearInterval(interval);
+    })
+
+
     return (
       <>
         {/* Health & Kills - Top Left */}
@@ -92,7 +105,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         </HudBox>
 
         {/* Game Info - Top Right */}
-        <HudBox position="top-4 right-4" className="w-48">
+        <HudBox position="top-4 right-4" className="min-w-48">
           <div className="flex items-center mb-2">
             <Users size={18} className="text-cyan-400 mr-2" />
             <span className="text-sm font-medium text-cyan-400">Game Info</span>
@@ -101,7 +114,29 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           <div className="flex justify-between text-xs mb-1">
             <span>Room:</span>
             <span className="font-medium">{roomId ?? 'Not joined'}</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1">
+            <span>UserId:</span>
             <span className="font-medium">{userid ?? 'Not joined'}</span>
+          </div>
+          <br />
+          <div className="flex justify-between text-xs mb-1 items-center">
+            <span>Ping:</span>
+            <span className="flex items-center space-x-2">
+              <span
+                className={`font-medium ${pingInfo < 50 ? 'text-green-400' :
+                  pingInfo < 100 ? 'text-yellow-400' : 'text-red-400'
+                  }`}
+              >
+                {pingInfo ?? 'Not Connected'} ms
+              </span>
+              <div className="flex space-x-1 items-end">
+                <div className={`w-1 h-2 ${pingInfo > 0 ? 'bg-green-400' : 'bg-gray-600'} rounded-sm`} />
+                <div className={`w-1 h-2.5 ${pingInfo > 50 ? 'bg-green-400' : 'bg-gray-600'} rounded-sm`} />
+                <div className={`w-1 h-3 ${pingInfo > 75 ? 'bg-yellow-400' : 'bg-gray-600'} rounded-sm`} />
+                <div className={`w-1 h-3.5 ${pingInfo > 100 ? 'bg-red-400' : 'bg-gray-600'} rounded-sm`} />
+              </div>
+            </span>
           </div>
 
           <div className="flex justify-between text-xs">

@@ -100,6 +100,8 @@ const FirstPersonGame: React.FC = () => {
   const [localPlayerId, setLocalPlayerId] = useState("");
   // We need to keep a state to force re-renders when players join/leave
   const [playerIds, setPlayerIds] = useState<string[]>([]);
+  const pingRef = useRef(0);
+  const smoothnessRef = useRef(0);
 
 
 
@@ -189,6 +191,39 @@ const FirstPersonGame: React.FC = () => {
     };
   }, []);
 
+  function calculatePing() {
+    const startTime = Date.now();
+
+    socket.emit("ping-check", startTime);
+
+    socket.on("pong-check", (clientTime) => {
+      const endTime = Date.now();
+      const pingValue = endTime - clientTime;
+      pingRef.current = pingValue;
+
+      const minFactor = 0.5;
+      const maxFactor = 10;
+      const maxPing = 500;
+
+      const ping = pingRef.current || 0;
+
+      const clampedPing = Math.min(Math.max(ping, 0), maxPing);
+
+      const interpolationFactor = maxFactor - (clampedPing / maxPing) * (maxFactor - minFactor);
+
+      smoothnessRef.current = interpolationFactor;
+
+    })
+  }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      calculatePing();
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Setup obstacle references
   useEffect(() => {
     obstacles.current = [];
@@ -236,18 +271,19 @@ const FirstPersonGame: React.FC = () => {
 
       console.log("Rendering OpponentWithGroundHeight for:", playerId);
       useEffect(() => {
-        positionRef.current = playerDataRef.current[playerId].position || null;
-        velocityRef.current = playerDataRef.current[playerId].velocity || null;
+        positionRef.current = playerDataRef.current[playerId]?.position || null;
+        velocityRef.current = playerDataRef.current[playerId]?.velocity || null;
       }, [playerId]);
 
       if (!playerDataRef.current[playerId]) return null;
 
       return (
         <Opponent
-          positionRef={() => playerDataRef.current[playerId].position} // Pass as a function
-          velocityRef={() => playerDataRef.current[playerId].velocity} // Pass as a function}
+          positionRef={() => playerDataRef.current[playerId]?.position || null} // Pass as a function
+          velocityRef={() => playerDataRef.current[playerId]?.velocity || null} // Pass as a function}
           isRemote={true}
           addObstacleRef={addObstacleRef}
+          smoothnessRef={smoothnessRef}
           isHit={isHit}
           getGroundHeight={getGroundHeight}
         />
@@ -281,6 +317,7 @@ const FirstPersonGame: React.FC = () => {
             explosionTimeout={3000}
             health={100}
             kills={0}
+            pingRef={pingRef}
           />
           <Crosshair />
 

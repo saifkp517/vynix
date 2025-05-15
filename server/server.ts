@@ -216,14 +216,26 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
 io.on('connection', (socket: AuthenticatedSocket) => {
 
+    // Delay wrapper function
+    function withDelay(callback: (...args: any[]) => void, delay = 0) {
+        return (...args: any[]) => {
+            setTimeout(() => {
+                callback(...args);
+            }, delay);
+        };
+    }
+
+    socket.on("ping-check", withDelay(async (clientTime) => {
+        socket.emit("pong-check", clientTime);
+    }));
+
     const innerRadius = 100;
 
     console.log('User connected:', socket.id);
 
     socket.emit("currentPlayers", players);
 
-    socket.on("joinRoom", (userId) => {
-
+    socket.on("joinRoom", withDelay((userId) => {
         const room = findOrCreateRoom(userId, socket.id, socket);
         socket.join(room.id);
 
@@ -238,32 +250,31 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         room.players.push(newPlayer)
         socket.emit('roomAssigned', { room: room, team });
         console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
-    })
+    }));
 
-    socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] })
+    socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
     let newCenter: Position = { x: 0, y: 0, z: 0 };
 
-    socket.on("requestForestUpdate", () => {
-        console.log("requested")
+    socket.on("requestForestUpdate", withDelay(() => {
+        console.log("requested");
         socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
-    })
+    }));
 
-    socket.on('updatePosition', (position, velocity) => {
-
+    socket.on('updatePosition', withDelay((position, velocity) => {
         let distance = Math.sqrt(
             Math.pow(position.x - newCenter.x, 2) +
             Math.pow(position.y - 0, 2) +
             Math.pow(position.z - newCenter.z, 2)
         );
         if (distance > innerRadius) {
-            console.log(position)
+            console.log(position);
             console.log("Player is outside the inner radius, updating position...");
             socket.emit('updateForest', { id: socket.id, position: position });
             newCenter = position;
         }
 
-        players[socket.id] = {position, velocity};
+        players[socket.id] = { position, velocity };
 
         const cellKey = getCellKey(position);
 
@@ -281,10 +292,9 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         for (const id of nearbySocketIds) {
             io.to(id).emit('playerMoved', { id: socket.id, position, velocity });
         }
+    }));
 
-    });
-
-    socket.on("disconnect", () => {
+    socket.on("disconnect", withDelay(() => {
         console.log('User disconnected:', socket.id);
 
         // Remove player from players map
@@ -302,7 +312,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         }
 
         io.emit('playerDisconnected', socket.id);
-    });
+    }));
 });
 
 
