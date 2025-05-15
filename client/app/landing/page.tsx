@@ -157,7 +157,7 @@ const FirstPersonGame: React.FC = () => {
 
     });
 
-    socket.on("disconnect", (id) => {
+    socket.on("playerDisconnected", (id) => {
       const updated = { ...playerDataRef.current };
       delete updated[id];
       playerDataRef.current = updated;

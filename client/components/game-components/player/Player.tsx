@@ -155,9 +155,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
             console.log("missed");
         }
 
-        // Start recoil
-        isRecoiling.current = true;
-        recoilProgress.current = 0;
+
     }
 
     const checkCollisions = (playerPosition: THREE.Vector3) => {
@@ -439,7 +437,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 30;
+                    playerSpeed.current = 15;
                     break;
                 case 'KeyG': {
                     if (!shootCooldown.current) {
@@ -796,28 +794,6 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         checkCollisions(playerPosition);
 
 
-
-
-
-
-        //gun mechanics
-        if (!gunRef.current) return;
-
-
-
-        if (isRecoiling.current) {
-            recoilProgress.current += delta * 1; // Fast in
-            if (recoilProgress.current >= 1) {
-                recoilProgress.current = 1;
-                isRecoiling.current = false;
-            }
-
-            const zOffset = -0.1 * Math.sin(recoilProgress.current * Math.PI); // quick back and forth
-            gunRef.current.position.z = -0.6 + zOffset;
-        } else {
-            // Ensure it stays forward if no shooting
-            gunRef.current.position.z = -0.6;
-        }
     });
 
     return (
@@ -850,7 +826,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
-                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} />
+                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} obstacles={obstacles} />
             </group>
         </>
     );

@@ -81,6 +81,13 @@ type Player = {
     playerCenter: Position;
 }
 
+type PlayerBuffer = {
+    [key: string]: any; // Define the type of the buffer values if known
+};
+
+const POSITION_BUFFER_TIME = 3000;
+const playerBuffers: PlayerBuffer = {};
+
 type Room = {
     id: string;
     players: Player[];
@@ -283,9 +290,28 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             if (set.has(socket.id)) set.delete(socket.id);
         }
 
+        const now = Date.now();
+
         //add player to new cell
         if (!grid.has(cellKey)) grid.set(cellKey, new Set());
         grid.get(cellKey)?.add(socket.id);
+
+        if (!playerBuffers[socket.id]) {
+            playerBuffers[socket.id] = [];
+        }
+
+        playerBuffers[socket.id].push({
+            timestamp: now,
+            position,
+            velocity
+        });
+
+        while (
+            playerBuffers[socket.id].length > 0 &&
+            now - playerBuffers[socket.id][0].timestamp > POSITION_BUFFER_TIME
+        ) {
+            playerBuffers[socket.id].shift();
+        }
 
         //broadcast only to players within my grid
         const nearbySocketIds = getNearbyPlayers(socket, cellKey);
