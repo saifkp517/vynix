@@ -256,6 +256,7 @@ const FirstPersonGame: React.FC = () => {
     return (
       <Player
         {...props}
+        playerDataRef={playerDataRef}
         getGroundHeight={getGroundHeight}
       />
     );

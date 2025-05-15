@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, RefObject, useEffect } from 'react';
 import * as THREE from 'three';
 import { Howl } from 'howler';
 
@@ -9,7 +9,7 @@ interface GunProps {
     gunRef: React.RefObject<THREE.Group>;
     camera: THREE.Camera;
     shootEvent: EventEmitter;
-    obstacles: THREE.Mesh[];
+    playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
 }
 
 interface BulletTrace {
@@ -19,7 +19,7 @@ interface BulletTrace {
     createdAt: number;
 }
 
-const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, obstacles }) => {
+const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef }) => {
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const [muzzleFlash, setMuzzleFlash] = useState(false);
     const [isReloading, setIsReloading] = useState(false);
@@ -142,22 +142,27 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, obstacles }) => {
 
             const shootRaycaster = new THREE.Raycaster();
             const rayDirection = new THREE.Vector3();
-            camera.getWorldPosition(rayDirection);
+            camera.getWorldDirection(rayDirection);
 
             const rayOrigin = camera.position.clone();
             shootRaycaster.set(rayOrigin, rayDirection);
 
+            console.log(rayDirection)
+
             const maxDistance = 100;
             const thresholdRadius = 3;
 
-            console.log(obstacles)
+            const players = Object.values(playerDataRef.current)
 
-            obstacles.forEach(obstacle => {
-                const playerPos = obstacle.position.clone();
+            players.forEach(player => {
+                const playerPos = player.position.clone(); // Use player position
 
                 const toPlayer = new THREE.Vector3().subVectors(playerPos, rayOrigin);
-
                 const projectionLength = toPlayer.dot(rayDirection);
+
+                if (projectionLength < 0) {
+                    return;
+                }
 
                 const closestPointOnRay = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
                 const distanceToRay = playerPos.distanceTo(closestPointOnRay);
@@ -166,10 +171,9 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, obstacles }) => {
                     console.log("Player near ray within radius and segment");
                     // Trigger hit or near-miss logic here
                 } else {
-                    console.log("Player far from ray", distanceToRay, thresholdRadius);
+                    console.log("Player far from ray", distanceToRay);
                 }
             });
-
         };
 
 

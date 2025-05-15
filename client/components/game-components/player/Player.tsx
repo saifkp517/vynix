@@ -1,5 +1,5 @@
 // Player component
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, RefObject } from 'react';
 import { PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber'
 import socket from '@/lib/socket';
@@ -15,6 +15,7 @@ interface PlayerProps {
     obstacles: any;
     getGroundHeight: (x: number, z: number) => number;
     otherPlayers: { [playerId: string]: THREE.Vector3 };
+    playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
 }
 
 type FireballProps = {
@@ -95,7 +96,7 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 
 
 
-const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayers }) => {
+const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayers, playerDataRef }) => {
 
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
@@ -826,7 +827,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
-                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} obstacles={obstacles} />
+                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} playerDataRef={playerDataRef} />
             </group>
         </>
     );
