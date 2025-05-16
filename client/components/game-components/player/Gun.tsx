@@ -1,7 +1,7 @@
 import React, { useRef, useState, RefObject, useEffect } from 'react';
 import * as THREE from 'three';
 import { Howl } from 'howler';
-
+import socket from '@/lib/socket';
 import { EventEmitter } from 'events';
 import { useFrame } from '@react-three/fiber';
 
@@ -10,6 +10,8 @@ interface GunProps {
     camera: THREE.Camera;
     shootEvent: EventEmitter;
     playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
+    pingRef: RefObject<number>;
+    userId: string;
 }
 
 interface BulletTrace {
@@ -19,13 +21,13 @@ interface BulletTrace {
     createdAt: number;
 }
 
-const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef }) => {
+const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pingRef, userId }) => {
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const [muzzleFlash, setMuzzleFlash] = useState(false);
     const [isReloading, setIsReloading] = useState(false);
-    const [ammo, setAmmo] = useState(10);
+    const [ammo, setAmmo] = useState(100);
     const [bulletTraces, setBulletTraces] = useState<BulletTrace[]>([]);
-    const maxAmmo = 10;
+    const maxAmmo = 100;
 
     const raycaster = useRef(new THREE.Raycaster());
     const muzzleFlashTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -101,6 +103,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef }) 
         };
 
         const fireOnce = () => {
+            console.log("fired")
             // Don't fire if reloading or out of ammo
             if (isReloading || currentAmmo.current <= 0) {
                 if (shootingInterval.current) {
@@ -168,7 +171,14 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef }) 
                 const distanceToRay = playerPos.distanceTo(closestPointOnRay);
 
                 if (distanceToRay <= thresholdRadius) {
-                    console.log("Player near ray within radius and segment");
+                    const shootObject = {
+                        location: rayOrigin,
+                        direction: rayDirection,
+                        timestamp: Date.now(),
+                        ping: pingRef.current
+                    }
+
+                    socket.emit("shoot", { userId, shootObject });
                     // Trigger hit or near-miss logic here
                 } else {
                     console.log("Player far from ray", distanceToRay);
@@ -180,6 +190,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef }) 
 
 
         // Fire immediately
+        console.log("break")
         fireOnce();
 
         // Set interval for continuous fire
@@ -292,3 +303,16 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef }) 
 };
 
 export default Gun;
+
+
+
+
+
+
+
+
+
+
+
+
+

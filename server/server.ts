@@ -2,7 +2,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { Server, Socket } from "socket.io"
 import { createServer } from "http"
-import axios from "axios";
+import { Vector3 } from "three"
 import { v4 as uuidv4 } from "uuid"
 import fs from "fs";
 import cookieParser from "cookie-parser";
@@ -24,6 +24,7 @@ const allowedOrigins = [
     "https://vynix-git-main-my-team-e0738a04.vercel.app",
     "https://vynix-git-lod-my-team-e0738a04.vercel.app"
 ];
+
 
 const io = new Server(httpServer, {
     cors: {
@@ -220,6 +221,84 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     return room;
 }
 
+function rewindPlayerState(buffer: PlayerBuffer, rewindTime: number) {
+    if (!buffer || buffer.length < 2) {
+        console.log("buffer length error")
+        return null;
+    }
+
+    // More forgiving time range check:
+    // 1. If rewind time is before oldest entry, use oldest entry
+    // 2. If rewind time is after newest entry but within tolerance, use newest entry
+    // 3. Only if time is way outside range, return null
+
+    const FUTURE_TOLERANCE = 150; // ms
+    const PAST_TOLERANCE = 150;   // ms
+    console.log("----------------------------")
+    // Case 1: Rewind time is too far in the past
+    if (rewindTime < buffer[0].timestamp - PAST_TOLERANCE) {
+        console.log(`Rewind time too old: ${rewindTime} vs ${buffer[0].timestamp}`);
+        return null;
+    }
+
+    // Case 2: Rewind time is too far in the future
+    if (rewindTime > buffer[buffer.length - 1].timestamp + FUTURE_TOLERANCE) {
+        console.log(`Rewind time too new: ${rewindTime} vs ${buffer[buffer.length - 1].timestamp}`);
+        console.log(`New by ${rewindTime - buffer[buffer.length - 1].timestamp} ms`)
+        return null;
+    }
+
+    // Case 3: Rewind time is before first buffer entry but within tolerance
+    if (rewindTime < buffer[0].timestamp) {
+        console.log(`Using earliest buffer entry (within tolerance)`);
+        return null;
+    }
+
+    // Case 4: Rewind time is after latest buffer entry but within tolerance
+    if (rewindTime > buffer[buffer.length - 1].timestamp) {
+        console.log(`Using latest buffer entry (within tolerance)`);
+        return null;
+    }
+
+    for (let i = 0; i < buffer.length - 1; i++) {
+        const a = buffer[i];
+        const b = buffer[i + 1];
+
+        if (a.timestamp <= rewindTime && b.timestamp >= rewindTime) {
+            const t = (rewindTime - a.timestamp) / (b.timestamp - a.timestamp);
+
+            const interpolatedPosition = {
+                x: a.position.x + (b.position.x - a.position.x) * t,
+                y: a.position.y + (b.position.y - a.position.y) * t,
+                z: a.position.z + (b.position.z - a.position.z) * t,
+            };
+
+            return { position: interpolatedPosition }
+        }
+    }
+
+    return null;
+}
+
+function rewindCellPlayers(playerBuffers: PlayerBuffer, rewindTime: number, currentUserId: string) {
+    const rewoundStates: any = {};
+
+    for (const userId in playerBuffers) {
+        if (userId === currentUserId) continue;
+
+        const buffer = playerBuffers[userId];
+
+        const rewound = rewindPlayerState(buffer, rewindTime);
+        console.log(rewound)
+
+        if (rewound) {
+            rewoundStates[userId] = rewound;
+        }
+    }
+
+    return rewoundStates;
+}
+
 
 io.on('connection', (socket: AuthenticatedSocket) => {
 
@@ -269,6 +348,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
     }));
 
     socket.on('updatePosition', withDelay((position, velocity) => {
+
         let distance = Math.sqrt(
             Math.pow(position.x - newCenter.x, 2) +
             Math.pow(position.y - 0, 2) +
@@ -290,8 +370,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             if (set.has(socket.id)) set.delete(socket.id);
         }
 
-        const now = Date.now();
-
         //add player to new cell
         if (!grid.has(cellKey)) grid.set(cellKey, new Set());
         grid.get(cellKey)?.add(socket.id);
@@ -300,15 +378,18 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             playerBuffers[socket.id] = [];
         }
 
+        const currentTime = Date.now();
+
         playerBuffers[socket.id].push({
-            timestamp: now,
+            timestamp: currentTime,
             position,
             velocity
         });
 
+
         while (
             playerBuffers[socket.id].length > 0 &&
-            now - playerBuffers[socket.id][0].timestamp > POSITION_BUFFER_TIME
+            currentTime - playerBuffers[socket.id][0].timestamp > POSITION_BUFFER_TIME
         ) {
             playerBuffers[socket.id].shift();
         }
@@ -319,6 +400,21 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             io.to(id).emit('playerMoved', { id: socket.id, position, velocity });
         }
     }));
+
+
+    socket.on("shoot", ({ userId, shootObject }) => {
+
+        const { location, direction, timestamp, ping } = shootObject;
+
+        const rewindTime = Date.now() - (ping / 2);
+
+
+        const rewoundPlayers = rewindCellPlayers(playerBuffers, rewindTime, userId);
+
+        // Compare original and rewound player buffers for testing
+
+
+    })
 
     socket.on("disconnect", withDelay(() => {
         console.log('User disconnected:', socket.id);

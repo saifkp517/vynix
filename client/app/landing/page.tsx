@@ -1,6 +1,5 @@
 'use client'
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
@@ -256,7 +255,9 @@ const FirstPersonGame: React.FC = () => {
     return (
       <Player
         {...props}
-        playerDataRef={playerDataRef}
+        userId={localPlayerId}
+        pingRef={pingRef} //pass ping to gun component for sending during shoot events
+        playerDataRef={playerDataRef} //to get opponents locations
         getGroundHeight={getGroundHeight}
       />
     );

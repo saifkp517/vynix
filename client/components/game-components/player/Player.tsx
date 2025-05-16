@@ -13,9 +13,11 @@ import { EventEmitter } from 'events';
 
 interface PlayerProps {
     obstacles: any;
+    pingRef: RefObject<number>;
     getGroundHeight: (x: number, z: number) => number;
     otherPlayers: { [playerId: string]: THREE.Vector3 };
     playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
+    userId: string;
 }
 
 type FireballProps = {
@@ -96,7 +98,14 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 
 
 
-const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayers, playerDataRef }) => {
+const Player: React.FC<PlayerProps> = ({
+    obstacles,
+    getGroundHeight,
+    otherPlayers,
+    playerDataRef,
+    pingRef,
+    userId
+}) => {
 
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
@@ -423,6 +432,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         right: false
     });
 
+    const lastPlayerPosition = useRef(camera.position.clone());
+
 
 
 
@@ -438,7 +449,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 15;
+                    playerSpeed.current = 30;
                     break;
                 case 'KeyG': {
                     if (!shootCooldown.current) {
@@ -787,9 +798,12 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         const currentTime = performance.now();
 
         // Only emit the position change every 100ms
-        if (currentTime - lastUpdateTime.current >= 100) {
+        const positionChanged = !playerPosition.equals(lastPlayerPosition.current);
+
+        if (positionChanged && currentTime - lastUpdateTime.current >= 100) {
             handlePositionChange(playerPosition.clone(), velocity.current.clone());
-            lastUpdateTime.current = currentTime; // Update the last update time
+            lastUpdateTime.current = currentTime;
+            lastPlayerPosition.current = playerPosition.clone(); // Update last known position
         }
 
         checkCollisions(playerPosition);
@@ -827,7 +841,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
-                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} playerDataRef={playerDataRef} />
+                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} playerDataRef={playerDataRef} pingRef={pingRef} userId={userId} />
             </group>
         </>
     );
