@@ -1,7 +1,7 @@
 // socket.ts
 import { io } from "socket.io-client";
 
-const socket = io("https://upload-delivering-wildlife-cartridge.trycloudflare.com", {
+const socket = io("https://attorneys-hook-education-directions.trycloudflare.com", {
     withCredentials: true,
 });
 
