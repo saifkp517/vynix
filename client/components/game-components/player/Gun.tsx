@@ -7,6 +7,7 @@ import { useFrame } from '@react-three/fiber';
 
 interface GunProps {
     gunRef: React.RefObject<THREE.Group>;
+    ammoRef: RefObject<number>;
     camera: THREE.Camera;
     shootEvent: EventEmitter;
     playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
@@ -21,13 +22,13 @@ interface BulletTrace {
     createdAt: number;
 }
 
-const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pingRef, userId }) => {
+const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pingRef, userId, ammoRef }) => {
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const [muzzleFlash, setMuzzleFlash] = useState(false);
     const [isReloading, setIsReloading] = useState(false);
-    const [ammo, setAmmo] = useState(100);
+    const [ammo, setAmmo] = useState(10);
     const [bulletTraces, setBulletTraces] = useState<BulletTrace[]>([]);
-    const maxAmmo = 100;
+    const maxAmmo = 10;
 
     const raycaster = useRef(new THREE.Raycaster());
     const muzzleFlashTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -35,6 +36,11 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pi
     const barrelEndRef = useRef(new THREE.Vector3(0, 0, -0.95));
     const isRecoiling = useRef(false);
     const recoilProgress = useRef(0);
+
+    const updateAmmo = (newAmmo: number) => {
+        ammoRef.current = newAmmo;  // immediate update
+        setAmmo(newAmmo);
+    };
 
     console.log("gun called");
 
@@ -52,7 +58,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pi
 
         // Reload animation timing
         setTimeout(() => {
-            setAmmo(maxAmmo);
+            updateAmmo(maxAmmo);
             setIsReloading(false);
         }, 2000);
     };
@@ -124,7 +130,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pi
 
             // Decrease ammo - both in ref (immediate) and state
             currentAmmo.current -= 1;
-            setAmmo(currentAmmo.current);
+            updateAmmo(currentAmmo.current);
 
             // Play sound
             gunShotSound.play();

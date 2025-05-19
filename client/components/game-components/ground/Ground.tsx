@@ -339,7 +339,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       {/* Lighting */}
       <directionalLight
         position={sunPosition}
-        intensity={10}
+        intensity={1.2}
         castShadow
         color="#bcd4e6"
       >
@@ -363,12 +363,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
 
       {/* Forest */}
-      {/* {treePositions ? (
+      {treePositions ? (
 
         <ForestWrapper {...forestProps} />
       ) : (
         <Suspense fallback={<div>Loading components...</div>} />
-      )} */}
+      )}
 
 
       {/* Children can use the context via useGroundHeight */}

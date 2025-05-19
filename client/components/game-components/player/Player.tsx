@@ -14,7 +14,9 @@ import { EventEmitter } from 'events';
 interface PlayerProps {
     obstacles: any;
     pingRef: RefObject<number>;
+    grenadeCoolDownRef: RefObject<boolean>;
     getGroundHeight: (x: number, z: number) => number;
+    ammoRef: RefObject<number>;
     otherPlayers: { [playerId: string]: THREE.Vector3 };
     playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
     userId: string;
@@ -101,7 +103,9 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 const Player: React.FC<PlayerProps> = ({
     obstacles,
     getGroundHeight,
+    grenadeCoolDownRef,
     otherPlayers,
+    ammoRef,
     playerDataRef,
     pingRef,
     userId
@@ -115,7 +119,6 @@ const Player: React.FC<PlayerProps> = ({
     const jumpDirection = useRef(new THREE.Vector3());
     const isJumpingRef = useRef(false);
     const [fireballs, setFireballs] = useState<{ id: number; position: THREE.Vector3; direction: THREE.Vector3 }[]>([]);
-    const shootCooldown = useRef(false); // Ref to manage shooting cooldown
     const [collisionType, setCollisionType] = useState("");
     const [explosions, setExplosions] = useState<{ id: number; position: THREE.Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
@@ -432,7 +435,6 @@ const Player: React.FC<PlayerProps> = ({
         right: false
     });
 
-    const lastPlayerPosition = useRef(camera.position.clone());
 
 
 
@@ -449,14 +451,14 @@ const Player: React.FC<PlayerProps> = ({
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 30;
+                    playerSpeed.current = 15;
                     break;
                 case 'KeyG': {
-                    if (!shootCooldown.current) {
+                    if (!grenadeCoolDownRef.current) {
                         handleFireballShoot();
-                        shootCooldown.current = true;
+                        grenadeCoolDownRef.current = true;
                         setTimeout(() => {
-                            shootCooldown.current = false;
+                            grenadeCoolDownRef.current = false;
                         }, 5000); // 5 second cooldown
                     }
                     break;
@@ -798,12 +800,10 @@ const Player: React.FC<PlayerProps> = ({
         const currentTime = performance.now();
 
         // Only emit the position change every 100ms
-        const positionChanged = !playerPosition.equals(lastPlayerPosition.current);
 
-        if (positionChanged && currentTime - lastUpdateTime.current >= 100) {
+        if (currentTime - lastUpdateTime.current >= 100) {
             handlePositionChange(playerPosition.clone(), velocity.current.clone());
             lastUpdateTime.current = currentTime;
-            lastPlayerPosition.current = playerPosition.clone(); // Update last known position
         }
 
         checkCollisions(playerPosition);
@@ -841,7 +841,15 @@ const Player: React.FC<PlayerProps> = ({
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
-                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} playerDataRef={playerDataRef} pingRef={pingRef} userId={userId} />
+                <Gun
+                    gunRef={gunRef}
+                    camera={camera}
+                    ammoRef={ammoRef}
+                    shootEvent={shootEvent.current}
+                    playerDataRef={playerDataRef}
+                    pingRef={pingRef}
+                    userId={userId}
+                />
             </group>
         </>
     );

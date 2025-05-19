@@ -6,7 +6,8 @@ interface GameInfoProps {
   roomId: string | null;
   userid: string | null;
   team: string | null;
-  bulletsInChamber: number;
+  grenadeCoolDownRef: RefObject<boolean>;
+  ammoRef: RefObject<number>;
   bulletsAvailable: number;
   explosionTimeout: number | null; // Seconds until explosion (e.g., grenade)
   health: number; // Player health (0-100)
@@ -28,16 +29,48 @@ const HudBox: React.FC<HudBoxProps> = ({ children, position, className = "" }) =
 );
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, bulletsInChamber, bulletsAvailable, explosionTimeout, health, kills, pingRef }) => {
+  ({ roomId, userid, team, ammoRef, bulletsAvailable, health, kills, pingRef, grenadeCoolDownRef }) => {
+
 
     const [pingInfo, setPingInfo] = useState(0);
-    
+    const [showCooldown, setShowCooldown] = useState(false);
+    const [cooldownTimeLeft, setCooldownTimeLeft] = useState(0);
+
     useEffect(() => {
       const interval = setInterval(() => {
         setPingInfo(pingRef.current || 0);
       }, 1000);
       return () => clearInterval(interval);
     })
+    useEffect(() => {
+      let animationTimer: NodeJS.Timeout | null = null;
+      let cooldownInterval: NodeJS.Timeout | null = null;
+
+      const checkCooldown = () => {
+        if (grenadeCoolDownRef.current === false) {
+          setShowCooldown(true);
+          let remaining = 5; // assuming 5 seconds cooldown
+          setCooldownTimeLeft(remaining);
+
+          cooldownInterval = setInterval(() => {
+            remaining -= 1;
+            setCooldownTimeLeft(remaining);
+            if (remaining <= 0) {
+              setShowCooldown(false);
+              clearInterval(cooldownInterval!);
+            }
+          }, 1000);
+        }
+      };
+
+      const interval = setInterval(checkCooldown, 200);
+
+      return () => {
+        clearInterval(interval);
+        if (animationTimer) clearTimeout(animationTimer);
+        if (cooldownInterval) clearInterval(cooldownInterval);
+      };
+    }, []);
 
 
     return (
@@ -67,20 +100,62 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             <span className="font-bold text-yellow-400">{kills}</span>
           </div>
         </HudBox>
-        <HudBox position="top-32 left-4" className='flex items-center space-x-2'>
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 9a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v9m0 0H9m3 0h3" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v3m0 0a9 9 0 110 18 9 9 0 010-18z" />
-          </svg>
-          <span className="font-bold text-red-400">{explosionTimeout}s</span>
+        <HudBox position="top-32 left-4" className="flex items-center space-x-2">
+          {showCooldown ? (
+            <svg
+              className="h-5 w-5 text-red-400 animate-spin"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8z"
+              />
+            </svg>
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-red-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M7 2a2 2 0 00-2 2v2a2 2 0 002 2h1v10a3 3 0 106 0V8h1a2 2 0 002-2V4a2 2 0 00-2-2H7z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 14v.01"
+              />
+            </svg>
+          )}
+          <span className={`font-bold ${showCooldown ? 'text-red-400' : 'text-green-400'}`}>
+            {showCooldown ? `${cooldownTimeLeft}s` : 'Ready'}
+          </span>
         </HudBox>
+
 
         {/* Ammo - Bottom Right */}
         <HudBox position="bottom-4 right-4" className="px-2 py-1 text-xs bg-black/70 rounded shadow flex items-center space-x-3">
           <div className="flex items-center space-x-1">
             <Target size={14} className="text-orange-400" />
-            <span className="text-orange-400 font-semibold">{bulletsInChamber}</span>
+            <span className="text-orange-400 font-semibold">{ammoRef.current}</span>
           </div>
           <div className="flex items-center space-x-1">
             /

@@ -102,6 +102,9 @@ const FirstPersonGame: React.FC = () => {
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
 
+  //grandparent states to communicate data with children
+  const ammoRef = useRef(10);
+  const grenadeCoolDownRef = useRef(false);
 
 
   //prevent multiple joins requests by same user
@@ -256,8 +259,10 @@ const FirstPersonGame: React.FC = () => {
       <Player
         {...props}
         userId={localPlayerId}
+        grenadeCoolDownRef={grenadeCoolDownRef}
         pingRef={pingRef} //pass ping to gun component for sending during shoot events
         playerDataRef={playerDataRef} //to get opponents locations
+        ammoRef={ammoRef}
         getGroundHeight={getGroundHeight}
       />
     );
@@ -295,7 +300,7 @@ const FirstPersonGame: React.FC = () => {
 
   const groundProps = {
     addObstacleRef,
-    fogDistance: 2500,
+    fogDistance: 25,
     treePositions: treePositions.current,
     fogColor: "#65888a"
   };
@@ -312,9 +317,10 @@ const FirstPersonGame: React.FC = () => {
         <>
           <GameInfo
             roomId={roomId}
+            grenadeCoolDownRef={grenadeCoolDownRef}
             userid={localPlayerId}
             team={team}
-            bulletsInChamber={6}
+            ammoRef={ammoRef}
             bulletsAvailable={30}
             explosionTimeout={3000}
             health={100}
