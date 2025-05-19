@@ -221,63 +221,68 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     return room;
 }
 
+let rewindStats = {
+    totalShots: 0,
+    insideBuffer: 0,
+    tooOld: 0,
+    tooNew: 0,
+    justUsedEdgeOldest: 0,
+    justUsedEdgeNewest: 0
+};
+
 function rewindPlayerState(buffer: PlayerBuffer, rewindTime: number) {
+    rewindStats.totalShots++;
+
     if (!buffer || buffer.length < 2) {
-        console.log("buffer length error")
+        console.log("buffer length error");
         return null;
     }
 
-    // More forgiving time range check:
-    // 1. If rewind time is before oldest entry, use oldest entry
-    // 2. If rewind time is after newest entry but within tolerance, use newest entry
-    // 3. Only if time is way outside range, return null
+    const FUTURE_TOLERANCE = 1000; // ms
+    const PAST_TOLERANCE = 150;    // ms
 
-    const FUTURE_TOLERANCE = 150; // ms
-    const PAST_TOLERANCE = 150;   // ms
-    console.log("----------------------------")
-    // Case 1: Rewind time is too far in the past
-    if (rewindTime < buffer[0].timestamp - PAST_TOLERANCE) {
-        console.log(`Rewind time too old: ${rewindTime} vs ${buffer[0].timestamp}`);
+    const oldest = buffer[0].timestamp;
+    const newest = buffer[buffer.length - 1].timestamp;
+
+    if (rewindTime < oldest - PAST_TOLERANCE) {
+        console.log(`Too old: ${rewindTime} < ${oldest}`);
+        rewindStats.tooOld++;
         return null;
     }
 
-    // Case 2: Rewind time is too far in the future
-    if (rewindTime > buffer[buffer.length - 1].timestamp + FUTURE_TOLERANCE) {
-        console.log(`Rewind time too new: ${rewindTime} vs ${buffer[buffer.length - 1].timestamp}`);
-        console.log(`New by ${rewindTime - buffer[buffer.length - 1].timestamp} ms`)
+    if (rewindTime > newest + FUTURE_TOLERANCE) {
+        console.log(`Too new: ${rewindTime} > ${newest}`);
+        rewindStats.tooNew++;
         return null;
     }
 
-    // Case 3: Rewind time is before first buffer entry but within tolerance
-    if (rewindTime < buffer[0].timestamp) {
-        console.log(`Using earliest buffer entry (within tolerance)`);
-        return null;
+    // Optional: Log edge cases
+    if (rewindTime <= oldest && rewindTime >= oldest - PAST_TOLERANCE) {
+        rewindStats.justUsedEdgeOldest++;
+    }
+    if (rewindTime >= newest && rewindTime <= newest + FUTURE_TOLERANCE) {
+        rewindStats.justUsedEdgeNewest++;
     }
 
-    // Case 4: Rewind time is after latest buffer entry but within tolerance
-    if (rewindTime > buffer[buffer.length - 1].timestamp) {
-        console.log(`Using latest buffer entry (within tolerance)`);
-        return null;
-    }
-
+    // Main interpolation
     for (let i = 0; i < buffer.length - 1; i++) {
         const a = buffer[i];
         const b = buffer[i + 1];
 
         if (a.timestamp <= rewindTime && b.timestamp >= rewindTime) {
+            rewindStats.insideBuffer++;
             const t = (rewindTime - a.timestamp) / (b.timestamp - a.timestamp);
-
             const interpolatedPosition = {
                 x: a.position.x + (b.position.x - a.position.x) * t,
                 y: a.position.y + (b.position.y - a.position.y) * t,
                 z: a.position.z + (b.position.z - a.position.z) * t,
             };
-
-            return { position: interpolatedPosition }
+            return { position: interpolatedPosition };
+            console.log(rewindStats)
         }
     }
 
-    return null;
+    return null; // fallback
 }
 
 function rewindCellPlayers(playerBuffers: PlayerBuffer, rewindTime: number, currentUserId: string) {
@@ -406,10 +411,11 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         const { location, direction, timestamp, ping } = shootObject;
 
-        const rewindTime = Date.now() - (ping / 2);
-
+        const rewindTime = timestamp - (ping / 2);
 
         const rewoundPlayers = rewindCellPlayers(playerBuffers, rewindTime, userId);
+
+
 
         // Compare original and rewound player buffers for testing
 
