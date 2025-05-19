@@ -21,8 +21,8 @@ const app = express();
 const httpServer = createServer(app)
 const allowedOrigins = [
     "http://localhost:3000",
-    "https://vynix-git-main-my-team-e0738a04.vercel.app",
-    "https://vynix-git-lod-my-team-e0738a04.vercel.app"
+    "https://vynix-kohl.vercel.app",
+    "https://upload-delivering-wildlife-cartridge.trycloudflare.com",
 ];
 
 
