@@ -1,5 +1,5 @@
 // Player component
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, RefObject } from 'react';
 import { PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber'
 import socket from '@/lib/socket';
@@ -13,8 +13,13 @@ import { EventEmitter } from 'events';
 
 interface PlayerProps {
     obstacles: any;
+    pingRef: RefObject<number>;
+    grenadeCoolDownRef: RefObject<boolean>;
     getGroundHeight: (x: number, z: number) => number;
+    ammoRef: RefObject<number>;
     otherPlayers: { [playerId: string]: THREE.Vector3 };
+    playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
+    userId: string;
 }
 
 type FireballProps = {
@@ -95,7 +100,16 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 
 
 
-const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayers }) => {
+const Player: React.FC<PlayerProps> = ({
+    obstacles,
+    getGroundHeight,
+    grenadeCoolDownRef,
+    otherPlayers,
+    ammoRef,
+    playerDataRef,
+    pingRef,
+    userId
+}) => {
 
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
@@ -105,7 +119,6 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     const jumpDirection = useRef(new THREE.Vector3());
     const isJumpingRef = useRef(false);
     const [fireballs, setFireballs] = useState<{ id: number; position: THREE.Vector3; direction: THREE.Vector3 }[]>([]);
-    const shootCooldown = useRef(false); // Ref to manage shooting cooldown
     const [collisionType, setCollisionType] = useState("");
     const [explosions, setExplosions] = useState<{ id: number; position: THREE.Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
@@ -126,26 +139,36 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         // Get direction camera is facing
         camera.getWorldDirection(shootDirection);
 
+        const groundY = getGroundHeight(camera.position.x, camera.position.z);
+
         // Set ray origin and direction
         raycaster.set(camera.position, shootDirection);
 
         // Raycast against all mesh objects in the scene
-        const intersects = raycaster.intersectObjects(obstacles); // true = recursive
+        const intersects = raycaster.intersectObjects(obstacles, true); // true = recursive
 
         if (intersects.length > 0) {
             const firstHit = intersects[0];
-            console.log('🔫 Hit:', firstHit.object.name, 'at', firstHit.point);
 
-            // Optional: show visual effect or apply logic
-            // e.g., firstHit.object.material.color.set('red');
+            const hitX = firstHit.point.x;
+            const hitZ = firstHit.point.z;
+            const hitY = firstHit.point.y;
+
+            const groundY = getGroundHeight(hitX, hitZ);
+
+            const threshold = 0.1; // Tolerance for noise or minor overlap
+
+            if (hitY <= groundY + threshold) {
+                console.log("🚫 Shot blocked by terrain at", { x: hitX, y: groundY, z: hitZ });
+            } else {
+                console.log("🔫 Hit:", firstHit.object.name, "at", firstHit.point);
+                // Apply logic to the object (damage, highlight, etc.)
+            }
         } else {
-            console.log("missed")
+            console.log("missed");
         }
 
 
-        // Start recoil
-        isRecoiling.current = true;
-        recoilProgress.current = 0;
     }
 
     const checkCollisions = (playerPosition: THREE.Vector3) => {
@@ -324,8 +347,8 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
     };
 
 
-    const handlePositionChange = React.useCallback((pos: THREE.Vector3) => {
-        socket.emit("updatePosition", pos);
+    const handlePositionChange = React.useCallback((pos: THREE.Vector3, velocity: THREE.Vector3) => {
+        socket.emit("updatePosition", pos, velocity);
     }, []);
 
 
@@ -396,10 +419,10 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         }, 1000);
     };
 
-    const gravity = -9.8 * 2;
-    const jumpStrength = 10;
+    const gravity = -9.8 * 4;
+    const jumpStrength = 15;
 
-    const playerSpeed = 6;
+    const playerSpeed = useRef(6);
     const playerHeight = 1.5;
     const controlsRef = useRef<any>(null);
 
@@ -415,6 +438,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
 
 
+
     // Handle keyboard input
     useEffect(() => {
         let shootingInterval: NodeJS.Timeout | null = null;
@@ -425,12 +449,16 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyS': setMoveState(prev => ({ ...prev, backward: true })); break;
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: true })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
-                case 'KeyQ': {
-                    if (!shootCooldown.current) {
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    playerSpeed.current = 15;
+                    break;
+                case 'KeyG': {
+                    if (!grenadeCoolDownRef.current) {
                         handleFireballShoot();
-                        shootCooldown.current = true;
+                        grenadeCoolDownRef.current = true;
                         setTimeout(() => {
-                            shootCooldown.current = false;
+                            grenadeCoolDownRef.current = false;
                         }, 5000); // 5 second cooldown
                     }
                     break;
@@ -440,7 +468,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                     break;
             }
 
-                
+
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
@@ -449,6 +477,10 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 case 'KeyS': setMoveState(prev => ({ ...prev, backward: false })); break;
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: false })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: false })); break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    playerSpeed.current = 6;
+                    break;
                 case 'Space':
                     jumpRequested.current = false;
                     break;
@@ -515,7 +547,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         // Apply movement in the camera direction
         const frontVector = new THREE.Vector3(0, 0, Number(moveState.forward) - Number(moveState.backward));
         const sideVector = new THREE.Vector3(Number(moveState.left) - Number(moveState.right), 0, 0);
-        const horizontalMove = frontVector.add(sideVector).normalize().multiplyScalar(playerSpeed * delta);
+        const horizontalMove = frontVector.add(sideVector).normalize().multiplyScalar(playerSpeed.current * delta);
 
         // Combine and normalize movement vector
         const moveVector = new THREE.Vector3(
@@ -538,6 +570,9 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
         const playerPosition = camera.position.clone();
 
+        velocity.current.set(moveVector.x / delta, velocity.current.y, moveVector.z / delta);
+
+
         // Step 2: Apply movement
         camera.position.add(moveVector);
 
@@ -553,7 +588,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
 
         //work later
         // if (isJumpingRef.current && moveState.forward == false) {
-        //     camera.position.addScaledVector(jumpDirection.current, playerSpeed / 2 * delta);
+        //     camera.position.addScaledVector(jumpDirection.current, playerSpeed.current / 2 * delta);
         // }
 
         // Apply gravity
@@ -598,7 +633,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                     cameraDirection.normalize();
 
                     if (jumpRequested.current) {
-                        cameraDirection.normalize().multiplyScalar(playerSpeed);
+                        cameraDirection.normalize().multiplyScalar(playerSpeed.current);
 
                         velocity.current.y = jumpStrength;
                         isJumpingRef.current = true;
@@ -706,7 +741,7 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                     cameraDirection.normalize();
 
                     if (jumpRequested.current) {
-                        cameraDirection.normalize().multiplyScalar(playerSpeed);
+                        cameraDirection.normalize().multiplyScalar(playerSpeed.current);
 
                         velocity.current.y = jumpStrength;
                         isJumpingRef.current = true;
@@ -765,36 +800,15 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
         const currentTime = performance.now();
 
         // Only emit the position change every 100ms
+
         if (currentTime - lastUpdateTime.current >= 100) {
-            handlePositionChange(playerPosition.clone());
-            lastUpdateTime.current = currentTime; // Update the last update time
+            handlePositionChange(playerPosition.clone(), velocity.current.clone());
+            lastUpdateTime.current = currentTime;
         }
 
         checkCollisions(playerPosition);
 
 
-
-
-
-
-        //gun mechanics
-        if (!gunRef.current) return;
-
-
-
-        if (isRecoiling.current) {
-            recoilProgress.current += delta * 1; // Fast in
-            if (recoilProgress.current >= 1) {
-                recoilProgress.current = 1;
-                isRecoiling.current = false;
-            }
-
-            const zOffset = -0.1 * Math.sin(recoilProgress.current * Math.PI); // quick back and forth
-            gunRef.current.position.z = -0.6 + zOffset;
-        } else {
-            // Ensure it stays forward if no shooting
-            gunRef.current.position.z = -0.6;
-        }
     });
 
     return (
@@ -827,7 +841,15 @@ const Player: React.FC<PlayerProps> = ({ obstacles, getGroundHeight, otherPlayer
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
-                <Gun gunRef={gunRef} camera={camera} shootEvent={shootEvent.current} />
+                <Gun
+                    gunRef={gunRef}
+                    camera={camera}
+                    ammoRef={ammoRef}
+                    shootEvent={shootEvent.current}
+                    playerDataRef={playerDataRef}
+                    pingRef={pingRef}
+                    userId={userId}
+                />
             </group>
         </>
     );

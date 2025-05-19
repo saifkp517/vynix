@@ -2,7 +2,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { Server, Socket } from "socket.io"
 import { createServer } from "http"
-import axios from "axios";
+import { Vector3 } from "three"
 import { v4 as uuidv4 } from "uuid"
 import fs from "fs";
 import cookieParser from "cookie-parser";
@@ -22,7 +22,9 @@ const httpServer = createServer(app)
 const allowedOrigins = [
     "http://localhost:3000",
     "https://vynix-git-main-my-team-e0738a04.vercel.app",
+    "https://vynix-git-lod-my-team-e0738a04.vercel.app"
 ];
+
 
 const io = new Server(httpServer, {
     cors: {
@@ -53,155 +55,6 @@ interface Categories {
     [folderName: string]: string[];
 }
 
-
-// //user match-making algorithm
-// class MinHeap<T> {
-
-//     private heap: T[] = [];
-//     private compare: (a: T, b: T) => number;
-
-//     constructor(compareFunction: (a: T, b: T) => number) {
-//         this.compare = compareFunction;
-//     }
-
-//     private swap(i: number, j: number): void {
-//         [this.heap[i], this.heap[j]] = [this.heap[j], this.heap[i]];
-//     }
-
-//     insert(value: T) {
-//         this.heap.push(value);
-//         this.bubbleUp(this.heap.length - 1);
-//     }
-
-//     private bubbleUp(index: number): void {
-//         while (index > 0) {
-//             let parentIndex = Math.floor((index - 1) / 2);
-//             if (this.compare(this.heap[index], this.heap[parentIndex]) >= 0) break;
-//             this.swap(index, parentIndex);
-//             index = parentIndex;
-//         }
-//     }
-
-//     extractMin(): T | null {
-//         if (this.heap.length === 0) return null;
-//         if (this.heap.length === 1) return this.heap.pop() as T;
-
-//         const min = this.heap[0];
-//         this.heap[0] = this.heap.pop() as T;
-//         this.bubbleDown(0);
-//         return min;
-//     }
-
-//     bubbleDown(index: number): void {
-//         let smallest = index;
-//         let leftChild = 2 * index + 1;
-//         let rightChild = 2 * index + 1;
-
-//         if (leftChild < this.heap.length && this.compare(this.heap[leftChild], this.heap[smallest]) < 0) {
-//             smallest = leftChild;
-//         }
-
-//         if (rightChild < this.heap.length && this.compare(this.heap[rightChild], this.heap[smallest]) < 0) {
-//             smallest = rightChild;
-//         }
-
-//         if (smallest !== index) {
-//             this.swap(index, smallest);
-//             this.bubbleDown(smallest);
-//         }
-//     }
-
-//     getSize(): number {
-//         return this.heap.length;
-//     }
-// }
-
-// class MatchMaking {
-//     private eloHeaps: Map<number, MinHeap<Player>> = new Map();
-
-//     constructor() { }
-
-//     private getEloRange(elo: number): number {
-//         return Math.floor(elo / 100) * 100;
-//     }
-
-//     addPlayer(player: Player) {
-//         const range = this.getEloRange(player.eloRating);
-
-//         if (!this.eloHeaps.has(range)) {
-//             this.eloHeaps.set(range, new MinHeap<Player>((a, b) => a.eloRating - b.eloRating))
-//         }
-
-//         this.eloHeaps.get(range)!.insert(player);
-//     }
-
-//     findMatch(player: Player, eloRange = 50): Player | null {
-//         const range = this.getEloRange(player.eloRating);
-
-//         let bestMatch: Player | null = null;
-
-//         const isValidMatch = (match: Player | null) => match && match.userId !== player.userId; // Ensure different users
-
-//         // Check the player's range heap first
-//         if (this.eloHeaps.has(range)) {
-//             bestMatch = this.eloHeaps.get(range)!.extractMin();
-//             if (!isValidMatch(bestMatch)) bestMatch = null;
-//         }
-
-//         // If no match, check adjacent ranges (lower & higher ELO brackets)
-//         if (!bestMatch) {
-//             if (this.eloHeaps.has(range - 100)) {
-//                 bestMatch = this.eloHeaps.get(range - 100)!.extractMin();
-//                 if (!isValidMatch(bestMatch)) bestMatch = null;
-//             }
-//             if (!bestMatch && this.eloHeaps.has(range + 100)) {
-//                 bestMatch = this.eloHeaps.get(range + 100)!.extractMin();
-//                 if (!isValidMatch(bestMatch)) bestMatch = null;
-//             }
-//         }
-
-//         // As a last resort, look through all heaps for a valid match
-//         if (!bestMatch) {
-//             for (const heap of this.eloHeaps.values()) {
-//                 while (heap.getSize() > 0) {
-//                     bestMatch = heap.extractMin();
-//                     if (isValidMatch(bestMatch)) break;
-//                     bestMatch = null; // If invalid, keep searching
-//                 }
-//                 if (bestMatch) break;
-//             }
-//         }
-
-//         return bestMatch;
-//     }
-// }
-
-
-// const activeRooms: ActiveRooms = {};
-
-
-
-// io.use(async (socket: AuthenticatedSocket, next) => {
-//     const cookieString = socket.request.headers.cookie;;
-//     if (!cookieString) {
-//         console.log("Authentication Error")
-//         return next(new Error("Authentication Error"));
-//     }
-
-//     try {
-
-//         const match = cookieString.match(/session_id=([^;]+)/);
-//         const session_id = match ? match[1] : null;
-
-//         const user = await authorizeSession(session_id);
-//         socket.user = user;
-//         next();
-//     } catch (err) {
-//         console.log("invalid token")
-//         next(new Error("Invalid token"));
-//     }
-// })
-
 type Position = {
     x: number;
     y: number;
@@ -209,7 +62,10 @@ type Position = {
 };
 
 type PlayerMap = {
-    [socketId: string]: Position;
+    [socketId: string]: {
+        position: Position;
+        velocity: Position;
+    };
 };
 
 let players: PlayerMap = {};
@@ -226,11 +82,18 @@ type Player = {
     playerCenter: Position;
 }
 
+type PlayerBuffer = {
+    [key: string]: any; // Define the type of the buffer values if known
+};
+
+const POSITION_BUFFER_TIME = 3000;
+const playerBuffers: PlayerBuffer = {};
+
 type Room = {
     id: string;
     players: Player[];
     maxPlayers: number;
-    treePositions: Position[]
+    treePositions: TreePosition[]
     gameStarted: boolean;
 }
 
@@ -242,43 +105,80 @@ interface TreePosition {
 
 const rooms: Room[] = [];
 
+const CELL_SIZE = 100;
+type Grid = Map<string, Set<string>>;
+const grid: Grid = new Map();
 
+function getCellKey(position: Position): string {
+    const cellX = Math.floor(position.x / CELL_SIZE);
+    const cellZ = Math.floor(position.z / CELL_SIZE);
 
-function findOrCreateRoom(userId: string, socketId: string) {
+    return `${cellX}_${cellZ}`;
+}
+
+function getNearbyPlayers(socket: Socket, centerKey: string): string[] {
+    const [xStr, zStr] = centerKey.split("_");
+    const x = parseInt(xStr);
+    const z = parseInt(zStr);
+
+    const nearby: Set<string> = new Set();
+
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+            const key = `${x + dx}_${z + dz}`;
+            const cell = grid.get(key);
+            if (cell) {
+                for (const id of cell) {
+                    nearby.add(id);
+                }
+            }
+        }
+    }
+
+    // Return as array without the current player
+    nearby.delete(socket.id);
+    return Array.from(nearby);
+}
+
+function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     let room = rooms.find(r => r.players.length < r.maxPlayers);
     if (!room) {
 
-        const getGroundHeight = (x: number, z: number):number => {
+        const getGroundHeight = (x: number, z: number): number => {
             const primaryFrequency = 0.05;
             // Higher frequency = more hills, lower frequency = larger hills
             const secondaryFrequency = 0.2;
             const amplitude = 5; // increases height of hills
             const noiseAmplitude = 0.2; // increases noise variation
-      
+
             const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
             const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
-      
+
             return baseHeight + noise;
         }
 
+        // Mulberry32 seeded RNG
+        function mulberry32(seed: number) {
+            return function () {
+                seed |= 0;
+                seed = seed + 0x6D2B79F5 | 0;
+                var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
         const generateTreePositions = () => {
 
             const radius = 1000;
-            const density = 0.01;
-            const center = [0,0,0];
+            const densityFactor = 0.005; // Adjust this value to control tree density (higher = more trees)
+            const center = [0, 0, 0];
 
             const positions: TreePosition[] = [];
-            const treeCount = Math.floor(radius * radius * density);
+            const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
             // Seeded random number generator
             const seed = 12345; // Replace with a consistent seed value
-            let random = (function (seed) {
-                let value = seed;
-                return () => {
-                    value = (value * 9301 + 49297) % 233280;
-                    return value / 233280;
-                };
-            })(seed);
+            let random = mulberry32(seed);
 
             // Calculate unique positions for trees
             for (let i = 0; i < treeCount; i++) {
@@ -303,13 +203,14 @@ function findOrCreateRoom(userId: string, socketId: string) {
             id: uuidv4(),
             players: [],
             maxPlayers: 10,
+            treePositions: generateTreePositions(),
             gameStarted: false
         };
         rooms.push(room);
         console.log(`New room created: ${room.id}`);
+
     } else {
         if (userId) {
-            console.log(`User ${JSON.stringify(userId, null, 2)} is joining room: ${room.id}`);
             console.log(`User ${userId} joined room: ${room.id}`);
         } else {
             console.log("User ID is required to join a room.");
@@ -320,22 +221,108 @@ function findOrCreateRoom(userId: string, socketId: string) {
     return room;
 }
 
+function rewindPlayerState(buffer: PlayerBuffer, rewindTime: number) {
+    if (!buffer || buffer.length < 2) {
+        console.log("buffer length error")
+        return null;
+    }
+
+    // More forgiving time range check:
+    // 1. If rewind time is before oldest entry, use oldest entry
+    // 2. If rewind time is after newest entry but within tolerance, use newest entry
+    // 3. Only if time is way outside range, return null
+
+    const FUTURE_TOLERANCE = 150; // ms
+    const PAST_TOLERANCE = 150;   // ms
+    console.log("----------------------------")
+    // Case 1: Rewind time is too far in the past
+    if (rewindTime < buffer[0].timestamp - PAST_TOLERANCE) {
+        console.log(`Rewind time too old: ${rewindTime} vs ${buffer[0].timestamp}`);
+        return null;
+    }
+
+    // Case 2: Rewind time is too far in the future
+    if (rewindTime > buffer[buffer.length - 1].timestamp + FUTURE_TOLERANCE) {
+        console.log(`Rewind time too new: ${rewindTime} vs ${buffer[buffer.length - 1].timestamp}`);
+        console.log(`New by ${rewindTime - buffer[buffer.length - 1].timestamp} ms`)
+        return null;
+    }
+
+    // Case 3: Rewind time is before first buffer entry but within tolerance
+    if (rewindTime < buffer[0].timestamp) {
+        console.log(`Using earliest buffer entry (within tolerance)`);
+        return null;
+    }
+
+    // Case 4: Rewind time is after latest buffer entry but within tolerance
+    if (rewindTime > buffer[buffer.length - 1].timestamp) {
+        console.log(`Using latest buffer entry (within tolerance)`);
+        return null;
+    }
+
+    for (let i = 0; i < buffer.length - 1; i++) {
+        const a = buffer[i];
+        const b = buffer[i + 1];
+
+        if (a.timestamp <= rewindTime && b.timestamp >= rewindTime) {
+            const t = (rewindTime - a.timestamp) / (b.timestamp - a.timestamp);
+
+            const interpolatedPosition = {
+                x: a.position.x + (b.position.x - a.position.x) * t,
+                y: a.position.y + (b.position.y - a.position.y) * t,
+                z: a.position.z + (b.position.z - a.position.z) * t,
+            };
+
+            return { position: interpolatedPosition }
+        }
+    }
+
+    return null;
+}
+
+function rewindCellPlayers(playerBuffers: PlayerBuffer, rewindTime: number, currentUserId: string) {
+    const rewoundStates: any = {};
+
+    for (const userId in playerBuffers) {
+        if (userId === currentUserId) continue;
+
+        const buffer = playerBuffers[userId];
+
+        const rewound = rewindPlayerState(buffer, rewindTime);
+        console.log(rewound)
+
+        if (rewound) {
+            rewoundStates[userId] = rewound;
+        }
+    }
+
+    return rewoundStates;
+}
+
 
 io.on('connection', (socket: AuthenticatedSocket) => {
 
-    const innerRadius = 150;
+    // Delay wrapper function
+    function withDelay(callback: (...args: any[]) => void, delay = 0) {
+        return (...args: any[]) => {
+            setTimeout(() => {
+                callback(...args);
+            }, delay);
+        };
+    }
 
+    socket.on("ping-check", withDelay(async (clientTime) => {
+        socket.emit("pong-check", clientTime);
+    }));
+
+    const innerRadius = 100;
 
     console.log('User connected:', socket.id);
 
     socket.emit("currentPlayers", players);
 
-    socket.on("joinRoom", (userId) => {
-
-       
-
-        console.log('user has joined room', userId)
-        const room = findOrCreateRoom(userId, socket.id);
+    socket.on("joinRoom", withDelay((userId) => {
+        const room = findOrCreateRoom(userId, socket.id, socket);
         socket.join(room.id);
 
         //assign team to player
@@ -343,23 +330,24 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         const newPlayer: Player = {
             id: userId,
-            playerCenter: {x: 0, y: 0, z: 0},
+            playerCenter: { x: 0, y: 0, z: 0 },
             team: team
         }
         room.players.push(newPlayer)
-        socket.emit('roomAssigned', { roomId: room.id, team });
+        socket.emit('roomAssigned', { room: room, team });
+        console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
+    }));
 
-        console.log(rooms);
-
-    })
-
-
-
-    socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] })
+    socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
     let newCenter: Position = { x: 0, y: 0, z: 0 };
 
-    socket.on('updatePosition', (position) => {
+    socket.on("requestForestUpdate", withDelay(() => {
+        console.log("requested");
+        socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
+    }));
+
+    socket.on('updatePosition', withDelay((position, velocity) => {
 
         let distance = Math.sqrt(
             Math.pow(position.x - newCenter.x, 2) +
@@ -367,150 +355,87 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             Math.pow(position.z - newCenter.z, 2)
         );
         if (distance > innerRadius) {
+            console.log(position);
             console.log("Player is outside the inner radius, updating position...");
-            socket.emit('updateForest', { id: socket.id, position });
+            socket.emit('updateForest', { id: socket.id, position: position });
             newCenter = position;
         }
 
+        players[socket.id] = { position, velocity };
 
-        players[socket.id] = position;
+        const cellKey = getCellKey(position);
 
-        socket.broadcast.emit('playerMoved', { id: socket.id, position });
-        socket.broadcast.emit('playerMoved', { id: socket.id, position });
-    });
+        //remove player from old cell
+        for (const [key, set] of grid.entries()) {
+            if (set.has(socket.id)) set.delete(socket.id);
+        }
 
-    socket.on("disconnect", () => {
-        console.log('User disconnected:', socket.id);
-        delete players[socket.id];
-        console.log(players)
-        io.emit('playerDisconnected', socket.id);
+        //add player to new cell
+        if (!grid.has(cellKey)) grid.set(cellKey, new Set());
+        grid.get(cellKey)?.add(socket.id);
+
+        if (!playerBuffers[socket.id]) {
+            playerBuffers[socket.id] = [];
+        }
+
+        const currentTime = Date.now();
+
+        playerBuffers[socket.id].push({
+            timestamp: currentTime,
+            position,
+            velocity
+        });
+
+
+        while (
+            playerBuffers[socket.id].length > 0 &&
+            currentTime - playerBuffers[socket.id][0].timestamp > POSITION_BUFFER_TIME
+        ) {
+            playerBuffers[socket.id].shift();
+        }
+
+        //broadcast only to players within my grid
+        const nearbySocketIds = getNearbyPlayers(socket, cellKey);
+        for (const id of nearbySocketIds) {
+            io.to(id).emit('playerMoved', { id: socket.id, position, velocity });
+        }
+    }));
+
+
+    socket.on("shoot", ({ userId, shootObject }) => {
+
+        const { location, direction, timestamp, ping } = shootObject;
+
+        const rewindTime = Date.now() - (ping / 2);
+
+
+        const rewoundPlayers = rewindCellPlayers(playerBuffers, rewindTime, userId);
+
+        // Compare original and rewound player buffers for testing
+
+
     })
 
-    // socket.on("findMatch", (playerData) => {
-    //     const { userId, eloRating } = playerData;
+    socket.on("disconnect", withDelay(() => {
+        console.log('User disconnected:', socket.id);
 
-    //     const player: Player = { userId, eloRating, socket, socketId: socket.id }
+        // Remove player from players map
+        delete players[socket.id];
 
-    //     console.log(`Player ${userId} search for a match....`);
+        // Remove player from their room
+        for (const room of rooms) {
+            const playerIndex = room.players.findIndex(player => player.id === socket.id);
+            if (playerIndex !== -1) {
+                room.players.splice(playerIndex, 1);
+                console.log(`Player ${socket.id} removed from room ${room.id}`);
+                console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
+                break;
+            }
+        }
 
-    //     const opponent = matchMakingSystem.findMatch(player);
-
-    //     if (opponent) {
-    //         console.log(`Match found: ${player.userId} vs ${opponent.userId}`);
-
-    //         player.socket?.emit("matchFound", { opponentId: opponent.userId });
-    //         opponent.socket?.emit("matchFound", { opponentId: player.userId });
-
-    //     } else {
-    //         matchMakingSystem.addPlayer(player);
-
-    //         socket.emit("waiting", { message: "Waiting for an Opponenent" });
-    //     }
-    // });
-
-    // socket.on('joinRoom', (userid) => {
-    //     console.log('user has joined room')
-    //     const roomId = findOrCreateRoom(userid, socket.id);
-    //     socket.join(roomId);
-
-    //     const players = activeRooms[roomId].players;
-    //     console.log(players)
-    //     socket.emit('roomAssigned', { roomId });
-
-    //     io.to(roomId).emit('updatePlayers', players);
-
-    //     if (players.length === 2) {
-    //         io.to(roomId).emit('startBattle', { roomId, players })
-    //     }
-    // })
-
-    // //sync code across both players
-    // socket.on('codeUpdate', ({ roomId, code }) => {
-
-    //     socket.to(roomId).emit('opponentCode', {
-    //         code,
-    //         from: socket.id,
-    //     });
-    // });
-
-    // socket.on('disconnect', () => {
-    //     console.log(`User ${socket.user} disconnected`);
-    //     removePlayer(socket.id);
-    // })
-})
-
-
-
-
-// function removePlayer(socketId: string) {
-//     for (const roomId in activeRooms) {
-
-//         activeRooms[roomId].players = activeRooms[roomId].players.filter(
-//             (player) => player.socketId !== socketId
-//         );
-
-//         if (activeRooms[roomId].players.length == 1) {
-//             const winner = activeRooms[roomId].players[0];
-//             io.to(winner.socketId).emit("gameOver", {
-//                 winner: winner.userId,
-//                 message: "Your Opponent has been disconnected. You WIN!"
-//             })
-
-//             delete activeRooms[roomId];
-
-//         } else if (activeRooms[roomId].players.length === 0) {
-//             delete activeRooms[roomId]; // Cleanup empty rooms
-//         }
-//     }
-// }
-
-// const matchMakingSystem = new MatchMaking();
-
-
-
-
-
-// function categorizeProblems(dir: string) {
-//     const categories: Categories = {};
-
-//     const folders = fs.readdirSync(dir, { withFileTypes: true });
-
-//     folders.forEach((folder) => {
-//         if (folder.isDirectory()) {
-//             const folderPath = path.join(dir, folder.name);
-
-//             const problems = fs.readdirSync(folderPath).filter(file => file.endsWith('.py'));
-
-//             categories[folder.name] = problems;
-
-//         }
-
-
-//     })
-
-//     return categories;
-// }
-
-const baseDir = '../../coding-problems'
-
-// const categorizedData = categorizeProblems(baseDir);
-
-
-const readFirstFileInCategory = (category: string, categories: Categories) => {
-    // const categories = categorizeProblems(baseDir);
-
-    if (!categories[category] || categories[category].length === 0) {
-        console.log(`No files found in category: ${category}`);
-        return;
-    }
-
-    const firstFile = categories[category][0];
-    const filePath = path.join(baseDir, category, firstFile);
-
-    const content = fs.readFileSync(filePath, 'utf-8');
-    console.log(`Contents of ${firstFile} in ${category} category:\n`);
-    console.log(content);
-};
+        io.emit('playerDisconnected', socket.id);
+    }));
+});
 
 
 //db setup

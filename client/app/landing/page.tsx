@@ -6,6 +6,7 @@ import Player from '@/components/game-components/player/Player';
 import * as THREE from 'three';
 import { Stats } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
+import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
 import { Opponent } from '@/components/game-components/player/Opponent';
 
@@ -13,6 +14,26 @@ import { Opponent } from '@/components/game-components/player/Opponent';
 interface ObstacleProps {
   position: [number, number, number];
   getGroundHeight: (x: number, z: number) => number;
+}
+
+interface TreePosition {
+  position: [number, number, number];
+  rotation: number;
+  scale: number;
+}
+
+type Player = {
+  id: string;
+  team?: string;
+  position?: THREE.Vector3;
+  velocity?: THREE.Vector3;
+}
+
+type Room = {
+  roomId: string;
+  players: Player[];
+  maxPlayers: number;
+  gameStarted: boolean;
 }
 
 const Crosshair = React.memo(() => (
@@ -65,46 +86,38 @@ const CylinderObstacleVerticle = React.memo(React.forwardRef<THREE.Mesh, Obstacl
   );
 }));
 
-// Memoized Game Info component
-const GameInfo = React.memo(({ roomId, team }: { roomId: string | null, team: string | null }) => (
-  <div className="absolute top-4 left-4 bg-white text-black p-2 z-10">
-    <p>WASD to move, Mouse to look</p>
-    <p className="text-sm">Press ESC to release mouse</p>
-    <p>Room Id: {roomId}</p>
-    <p>Team: {team}</p>
-  </div>
-));
-
 // Main game component
 const FirstPersonGame: React.FC = () => {
 
   console.log("FirstPersonGame component rendered");
   const obstacles = useRef<THREE.Mesh[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const treePositions = useRef<TreePosition[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
-  const playerPositionsRef = useRef<{ [playerId: string]: THREE.Vector3 }>({});
+  const playerDataRef = useRef<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>({});
+  const [localPlayerId, setLocalPlayerId] = useState("");
   // We need to keep a state to force re-renders when players join/leave
   const [playerIds, setPlayerIds] = useState<string[]>([]);
+  const pingRef = useRef(0);
+  const smoothnessRef = useRef(0);
 
-  type Player = {
-    id: string;
-    team?: string;
-    position?: THREE.Vector3;
-  }
+  //grandparent states to communicate data with children
+  const ammoRef = useRef(10);
+  const grenadeCoolDownRef = useRef(false);
 
-  type Room = {
-    roomId: string;
-    players: Player[];
-    maxPlayers: number;
-    gameStarted: boolean;
-  }
+
+  //prevent multiple joins requests by same user
+  const hasJoinedRoom = useRef(false);
 
   // Player connection handling
   useEffect(() => {
     const handleConnect = () => {
-      console.log("Socket connected:", socket.id);
-      socket.emit("joinRoom", socket.id);
+      if (!hasJoinedRoom.current) {
+        hasJoinedRoom.current = true;
+        socket.emit("joinRoom", socket.id);
+        setLocalPlayerId(socket.id || "124");
+      }
     };
 
     // Handle the connect event
@@ -116,34 +129,48 @@ const FirstPersonGame: React.FC = () => {
     }
 
     // Room and team assignment
-    socket.on("roomAssigned", ({ roomId, team }) => {
-      console.log(`Assigned to room: ${roomId}`);
-      setRoomId(roomId);
+    socket.on("roomAssigned", ({ room, team }) => {
+      console.log(`Assigned to room: ${room.id}`);
+      setRoomId(room.id);
+      treePositions.current = room.treePositions
       setTeam(team);
     });
+    socket.on("playerMoved", ({ id, position, velocity }) => {
 
-    socket.on("playerMoved", ({ id, position }) => {
-      // console.log("Player moved:", id, position);
-      
-      // Store position in ref to avoid re-renders
-      playerPositionsRef.current = {
-        ...playerPositionsRef.current,
-        [id]: new THREE.Vector3(position.x, position.y, position.z)
+      console.log("Opponent Velocity: ", velocity)
+
+      // Store position and velocity in ref to avoid re-renders
+      playerDataRef.current = {
+        ...playerDataRef.current,
+        [id]: {
+          position: new THREE.Vector3(position.x, position.y, position.z),
+          velocity: new THREE.Vector3(velocity.x, velocity.y, velocity.z),
+        },
       };
-      
-      // Update player IDs if this is a new player
-      if (!playerIds.includes(id)) {
-        setPlayerIds(prev => [...prev, id]);
-      }
+
+
+      // Trigger re-render if this is a new player
+      setPlayerIds((prevIds) => {
+        if (!prevIds.includes(id)) {
+          return [...prevIds, id];
+        }
+        return prevIds; // no change, no re-render
+      });
+
     });
 
-    socket.on("disconnect", (id) => {
-      const updated = { ...playerPositionsRef.current };
+    socket.on("playerDisconnected", (id) => {
+      const updated = { ...playerDataRef.current };
       delete updated[id];
-      playerPositionsRef.current = updated;
-      
+      playerDataRef.current = updated;
+
       // Update player IDs when a player leaves
-      setPlayerIds(prev => prev.filter(playerId => playerId !== id));
+      setPlayerIds((prevIds) => {
+        if (!prevIds.includes(id)) {
+          return [...prevIds, id];
+        }
+        return prevIds; // no change, no re-render
+      });
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -161,9 +188,43 @@ const FirstPersonGame: React.FC = () => {
       socket.off("roomAssigned");
       socket.off("playerMoved");
       socket.off("disconnect");
+      socket.off("joinedRoom");
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [playerIds]);
+  }, []);
+
+  function calculatePing() {
+    const startTime = Date.now();
+
+    socket.emit("ping-check", startTime);
+
+    socket.on("pong-check", (clientTime) => {
+      const endTime = Date.now();
+      const pingValue = endTime - clientTime;
+      pingRef.current = pingValue;
+
+      const minFactor = 0.5;
+      const maxFactor = 10;
+      const maxPing = 500;
+
+      const ping = pingRef.current || 0;
+
+      const clampedPing = Math.min(Math.max(ping, 0), maxPing);
+
+      const interpolationFactor = maxFactor - (clampedPing / maxPing) * (maxFactor - minFactor);
+
+      smoothnessRef.current = interpolationFactor;
+
+    })
+  }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      calculatePing();
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Setup obstacle references
   useEffect(() => {
@@ -193,10 +254,15 @@ const FirstPersonGame: React.FC = () => {
 
   const PlayerWithGroundHeight = React.memo((props: any) => {
     const getGroundHeight = useGroundHeight();
-    
+
     return (
       <Player
         {...props}
+        userId={localPlayerId}
+        grenadeCoolDownRef={grenadeCoolDownRef}
+        pingRef={pingRef} //pass ping to gun component for sending during shoot events
+        playerDataRef={playerDataRef} //to get opponents locations
+        ammoRef={ammoRef}
         getGroundHeight={getGroundHeight}
       />
     );
@@ -204,21 +270,27 @@ const FirstPersonGame: React.FC = () => {
 
   // Example Opponent component that uses the useGroundHeight hook
   const OpponentWithGroundHeight = React.memo(
+
     ({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
       const getGroundHeight = useGroundHeight();
       const positionRef = useRef<THREE.Vector3 | null>(null);
-  
+      const velocityRef = useRef<THREE.Vector3 | null>(null);
+
+      console.log("Rendering OpponentWithGroundHeight for:", playerId);
       useEffect(() => {
-        positionRef.current = playerPositionsRef.current[playerId] || null;
+        positionRef.current = playerDataRef.current[playerId]?.position || null;
+        velocityRef.current = playerDataRef.current[playerId]?.velocity || null;
       }, [playerId]);
-  
-      if (!playerPositionsRef.current[playerId]) return null;
-  
+
+      if (!playerDataRef.current[playerId]) return null;
+
       return (
         <Opponent
-          positionRef={() => playerPositionsRef.current[playerId]} // Pass as a function
+          positionRef={() => playerDataRef.current[playerId]?.position || null} // Pass as a function
+          velocityRef={() => playerDataRef.current[playerId]?.velocity || null} // Pass as a function}
           isRemote={true}
           addObstacleRef={addObstacleRef}
+          smoothnessRef={smoothnessRef}
           isHit={isHit}
           getGroundHeight={getGroundHeight}
         />
@@ -226,46 +298,67 @@ const FirstPersonGame: React.FC = () => {
     }
   );
 
-  const groundProps = useMemo(() => ({
+  const groundProps = {
     addObstacleRef,
-    fogDistance: 10,
+    fogDistance: 25,
+    treePositions: treePositions.current,
     fogColor: "#65888a"
-  }), [addObstacleRef]);
+  };
 
-  const handlePositionChange = useCallback((pos: THREE.Vector3) => {
-    socket.emit("updatePosition", pos);
-  }, []);
+
+  const isReady =
+    typeof roomId === "string" &&
+    Array.isArray(treePositions.current) &&
+    treePositions.current.length > 0;
 
   return (
     <div className="w-full h-screen relative">
-      <GameInfo roomId={roomId} team={team} />
-      <Crosshair />
-
-      {/* 3D Canvas */}
-      <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
-        <Stats />
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} intensity={1} />
-        <gridHelper args={[50, 50]} />
-
-        <Ground {...groundProps}>
-          <PlayerWithGroundHeight
-            addObstacleRef={addObstacleRef}
-            obstacles={obstacles.current}
-            otherPlayers={playerPositionsRef.current}
+      {isReady ? (
+        <>
+          <GameInfo
+            roomId={roomId}
+            grenadeCoolDownRef={grenadeCoolDownRef}
+            userid={localPlayerId}
+            team={team}
+            ammoRef={ammoRef}
+            bulletsAvailable={30}
+            explosionTimeout={3000}
+            health={100}
+            kills={0}
+            pingRef={pingRef}
           />
+          <Crosshair />
 
-          {/* Other players - Now properly rendered with current IDs */}
-          {playerIds.map((id) => (
-            <OpponentWithGroundHeight
-              key={id}
-              playerId={id}
-              addObstacleRef={addObstacleRef}
-              isHit={!!hitPlayers[id]}
-            />
-          ))}
-        </Ground>
-      </Canvas>
+          <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
+            <Stats />
+            <ambientLight intensity={0.5} />
+            <pointLight position={[10, 10, 10]} intensity={1} />
+            <gridHelper args={[50, 50]} />
+
+            <Ground {...groundProps}>
+              <PlayerWithGroundHeight
+                addObstacleRef={addObstacleRef}
+                obstacles={obstacles.current}
+                otherPlayers={playerDataRef.current}
+              />
+
+              {playerIds
+                .map((id) => (
+                  <OpponentWithGroundHeight
+                    key={id}
+                    playerId={id}
+                    addObstacleRef={addObstacleRef}
+                    isHit={!!hitPlayers[id]}
+                  />
+                ))}
+            </Ground>
+          </Canvas>
+        </>
+      ) : (
+        <div className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+          Joining room...
+        </div>
+      )}
     </div>
   );
 };

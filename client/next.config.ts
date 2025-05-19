@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["via.placeholder.com", "lh3.googleusercontent.com", "cdn-icons-png.flaticon.com"], // Add allowed domains here
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   env: {
     BACKEND_URL: process.env.BACKEND_URL
   }

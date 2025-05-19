@@ -383,6 +383,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         args={[geometry.mainTrunk, materials.trunkMaterial, positions.length]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
 
       {/* Aerial roots - characteristic of banyan trees */}
@@ -391,6 +392,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         args={[geometry.aerialRoot, materials.rootMaterial, positions.length * 12]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
 
       {/* Horizontal plate structure */}
@@ -399,6 +401,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         args={[geometry.canopyPlate, materials.plateMaterial, positions.length]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
 
       {/* Large canopy (bottom layer) */}
@@ -407,6 +410,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         args={[geometry.largeCanopy, materials.canopyBaseMaterial, positions.length]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
 
       {/* Medium canopy (middle layer) */}
@@ -415,6 +419,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         args={[geometry.mediumCanopy, materials.canopyMidMaterial, positions.length]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
 
       {/* Small canopy (top layer) */}
@@ -423,6 +428,7 @@ const BanyanTreeVisual: React.FC<{ positions: TreePosition[] }> = ({ positions }
         args={[geometry.smallCanopy, materials.canopyTopMaterial, positions.length]}
         castShadow
         receiveShadow
+        frustumCulled={false}
       />
     </group>
   );
@@ -455,6 +461,7 @@ const TreeColliders: React.FC<{ positions: TreePosition[], addObstacleRef: (ref:
               }
             }}
             position={treePos.position}
+            frustumCulled={false}
             scale={[treePos.scale * 0.8, treePos.scale * 1.8, treePos.scale * 0.8]}
           >
             <cylinderGeometry args={[1.5, 1.5, 26, 8]} />
@@ -615,25 +622,52 @@ function BushesAroundTrees({ treePositions = [] }: { treePositions: [number, num
     />
   )
 }
+
+
+const RADIUS = 200;
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
   treePositions,
   addObstacleRef,
 }) => {
 
+  const [visibleTrees, setVisibleTrees] = useState<any[]>([]); // Trees within radius
+  const poolRef = useRef<any[]>([]); // Reusable tree pool
+  const currentPosRef = useRef<[number, number, number]>([0, 0, 0]); // Drone or user position
+
   useEffect(() => {
-    socket.on("updateForest", (id, position) => {
-      console.log(":", id, position);
-    })
+    const handleUpdateForest = ({ id, position }: { id: string; position: { x: number; y: number; z: number } }) => {
+      currentPosRef.current = [position.x, position.y, position.z];
+
+      const filtered = treePositions
+        .filter((tree) => {
+          const dx = tree.position[0] - position.x;
+          const dy = tree.position[1] - position.y;
+          const dz = tree.position[2] - position.z;
+          return dx * dx + dy * dy + dz * dz <= RADIUS * RADIUS;
+        })
+        console.log(filtered.length)
+      setVisibleTrees(filtered);
+    };
+
+    // Set up socket listener
+    socket.on("updateForest", handleUpdateForest);
+
+    // ✅ Request forest data immediately after mounting
+    socket.emit("requestForestUpdate");
+
+    return () => {
+      socket.off("updateForest", handleUpdateForest);
+    };
   }, []);
+
   // Calculate tree positions only once
 
 
   return (
     <group name="forest">
-      <BanyanTreeVisual positions={treePositions} />
-      <TreeColliders positions={treePositions} addObstacleRef={addObstacleRef} />
-      <BushesAroundTrees treePositions={treePositions.map(tree => tree.position)} />
+      <BanyanTreeVisual positions={visibleTrees} />
+      <TreeColliders positions={visibleTrees} addObstacleRef={addObstacleRef} />
     </group>
   );
 };
