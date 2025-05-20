@@ -10,8 +10,8 @@ interface GunProps {
     ammoRef: RefObject<number>;
     camera: THREE.Camera;
     shootEvent: EventEmitter;
-    playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
     pingRef: RefObject<number>;
+    otherPlayers: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
     userId: string;
 }
 
@@ -22,7 +22,7 @@ interface BulletTrace {
     createdAt: number;
 }
 
-const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pingRef, userId, ammoRef }) => {
+const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, ammoRef, otherPlayers }) => {
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const [muzzleFlash, setMuzzleFlash] = useState(false);
     const [isReloading, setIsReloading] = useState(false);
@@ -156,12 +156,10 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pi
             const rayOrigin = camera.position.clone();
             shootRaycaster.set(rayOrigin, rayDirection);
 
-            console.log(rayDirection)
-
             const maxDistance = 100;
             const thresholdRadius = 3;
 
-            const players = Object.values(playerDataRef.current)
+            const players = Object.values(otherPlayers.current)
 
             players.forEach(player => {
                 const playerPos = player.position.clone(); // Use player position
@@ -178,8 +176,8 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, playerDataRef, pi
 
                 if (distanceToRay <= thresholdRadius) {
                     const shootObject = {
-                        location: rayOrigin,
-                        direction: rayDirection,
+                        rayOrigin,
+                        rayDirection,
                         timestamp: Date.now(),
                         ping: pingRef.current
                     }

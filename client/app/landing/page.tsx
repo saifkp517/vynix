@@ -9,6 +9,7 @@ import Ground, { useGroundHeight } from '@/components/game-components/ground/Gro
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
 import { Opponent } from '@/components/game-components/player/Opponent';
+import KillFeed from '@/components/game-components/toast/KillFeed';
 
 // Define types for player and obstacle
 interface ObstacleProps {
@@ -110,6 +111,7 @@ const FirstPersonGame: React.FC = () => {
   //prevent multiple joins requests by same user
   const hasJoinedRoom = useRef(false);
 
+
   // Player connection handling
   useEffect(() => {
     const handleConnect = () => {
@@ -159,6 +161,12 @@ const FirstPersonGame: React.FC = () => {
 
     });
 
+
+    socket.on("playerDead", ({ userId, playerId }) => {
+      console.log(`${playerId} was killed by ${userId}`);
+      showKillToast(`💀 ${playerId}`); // show toast only if YOU killed them
+    });
+
     socket.on("playerDisconnected", (id) => {
       const updated = { ...playerDataRef.current };
       delete updated[id];
@@ -186,6 +194,7 @@ const FirstPersonGame: React.FC = () => {
     return () => {
       socket.off("connect", handleConnect);
       socket.off("roomAssigned");
+      socket.off("playerDead"); ``
       socket.off("playerMoved");
       socket.off("disconnect");
       socket.off("joinedRoom");
@@ -216,6 +225,19 @@ const FirstPersonGame: React.FC = () => {
       smoothnessRef.current = interpolationFactor;
 
     })
+  }
+
+  const [killFeed, setKillFeed] = useState<{ id: number; name: any }[]>([]);
+  let toastId = 0;
+
+
+  function showKillToast(name: string) {
+    const id = toastId++;
+    setKillFeed((prev) => [...prev, { id, name }]);
+
+    setTimeout(() => {
+      setKillFeed((prev) => prev.filter((item) => item.id !== id));
+    }, 3000);
   }
 
   useEffect(() => {
@@ -261,7 +283,6 @@ const FirstPersonGame: React.FC = () => {
         userId={localPlayerId}
         grenadeCoolDownRef={grenadeCoolDownRef}
         pingRef={pingRef} //pass ping to gun component for sending during shoot events
-        playerDataRef={playerDataRef} //to get opponents locations
         ammoRef={ammoRef}
         getGroundHeight={getGroundHeight}
       />
@@ -313,6 +334,7 @@ const FirstPersonGame: React.FC = () => {
 
   return (
     <div className="w-full h-screen relative">
+      <KillFeed feed={killFeed} />
       {isReady ? (
         <>
           <GameInfo
@@ -339,7 +361,7 @@ const FirstPersonGame: React.FC = () => {
               <PlayerWithGroundHeight
                 addObstacleRef={addObstacleRef}
                 obstacles={obstacles.current}
-                otherPlayers={playerDataRef.current}
+                otherPlayers={playerDataRef}
               />
 
               {playerIds

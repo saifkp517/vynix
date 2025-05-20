@@ -2,7 +2,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { Server, Socket } from "socket.io"
 import { createServer } from "http"
-import { Vector3 } from "three"
+import { Ray, Vector3 } from "three"
 import { v4 as uuidv4 } from "uuid"
 import fs from "fs";
 import cookieParser from "cookie-parser";
@@ -65,6 +65,8 @@ type PlayerMap = {
     [socketId: string]: {
         position: Position;
         velocity: Position;
+        health?: number;
+        team?: string;
     };
 };
 
@@ -79,7 +81,6 @@ type Player = {
     id: string;
     team: string;
     position?: Position;
-    playerCenter: Position;
 }
 
 type PlayerBuffer = {
@@ -221,88 +222,6 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     return room;
 }
 
-let rewindStats = {
-    totalShots: 0,
-    insideBuffer: 0,
-    tooOld: 0,
-    tooNew: 0,
-    justUsedEdgeOldest: 0,
-    justUsedEdgeNewest: 0
-};
-
-function rewindPlayerState(buffer: PlayerBuffer, rewindTime: number) {
-    rewindStats.totalShots++;
-
-    if (!buffer || buffer.length < 2) {
-        console.log("buffer length error");
-        return null;
-    }
-
-    const FUTURE_TOLERANCE = 1000; // ms
-    const PAST_TOLERANCE = 150;    // ms
-
-    const oldest = buffer[0].timestamp;
-    const newest = buffer[buffer.length - 1].timestamp;
-
-    if (rewindTime < oldest - PAST_TOLERANCE) {
-        console.log(`Too old: ${rewindTime} < ${oldest}`);
-        rewindStats.tooOld++;
-        return null;
-    }
-
-    if (rewindTime > newest + FUTURE_TOLERANCE) {
-        console.log(`Too new: ${rewindTime} > ${newest}`);
-        rewindStats.tooNew++;
-        return null;
-    }
-
-    // Optional: Log edge cases
-    if (rewindTime <= oldest && rewindTime >= oldest - PAST_TOLERANCE) {
-        rewindStats.justUsedEdgeOldest++;
-    }
-    if (rewindTime >= newest && rewindTime <= newest + FUTURE_TOLERANCE) {
-        rewindStats.justUsedEdgeNewest++;
-    }
-
-    // Main interpolation
-    for (let i = 0; i < buffer.length - 1; i++) {
-        const a = buffer[i];
-        const b = buffer[i + 1];
-
-        if (a.timestamp <= rewindTime && b.timestamp >= rewindTime) {
-            rewindStats.insideBuffer++;
-            const t = (rewindTime - a.timestamp) / (b.timestamp - a.timestamp);
-            const interpolatedPosition = {
-                x: a.position.x + (b.position.x - a.position.x) * t,
-                y: a.position.y + (b.position.y - a.position.y) * t,
-                z: a.position.z + (b.position.z - a.position.z) * t,
-            };
-            return { position: interpolatedPosition };
-            console.log(rewindStats)
-        }
-    }
-
-    return null; // fallback
-}
-
-function rewindCellPlayers(playerBuffers: PlayerBuffer, rewindTime: number, currentUserId: string) {
-    const rewoundStates: any = {};
-
-    for (const userId in playerBuffers) {
-        if (userId === currentUserId) continue;
-
-        const buffer = playerBuffers[userId];
-
-        const rewound = rewindPlayerState(buffer, rewindTime);
-        console.log(rewound)
-
-        if (rewound) {
-            rewoundStates[userId] = rewound;
-        }
-    }
-
-    return rewoundStates;
-}
 
 
 io.on('connection', (socket: AuthenticatedSocket) => {
@@ -335,7 +254,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         const newPlayer: Player = {
             id: userId,
-            playerCenter: { x: 0, y: 0, z: 0 },
             team: team
         }
         room.players.push(newPlayer)
@@ -379,26 +297,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         if (!grid.has(cellKey)) grid.set(cellKey, new Set());
         grid.get(cellKey)?.add(socket.id);
 
-        if (!playerBuffers[socket.id]) {
-            playerBuffers[socket.id] = [];
-        }
-
-        const currentTime = Date.now();
-
-        playerBuffers[socket.id].push({
-            timestamp: currentTime,
-            position,
-            velocity
-        });
-
-
-        while (
-            playerBuffers[socket.id].length > 0 &&
-            currentTime - playerBuffers[socket.id][0].timestamp > POSITION_BUFFER_TIME
-        ) {
-            playerBuffers[socket.id].shift();
-        }
-
         //broadcast only to players within my grid
         const nearbySocketIds = getNearbyPlayers(socket, cellKey);
         for (const id of nearbySocketIds) {
@@ -406,19 +304,70 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         }
     }));
 
+    function rayIntersectsSphere(
+        rayOrigin: Vector3,
+        rayDirection: Vector3,
+        sphereCenter: Vector3,
+        sphereRadius: number
+    ): { hit: boolean, distance: number } {
+
+        if (!rayOrigin || !rayDirection || !sphereCenter) {
+            console.error("Invalid argument passed to rayIntersectsSphere:", {
+                rayOrigin,
+                rayDirection,
+                sphereCenter
+            });
+            return { hit: false, distance: Infinity };
+        }
+
+        const toCenter = new Vector3().subVectors(sphereCenter, rayOrigin);
+        const projectionLength = toCenter.dot(rayDirection);
+
+        // Sphere is behind the ray origin
+        if (projectionLength < 0) return { hit: false, distance: Infinity };
+
+        const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
+        const distanceToCenter = closestPoint.distanceTo(sphereCenter);
+
+        const hit = distanceToCenter <= sphereRadius;
+        return { hit, distance: distanceToCenter };
+    }
+
 
     socket.on("shoot", ({ userId, shootObject }) => {
 
-        const { location, direction, timestamp, ping } = shootObject;
+        Object.entries(players).forEach(([playerId, player]) => {
+            if (playerId == userId) return; // Skip the current player
 
-        const rewindTime = timestamp - (ping / 2);
+            const rayOrigin = new Vector3(
+                shootObject.rayOrigin.x,
+                shootObject.rayOrigin.y,
+                shootObject.rayOrigin.z
+            );
+            const rayDirection = new Vector3(
+                shootObject.rayDirection.x,
+                shootObject.rayDirection.y,
+                shootObject.rayDirection.z
+            ).normalize(); // Always normalize the direction vector
 
-        const rewoundPlayers = rewindCellPlayers(playerBuffers, rewindTime, userId);
 
+            const playerCenter = new Vector3(
+                player.position.x,
+                player.position.y,
+                player.position.z
+            );
+            // Try values that are "near" the ray
 
+            const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 1);
 
-        // Compare original and rewound player buffers for testing
+            console.log(`[Check] playerId: ${playerId}, hit: ${hit}, distance: ${distance.toFixed(3)} units`);
 
+            if (hit) {
+                console.log(`--> User-id(${playerId}) is hit!`);
+            } else {
+                console.log(`--> User-id(${playerId}) missed by ${distance.toFixed(3)} units`);
+            }
+        })
 
     })
 
