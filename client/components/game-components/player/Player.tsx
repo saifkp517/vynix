@@ -17,8 +17,7 @@ interface PlayerProps {
     grenadeCoolDownRef: RefObject<boolean>;
     getGroundHeight: (x: number, z: number) => number;
     ammoRef: RefObject<number>;
-    otherPlayers: { [playerId: string]: THREE.Vector3 };
-    playerDataRef: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
+    otherPlayers: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
     userId: string;
 }
 
@@ -106,7 +105,6 @@ const Player: React.FC<PlayerProps> = ({
     grenadeCoolDownRef,
     otherPlayers,
     ammoRef,
-    playerDataRef,
     pingRef,
     userId
 }) => {
@@ -377,35 +375,12 @@ const Player: React.FC<PlayerProps> = ({
         );
     };
 
-    const checkForExplosionDamage = (explosionPosition: THREE.Vector3) => {
-
-        const newHits: { [id: string]: boolean } = {};
-
-        Object.entries(otherPlayers).forEach(([id, pos]) => {
-            const distance = getDistance(pos, explosionPosition.toArray());
-            if (distance < explosionRadius) {
-                console.log(`Opponent ${id} is affected by explosion!`);
-                newHits[id] = true; // mark as hit
-            }
-        });
-
-        setHitPlayers((prev) => ({ ...prev, ...newHits }));
-
-        // Optional: Reset hits after 500ms
-        setTimeout(() => {
-            const resetHits = Object.fromEntries(Object.keys(newHits).map((id) => [id, false]));
-            setHitPlayers((prev) => ({ ...prev, ...resetHits }));
-        }, 500);
-    };
-
-
     const handleExplosion = (position: THREE.Vector3) => {
 
         const id = Date.now();
         setFireballs((prev) => prev.slice(1)); // Remove the first fireball
         setExplosions((prev) => [...prev, { id, position }]);
 
-        checkForExplosionDamage(position); // Check for damage to opponents
         const sound = new Howl({
             src: ['/sounds/explosion.mp3'],
             volume: 1,
@@ -846,9 +821,9 @@ const Player: React.FC<PlayerProps> = ({
                     camera={camera}
                     ammoRef={ammoRef}
                     shootEvent={shootEvent.current}
-                    playerDataRef={playerDataRef}
                     pingRef={pingRef}
                     userId={userId}
+                    otherPlayers={otherPlayers}
                 />
             </group>
         </>

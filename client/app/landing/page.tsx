@@ -261,7 +261,6 @@ const FirstPersonGame: React.FC = () => {
         userId={localPlayerId}
         grenadeCoolDownRef={grenadeCoolDownRef}
         pingRef={pingRef} //pass ping to gun component for sending during shoot events
-        playerDataRef={playerDataRef} //to get opponents locations
         ammoRef={ammoRef}
         getGroundHeight={getGroundHeight}
       />
@@ -339,7 +338,7 @@ const FirstPersonGame: React.FC = () => {
               <PlayerWithGroundHeight
                 addObstacleRef={addObstacleRef}
                 obstacles={obstacles.current}
-                otherPlayers={playerDataRef.current}
+                otherPlayers={playerDataRef}
               />
 
               {playerIds
