@@ -47,13 +47,12 @@ app.use(cookieParser());
 //Routes
 app.use("/auth", router);
 
-type ActiveRooms = {
-    [key: string]: Room
+type Vegetation = {
+    type: 'tree' | 'stone';
+    position: [number, number, number];
+    rotation: number;
+    scale: number;
 };
-
-interface Categories {
-    [folderName: string]: string[];
-}
 
 type Position = {
     x: number;
@@ -83,26 +82,14 @@ type Player = {
     position?: Position;
 }
 
-type PlayerBuffer = {
-    [key: string]: any; // Define the type of the buffer values if known
-};
-
-const POSITION_BUFFER_TIME = 3000;
-const playerBuffers: PlayerBuffer = {};
-
 type Room = {
     id: string;
     players: Player[];
     maxPlayers: number;
-    treePositions: TreePosition[]
+    vegetationPositions: Vegetation[]
     gameStarted: boolean;
 }
 
-interface TreePosition {
-    position: [number, number, number];
-    rotation: number;
-    scale: number;
-}
 
 const rooms: Room[] = [];
 
@@ -168,20 +155,20 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
                 return ((t ^ t >>> 14) >>> 0) / 4294967296;
             };
         }
-        const generateTreePositions = () => {
 
+
+        const generateTreeAndStonePositions = () => {
             const radius = 1000;
-            const densityFactor = 0.005; // Adjust this value to control tree density (higher = more trees)
+            const densityFactor = 0.005;
             const center = [0, 0, 0];
-
-            const positions: TreePosition[] = [];
             const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
-            // Seeded random number generator
-            const seed = 12345; // Replace with a consistent seed value
+            const seed = 12345;
             let random = mulberry32(seed);
 
-            // Calculate unique positions for trees
+            const vegetation: Vegetation[] = [];
+            const stoneFrequency = 5; // One stone every 10 trees
+
             for (let i = 0; i < treeCount; i++) {
                 const angle = random() * Math.PI * 2;
                 const dist = Math.sqrt(random()) * radius;
@@ -190,21 +177,40 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
                 const z = center[2] + Math.sin(angle) * dist;
                 const y = getGroundHeight(x, z) + 1.5;
 
-                positions.push({
-                    position: [x, y, z] as [number, number, number],
+                vegetation.push({
+                    type: 'tree',
+                    position: [x, y, z],
                     rotation: random() * Math.PI * 2,
-                    scale: 0.8 + random() * 0.4
+                    scale: 0.8 + random() * 0.4,
                 });
+
+                // Add a stone every `stoneFrequency` trees
+                if (i % stoneFrequency === 0) {
+                    const stoneOffset = 5 + random() * 10; // Slightly offset from the tree
+                    const stoneAngle = random() * Math.PI * 2;
+
+                    const stoneX = x + Math.cos(stoneAngle) * stoneOffset;
+                    const stoneZ = z + Math.sin(stoneAngle) * stoneOffset;
+                    const stoneY = getGroundHeight(stoneX, stoneZ) + 0.5;
+
+                    vegetation.push({
+                        type: 'stone',
+                        position: [stoneX, stoneY, stoneZ],
+                        rotation: random() * Math.PI * 2,
+                        scale: 0.5 + random() * 0.3,
+                    });
+                }
             }
 
-            return positions;
-        }
+            return vegetation;
+        };
+
 
         room = {
             id: uuidv4(),
             players: [],
             maxPlayers: 10,
-            treePositions: generateTreePositions(),
+            vegetationPositions: generateTreeAndStonePositions(),
             gameStarted: false
         };
         rooms.push(room);
