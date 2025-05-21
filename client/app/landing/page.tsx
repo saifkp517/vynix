@@ -333,7 +333,7 @@ const FirstPersonGame: React.FC = () => {
       <KillFeed feed={killFeed} />
       {isReady ? (
         <>
-          <GameInfo
+          {/* <GameInfo
             roomId={roomId}
             grenadeCoolDownRef={grenadeCoolDownRef}
             userid={localPlayerId}
@@ -344,7 +344,7 @@ const FirstPersonGame: React.FC = () => {
             health={100}
             kills={0}
             pingRef={pingRef}
-          />
+          /> */}
           <Crosshair />
 
           <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>

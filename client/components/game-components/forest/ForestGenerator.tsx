@@ -1,8 +1,7 @@
 // ForestGenerator.tsx
 'use client';
-import React, { useEffect, useRef, useState} from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TreeVisual, TreeColliders } from '../obstacles/Tree';
-// import { BushVisual } from '../obstacles/Stone';
 import * as THREE from 'three';
 import socket from '@/lib/socket';
 import type { Vegetation } from '@/app/types/types';
@@ -13,8 +12,6 @@ interface ForestProps {
   getGroundHeight: (x: number, z: number) => number;
 }
 
-
-
 // Main Forest component
 export const Forest: React.FC<ForestProps> = ({
   vegetationPositions,
@@ -23,7 +20,7 @@ export const Forest: React.FC<ForestProps> = ({
 }) => {
 
   const [visibleTrees, setVisibleTrees] = useState<any[]>([]); // Trees within radius
-  const [visibleStones, setVisibleStones] = useState<any[]>([]);
+  const [visibleGrass, setVisibleGrass] = useState<any[]>([]);
   const poolRef = useRef<any[]>([]); // Reusable tree pool
   const currentPosRef = useRef<[number, number, number]>([0, 0, 0]); // Drone or user position
 
@@ -41,10 +38,13 @@ export const Forest: React.FC<ForestProps> = ({
       });
 
       const trees = visible.filter((v) => v.type === 'tree');
-      const Stones = visible.filter((v) => v.type === 'stone');
+      const grass = visible.filter((v) => v.type === 'grass');
 
       setVisibleTrees(trees);
-      setVisibleStones(Stones);
+      setVisibleGrass(grass);
+
+      console.log('Visible Grass:', grass);
+
     };
 
     socket.on("updateForest", handleUpdateForest);
@@ -55,12 +55,12 @@ export const Forest: React.FC<ForestProps> = ({
     };
   }, [vegetationPositions]);
 
+  console.log('Rendering visibleGrass:', visibleGrass);
+
   return (
     <group name="forest">
       <TreeVisual positions={visibleTrees} getGroundHeight={getGroundHeight} />
       <TreeColliders positions={visibleTrees} addObstacleRef={addObstacleRef} />
-
-      {/* <StoneVisual positions={visibleStones} getGroundHeight={getGroundHeight} /> */}
     </group>
   );
 };

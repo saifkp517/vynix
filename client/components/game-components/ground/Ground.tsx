@@ -2,13 +2,14 @@ import { useThree, useLoader, useFrame } from "@react-three/fiber";
 import { createNoise2D } from 'simplex-noise';
 import React, { Suspense, createContext, useContext, memo } from "react";
 import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
-import { Points, BufferGeometry, BufferAttribute } from 'three';
+import { Points } from 'three';
 import * as THREE from "three";
 import { TextureLoader } from "three";
 import socket from "@/lib/socket";
 import { Forest } from "../forest/ForestGenerator";
 import { Sky } from "@react-three/drei";
 import { Mountains } from "../obstacles/Mountains";
+import TallGrass from "../obstacles/Grass";
 
 import type { Vegetation } from "@/app/types/types";
 
@@ -41,6 +42,9 @@ type GroundProps = {
   fogColor?: string;
   addObstacleRef: (ref: THREE.Mesh | null) => void;
 };
+
+// TallGrass component to add grass blades to the scene
+
 
 // RainEffect component is memoized to prevent unnecessary rerenders
 const RainEffect = memo(
@@ -110,11 +114,8 @@ const RainEffect = memo(
   }
 );
 
-
-
 // ForestWrapper component is memoized to prevent unnecessary rerenders
 const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef, vegetationPositions }: any) => {
-
   return (
     <Forest
       vegetationPositions={vegetationPositions}
@@ -132,14 +133,11 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   fogColor = "#B0C4DE",
   addObstacleRef
 }, ref) => {
-
-
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const initializedRef = useRef(false);
-
   // Load textures once
   const [grassMap, roughnessMap, noiseMap] = useLoader(TextureLoader, [
     "/textures/grass.jpg",
@@ -339,6 +337,13 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         />
       </mesh>
 
+      {/* Tall Grass */}
+      <Suspense fallback={null}>
+        <TallGrass 
+          getGroundHeight={getGroundHeight}
+        />
+      </Suspense>
+
       {/* Lighting */}
       <directionalLight
         position={sunPosition}
@@ -364,15 +369,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         center={targetPosition}
       />
 
-
       {/* Forest */}
       {vegetationPositions ? (
-
         <ForestWrapper {...forestProps} />
       ) : (
         <Suspense fallback={<div>Loading components...</div>} />
       )}
-
 
       {/* Children can use the context via useGroundHeight */}
       {children}

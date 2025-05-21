@@ -48,7 +48,7 @@ app.use(cookieParser());
 app.use("/auth", router);
 
 type Vegetation = {
-    type: 'tree' | 'stone';
+    type: string;
     position: [number, number, number];
     rotation: number;
     scale: number;
@@ -159,7 +159,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
         const generateTreeAndStonePositions = () => {
             const radius = 1000;
-            const densityFactor = 0.005;
+            const densityFactor = 0.004;
             const center = [0, 0, 0];
             const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
@@ -167,7 +167,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
             let random = mulberry32(seed);
 
             const vegetation: Vegetation[] = [];
-            const stoneFrequency = 5; // One stone every 10 trees
+            const stoneFrequency = 100; // One stone every 10 trees
 
             for (let i = 0; i < treeCount; i++) {
                 const angle = random() * Math.PI * 2;
@@ -194,7 +194,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
                     const stoneY = getGroundHeight(stoneX, stoneZ) + 0.5;
 
                     vegetation.push({
-                        type: 'stone',
+                        type: 'grass',
                         position: [stoneX, stoneY, stoneZ],
                         rotation: random() * Math.PI * 2,
                         scale: 0.5 + random() * 0.3,
