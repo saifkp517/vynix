@@ -2,14 +2,14 @@
 import { io } from "socket.io-client";
 
 
-const devSocket = io("http://localhost:4000", {
-   withCredentials: true,
-});
+// const devSocket = io("http://localhost:4000", {
+//    withCredentials: true,
+// });
 
-//  const prodSocket = io("https://ins-worried-wins-cardiovascular.trycloudflare.com", {
-//      withCredentials: true,
-//  });
+ const prodSocket = io("https://pat-rob-retained-warm.trycloudflare.com", {
+     withCredentials: true,
+ });
 
-const socket = devSocket;
+const socket = prodSocket;
 
 export default socket;
