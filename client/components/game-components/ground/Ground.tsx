@@ -341,6 +341,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       <Suspense fallback={null}>
         <TallGrass 
           getGroundHeight={getGroundHeight}
+          center={[targetPosition[0], targetPosition[1], targetPosition[2]]}
         />
       </Suspense>
 
