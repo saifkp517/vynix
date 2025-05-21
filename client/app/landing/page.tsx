@@ -11,16 +11,12 @@ import socket from '@/lib/socket';
 import { Opponent } from '@/components/game-components/player/Opponent';
 import KillFeed from '@/components/game-components/toast/KillFeed';
 
+import type { Vegetation } from '../types/types';
+
 // Define types for player and obstacle
 interface ObstacleProps {
   position: [number, number, number];
   getGroundHeight: (x: number, z: number) => number;
-}
-
-interface TreePosition {
-  position: [number, number, number];
-  rotation: number;
-  scale: number;
 }
 
 type Player = {
@@ -93,7 +89,7 @@ const FirstPersonGame: React.FC = () => {
   console.log("FirstPersonGame component rendered");
   const obstacles = useRef<THREE.Mesh[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
-  const treePositions = useRef<TreePosition[] | undefined>(undefined);
+  const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
   const playerDataRef = useRef<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>({});
@@ -134,7 +130,7 @@ const FirstPersonGame: React.FC = () => {
     socket.on("roomAssigned", ({ room, team }) => {
       console.log(`Assigned to room: ${room.id}`);
       setRoomId(room.id);
-      treePositions.current = room.treePositions
+      vegetationPositions.current = room.vegetationPositions
       setTeam(team);
     });
     socket.on("playerMoved", ({ id, position, velocity }) => {
@@ -322,22 +318,22 @@ const FirstPersonGame: React.FC = () => {
   const groundProps = {
     addObstacleRef,
     fogDistance: 25,
-    treePositions: treePositions.current,
+    vegetationPositions: vegetationPositions.current,
     fogColor: "#65888a"
   };
 
 
   const isReady =
     typeof roomId === "string" &&
-    Array.isArray(treePositions.current) &&
-    treePositions.current.length > 0;
+    Array.isArray(vegetationPositions.current) &&
+    vegetationPositions.current.length > 0;
 
   return (
     <div className="w-full h-screen relative">
       <KillFeed feed={killFeed} />
       {isReady ? (
         <>
-          <GameInfo
+          {/* <GameInfo
             roomId={roomId}
             grenadeCoolDownRef={grenadeCoolDownRef}
             userid={localPlayerId}
@@ -348,7 +344,7 @@ const FirstPersonGame: React.FC = () => {
             health={100}
             kills={0}
             pingRef={pingRef}
-          />
+          /> */}
           <Crosshair />
 
           <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>

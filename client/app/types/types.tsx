@@ -23,3 +23,10 @@ export type InstancedTreeProps = {
     type?: TreeType;
     getGroundHeight?: (x: number, z: number) => number;
 };
+
+export type Vegetation = {
+    type: string;
+    position: [number, number, number];
+    scale: number;
+    rotation: number;
+}

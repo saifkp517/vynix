@@ -2,13 +2,16 @@ import { useThree, useLoader, useFrame } from "@react-three/fiber";
 import { createNoise2D } from 'simplex-noise';
 import React, { Suspense, createContext, useContext, memo } from "react";
 import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
-import { Points, BufferGeometry, BufferAttribute } from 'three';
+import { Points } from 'three';
 import * as THREE from "three";
 import { TextureLoader } from "three";
 import socket from "@/lib/socket";
-import { Forest } from "../obstacles/ForestGenerator";
+import { Forest } from "../forest/ForestGenerator";
 import { Sky } from "@react-three/drei";
 import { Mountains } from "../obstacles/Mountains";
+import TallGrass from "../obstacles/Grass";
+
+import type { Vegetation } from "@/app/types/types";
 
 // Create a context for the ground height function
 type GroundHeightContextType = {
@@ -35,10 +38,13 @@ export const useGroundHeight = () => {
 type GroundProps = {
   children?: React.ReactNode;
   fogDistance?: number;
-  treePositions?: TreePosition[],
+  vegetationPositions?: Vegetation[],
   fogColor?: string;
   addObstacleRef: (ref: THREE.Mesh | null) => void;
 };
+
+// TallGrass component to add grass blades to the scene
+
 
 // RainEffect component is memoized to prevent unnecessary rerenders
 const RainEffect = memo(
@@ -108,15 +114,13 @@ const RainEffect = memo(
   }
 );
 
-
-
 // ForestWrapper component is memoized to prevent unnecessary rerenders
-const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef, treePositions }: any) => {
-
+const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef, vegetationPositions }: any) => {
   return (
     <Forest
-      treePositions={treePositions}
+      vegetationPositions={vegetationPositions}
       addObstacleRef={addObstacleRef}
+      getGroundHeight={getGroundHeight}
     />
   );
 });
@@ -125,18 +129,15 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
   fogDistance = 100,
-  treePositions,
+  vegetationPositions,
   fogColor = "#B0C4DE",
   addObstacleRef
 }, ref) => {
-
-
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const initializedRef = useRef(false);
-
   // Load textures once
   const [grassMap, roughnessMap, noiseMap] = useLoader(TextureLoader, [
     "/textures/grass.jpg",
@@ -188,7 +189,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       const primaryFrequency = 0.05;
       // Higher frequency = more hills, lower frequency = larger hills
       const secondaryFrequency = 0.2;
-      const amplitude = 5; // increases height of hills
+      const amplitude = 10; // increases height of hills
       const noiseAmplitude = 0.2; // increases noise variation
 
       const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
@@ -291,7 +292,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const forestProps = useMemo(() => ({
     center: [0, 0, 0],
     radius: 100,
-    treePositions: treePositions,
+    vegetationPositions: vegetationPositions,
     density: 0.01,
     types: ["banyan"],
     getGroundHeight,
@@ -336,6 +337,14 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         />
       </mesh>
 
+      {/* Tall Grass */}
+      <Suspense fallback={null}>
+        <TallGrass 
+          getGroundHeight={getGroundHeight}
+          center={[targetPosition[0], targetPosition[1], targetPosition[2]]}
+        />
+      </Suspense>
+
       {/* Lighting */}
       <directionalLight
         position={sunPosition}
@@ -361,15 +370,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         center={targetPosition}
       />
 
-
       {/* Forest */}
-      {treePositions ? (
-
+      {vegetationPositions ? (
         <ForestWrapper {...forestProps} />
       ) : (
         <Suspense fallback={<div>Loading components...</div>} />
       )}
-
 
       {/* Children can use the context via useGroundHeight */}
       {children}
