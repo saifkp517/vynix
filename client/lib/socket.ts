@@ -6,7 +6,8 @@ import { io } from "socket.io-client";
 //    withCredentials: true,
 // });
 
- const prodSocket = io("https://pat-rob-retained-warm.trycloudflare.com", {
+
+ const prodSocket = io("https://buyers-coordinated-discussions-ventures.trycloudflare.com", {
      withCredentials: true,
  });
 
