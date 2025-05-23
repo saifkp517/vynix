@@ -159,13 +159,42 @@ const Player: React.FC<PlayerProps> = ({
             if (hitY <= groundY + threshold) {
                 console.log("🚫 Shot blocked by terrain at", { x: hitX, y: groundY, z: hitZ });
             } else {
-                console.log("🔫 Hit:", firstHit.object.name, "at", firstHit.point);
+                const players = Object.values(otherPlayers.current);
+                let hit = false;
+
+
+                
+                players.forEach((player) => {
+                    const playerPosition = player.position.clone();
+                    // Assume player is a sphere with radius 1 (adjust as needed)
+                    const playerRadius = 1;
+                    // Ray-sphere intersection
+                    const originToCenter = playerPosition.clone().sub(camera.position);
+                    const tca = originToCenter.dot(shootDirection);
+                    if (tca < 0) return; // Player is behind shooter
+                    const d2 = originToCenter.lengthSq() - tca * tca;
+                    if (d2 > playerRadius * playerRadius) return; // Missed
+                    // Hit!
+                    if (!hit) {
+                        hit = true;
+                        console.log("hit!");
+                        const shootObject = {
+                            rayOrigin: camera.position,
+                            rayDirection: shootDirection,
+                            timestamp: Date.now(),
+                            ping: pingRef.current
+                        };
+                        socket.emit("shoot", { userId, shootObject });
+                    }
+                });
+
+
+
                 // Apply logic to the object (damage, highlight, etc.)
             }
         } else {
             console.log("missed");
         }
-
 
     }
 
