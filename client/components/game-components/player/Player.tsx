@@ -426,8 +426,8 @@ const Player: React.FC<PlayerProps> = ({
     const gravity = -9.8 * 4;
     const jumpStrength = 15;
 
-    const playerSpeed = useRef(6);
-    const playerHeight = 1.5;
+    const playerSpeed = useRef(10);
+    const playerHeight = 3;
     const controlsRef = useRef<any>(null);
 
     const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -455,7 +455,7 @@ const Player: React.FC<PlayerProps> = ({
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 15;
+                    playerSpeed.current = 18;
                     break;
                 case 'KeyG': {
                     if (!grenadeCoolDownRef.current) {
@@ -798,7 +798,8 @@ const Player: React.FC<PlayerProps> = ({
         }
 
 
-        playerPosition.copy(camera.position)
+        playerPosition.copy(camera.position);
+        playerPosition.y -= playerHeight - 1.5;
 
 
         const currentTime = performance.now();

@@ -15,11 +15,11 @@ type TallGrassProps = {
 
 const TallGrass = memo(({
     count = 25000, // Maximum count for performance constraints
-    radius = 120, // REDUCED radius to increase density
+    radius = 100, // REDUCED radius to increase density
     center = [0, 0, 0],
     windStrength = 0.15,
     windSpeed = 0.3,
-    hidePlayerRadius = 120, // Player radius
+    hidePlayerRadius = 100, // Player radius
     getGroundHeight
 }: TallGrassProps) => {
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
@@ -70,7 +70,7 @@ const TallGrass = memo(({
             const y = h / heightSegments; // Normalized height (0 to 1)
             
             // Calculate blade width - MUCH wider at base, still tapers but not as much
-            const widthScale = 1 - Math.pow(y, 2) * 0.5; // LESS tapering
+            const widthScale = 1 - Math.pow(y, 2); // LESS tapering
             
             // Add natural curve
             const bendFactor = Math.pow(y, 2) * 0.3;

@@ -160,8 +160,32 @@ const FirstPersonGame: React.FC = () => {
 
     socket.on("playerDead", ({ userId, playerId }) => {
       console.log(`${playerId} was killed by ${userId}`);
-      showKillToast(`💀 ${playerId}`); // show toast only if YOU killed them
+      showKillToast(`💀 ${playerId}`);
+
+      // Remove the player temporarily
+      const updated = { ...playerDataRef.current };
+      delete updated[playerId];
+      playerDataRef.current = updated;
+
+      // Optional: remove from rendering logic if needed
+      setPlayerIds((prevIds) => prevIds.filter(id => id !== playerId));
+
+      // Set respawn timer (e.g. 3 seconds)
+      setTimeout(() => {
+        playerDataRef.current[playerId] = {
+          position: new THREE.Vector3(0, 0, 0),
+          velocity: new THREE.Vector3(0, 0, 0),
+        };
+
+        setPlayerIds((prevIds) => {
+          if (!prevIds.includes(playerId)) {
+            return [...prevIds, playerId];
+          }
+          return prevIds;
+        });
+      }, 10000); // 3 seconds
     });
+
 
     socket.on("playerDisconnected", (id) => {
       const updated = { ...playerDataRef.current };
@@ -317,7 +341,7 @@ const FirstPersonGame: React.FC = () => {
 
   const groundProps = {
     addObstacleRef,
-    fogDistance: 2500,
+    fogDistance: 25,
     vegetationPositions: vegetationPositions.current,
     fogColor: "#65888a"
   };
