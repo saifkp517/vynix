@@ -13,6 +13,7 @@ interface GameInfoProps {
   health: number; // Player health (0-100)
   kills: number;
   pingRef: RefObject<number>;
+  isPlayerDead?: boolean; // Optional prop to indicate if the player is dead
 }
 
 // Reusable HUD Box component
@@ -29,7 +30,8 @@ const HudBox: React.FC<HudBoxProps> = ({ children, position, className = "" }) =
 );
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, ammoRef, bulletsAvailable, health, kills, pingRef, grenadeCoolDownRef }) => {
+  ({ roomId, userid, team, ammoRef, bulletsAvailable, health, kills, pingRef, grenadeCoolDownRef, isPlayerDead }) => {
+
 
 
     const [pingInfo, setPingInfo] = useState(0);
@@ -37,11 +39,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const [cooldownTimeLeft, setCooldownTimeLeft] = useState(0);
 
     useEffect(() => {
-      const interval = setInterval(() => {
-        setPingInfo(pingRef.current || 0);
-      }, 1000);
-      return () => clearInterval(interval);
-    })
+      setPingInfo(pingRef.current || 0);
+    }, [pingRef.current])
     useEffect(() => {
       let animationTimer: NodeJS.Timeout | null = null;
       let cooldownInterval: NodeJS.Timeout | null = null;
@@ -225,6 +224,15 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             </span>
           </div>
         </HudBox>
+
+        {isPlayerDead && (
+          <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+            <div className="text-center">
+              <h1 className="text-white text-4xl font-bold mb-4">You Died</h1>
+              <p className="text-gray-300 text-lg">Wait for respawn...</p>
+            </div>
+          </div>
+        )}
 
       </>
     );

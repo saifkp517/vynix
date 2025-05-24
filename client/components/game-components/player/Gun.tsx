@@ -59,10 +59,10 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             // Calculate new position
             const movement = tracer.direction.clone().multiplyScalar(tracer.speed * delta);
             const newPosition = tracer.position.clone().add(movement);
-            
+
             // Check if tracer has traveled max distance
             const distanceTraveled = newPosition.distanceTo(tracer.startPos);
-            
+
             if (distanceTraveled >= tracer.maxDistance) {
                 return { ...tracer, active: false };
             }
@@ -78,9 +78,9 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         });
 
         // Only update state if tracers have changed
-        if (updatedTracers.length !== bulletTracersRef.current.length || 
-            updatedTracers.some((t, i) => t.active !== bulletTracersRef.current[i]?.active || 
-                                        t.position !== bulletTracersRef.current[i]?.position)) {
+        if (updatedTracers.length !== bulletTracersRef.current.length ||
+            updatedTracers.some((t, i) => t.active !== bulletTracersRef.current[i]?.active ||
+                t.position !== bulletTracersRef.current[i]?.position)) {
             bulletTracersRef.current = updatedTracers;
             // Trigger a re-render only when necessary
             setTimeout(() => {
@@ -212,20 +212,38 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             } else {
                 arrowStartPos = camera.position.clone();
             }
-            const arrowHelper = new THREE.ArrowHelper(
-                bulletDirection,
-                arrowStartPos,
-                10000,
-                0xffff00,
-                2
-            );
-            scene.add(arrowHelper);
-            
-            // Remove arrow after short time
-            setTimeout(() => {
-                scene.remove(arrowHelper);
-                arrowHelper.dispose();
-            }, 100);
+
+            //tracer animation
+            const tracerMat = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            const tracerGeo = new THREE.BufferGeometry().setFromPoints([
+                arrowStartPos.clone(),
+                arrowStartPos.clone()
+            ]);
+            const tracer = new THREE.Line(tracerGeo, tracerMat);
+            scene.add(tracer);
+
+            const tracerStart = performance.now();
+            const tracerLength = 200;
+            const tracerDuration = 100; // ms
+
+            function animateTracer() {
+                const elapsed = performance.now() - tracerStart;
+                const progress = elapsed / tracerDuration;
+
+                if (progress >= 1) {
+                    scene.remove(tracer);
+                    tracerGeo.dispose();
+                    tracerMat.dispose();
+                    return;
+                }
+
+                const endPoint = arrowStartPos.clone().add(bulletDirection.clone().multiplyScalar(tracerLength * progress));
+                tracerGeo.setFromPoints([arrowStartPos, endPoint]);
+
+                requestAnimationFrame(animateTracer);
+            }
+
+            animateTracer();
 
             // Raycast for hit detection
             let rayOrigin = new THREE.Vector3();
@@ -364,25 +382,25 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
                     <group key={tracer.id} userData={{ tracerId: tracer.id }}>
                         <mesh position={[tracer.position.x, tracer.position.y, tracer.position.z]}>
                             <sphereGeometry args={[0.02, 8, 8]} />
-                            <meshStandardMaterial 
-                                color="#ffff00" 
+                            <meshStandardMaterial
+                                color="#ffff00"
                                 emissive="#ffff00"
                                 emissiveIntensity={0.8}
                             />
                         </mesh>
                         <mesh position={[tracer.position.x, tracer.position.y, tracer.position.z]}>
                             <sphereGeometry args={[0.05, 8, 8]} />
-                            <meshBasicMaterial 
-                                color="#ffaa00" 
-                                transparent 
+                            <meshBasicMaterial
+                                color="#ffaa00"
+                                transparent
                                 opacity={0.3}
                             />
                         </mesh>
-                        <pointLight 
-                            position={[tracer.position.x, tracer.position.y, tracer.position.z]} 
-                            color="#ffff00" 
-                            intensity={0.5} 
-                            distance={3} 
+                        <pointLight
+                            position={[tracer.position.x, tracer.position.y, tracer.position.z]}
+                            color="#ffff00"
+                            intensity={0.5}
+                            distance={3}
                         />
                     </group>
                 )

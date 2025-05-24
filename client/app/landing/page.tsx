@@ -46,48 +46,12 @@ const Crosshair = React.memo(() => (
   }} />
 ));
 
-// Obstacle components with memoization
-const Obstacle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
-  return (
-    <mesh ref={ref} position={position}>
-      <boxGeometry args={[10, 5, 3]} />
-      <meshStandardMaterial color="red" />
-    </mesh>
-  );
-}));
-
-const SphereObstacle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
-  return (
-    <mesh ref={ref} position={position}>
-      <sphereGeometry args={[3]} />
-      <meshStandardMaterial color="red" />
-    </mesh>
-  );
-}));
-
-const CylinderObstacle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
-  return (
-    <mesh ref={ref} position={position} rotation={[-Math.PI / 2, 0, 0]} >
-      <cylinderGeometry args={[1.75, 1.75, 15.5, 32]} />
-      <meshStandardMaterial color="red" />
-    </mesh>
-  );
-}));
-
-const CylinderObstacleVerticle = React.memo(React.forwardRef<THREE.Mesh, ObstacleProps>(({ position, getGroundHeight }, ref) => {
-  return (
-    <mesh ref={ref} position={position} >
-      <cylinderGeometry args={[1.75, 1.75, 15.5, 32]} />
-      <meshStandardMaterial color="red" />
-    </mesh>
-  );
-}));
-
 // Main game component
 const FirstPersonGame: React.FC = () => {
 
   console.log("FirstPersonGame component rendered");
   const obstacles = useRef<THREE.Mesh[]>([]);
+  const [isPlayerDead, setIsPlayerDead] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
@@ -95,7 +59,8 @@ const FirstPersonGame: React.FC = () => {
   const playerDataRef = useRef<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   // We need to keep a state to force re-renders when players join/leave
-  const [playerIds, setPlayerIds] = useState<string[]>([]);
+  const playerIdsRef = useRef<string[]>([]);
+
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
 
@@ -148,15 +113,21 @@ const FirstPersonGame: React.FC = () => {
 
 
       // Trigger re-render if this is a new player
-      setPlayerIds((prevIds) => {
-        if (!prevIds.includes(id)) {
-          return [...prevIds, id];
-        }
-        return prevIds; // no change, no re-render
-      });
+      if (!playerIdsRef.current.includes(id)) {
+        playerIdsRef.current.push(id);
+      }
+
 
     });
 
+    socket.on("youDied", () => {
+      console.log("you died");
+      setIsPlayerDead(true);
+
+      setTimeout(() => {
+        setIsPlayerDead(false);
+      }, 5000);
+    });
 
     socket.on("playerDead", ({ userId, playerId }) => {
       console.log(`${playerId} was killed by ${userId}`);
@@ -168,7 +139,8 @@ const FirstPersonGame: React.FC = () => {
       playerDataRef.current = updated;
 
       // Optional: remove from rendering logic if needed
-      setPlayerIds((prevIds) => prevIds.filter(id => id !== playerId));
+      playerIdsRef.current = playerIdsRef.current.filter(id => id !== playerId);
+
 
       // Set respawn timer (e.g. 3 seconds)
       setTimeout(() => {
@@ -177,12 +149,10 @@ const FirstPersonGame: React.FC = () => {
           velocity: new THREE.Vector3(0, 0, 0),
         };
 
-        setPlayerIds((prevIds) => {
-          if (!prevIds.includes(playerId)) {
-            return [...prevIds, playerId];
-          }
-          return prevIds;
-        });
+        if (!playerIdsRef.current.includes(playerId)) {
+          playerIdsRef.current.push(playerId);
+        }
+
       }, 10000); // 3 seconds
     });
 
@@ -193,12 +163,9 @@ const FirstPersonGame: React.FC = () => {
       playerDataRef.current = updated;
 
       // Update player IDs when a player leaves
-      setPlayerIds((prevIds) => {
-        if (!prevIds.includes(id)) {
-          return [...prevIds, id];
-        }
-        return prevIds; // no change, no re-render
-      });
+      if (!playerIdsRef.current.includes(id)) {
+        playerIdsRef.current.push(id);
+      }
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -263,6 +230,7 @@ const FirstPersonGame: React.FC = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       calculatePing();
+      console.log(playerIdsRef.current);
     }, 1000);
 
     return () => clearInterval(interval);
@@ -357,7 +325,7 @@ const FirstPersonGame: React.FC = () => {
       <KillFeed feed={killFeed} />
       {isReady ? (
         <>
-          {/* <GameInfo
+          <GameInfo
             roomId={roomId}
             grenadeCoolDownRef={grenadeCoolDownRef}
             userid={localPlayerId}
@@ -368,7 +336,8 @@ const FirstPersonGame: React.FC = () => {
             health={100}
             kills={0}
             pingRef={pingRef}
-          /> */}
+            isPlayerDead={isPlayerDead}
+          />
           <Crosshair />
 
           <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
@@ -384,7 +353,7 @@ const FirstPersonGame: React.FC = () => {
                 otherPlayers={playerDataRef}
               />
 
-              {playerIds
+              {playerIdsRef.current
                 .map((id) => (
                   <OpponentWithGroundHeight
                     key={id}
