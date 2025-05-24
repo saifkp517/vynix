@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
@@ -49,9 +49,35 @@ const Crosshair = React.memo(() => (
 // Main game component
 const FirstPersonGame: React.FC = () => {
 
-  console.log("FirstPersonGame component rendered");
+  function useWhyDidYouUpdate(componentName: string, props: any) {
+    const previousProps = useRef<any>({});
+
+    useEffect(() => {
+      const allKeys = Object.keys({ ...previousProps.current, ...props });
+      const changesObj: any = {};
+
+      allKeys.forEach(key => {
+        if (previousProps.current[key] !== props[key]) {
+          changesObj[key] = {
+            from: previousProps.current[key],
+            to: props[key],
+          };
+        }
+      });
+
+      if (Object.keys(changesObj).length) {
+        console.log(`[why-did-you-update] ${componentName}`, changesObj);
+      }
+
+      previousProps.current = props;
+    });
+  }
+
+
+  const [, forceUpdate] = useState({});
+
   const obstacles = useRef<THREE.Mesh[]>([]);
-  const [isPlayerDead, setIsPlayerDead] = useState(false);
+  const isPlayerDead = useRef(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
@@ -72,6 +98,33 @@ const FirstPersonGame: React.FC = () => {
   //prevent multiple joins requests by same user
   const hasJoinedRoom = useRef(false);
 
+
+  const killFeedRef = useRef<{ id: number; name: any }[]>([]);
+
+  useWhyDidYouUpdate("FirstPersonGame", {
+    roomId,
+    team,
+    hitPlayers,
+    localPlayerId,
+    vegetationPositions,
+    forceUpdate,
+  });
+
+
+  console.log("FirstPersonGame component rendered");
+
+
+  const addPlayerId = (id: string) => {
+    if (!playerIdsRef.current.includes(id)) {
+      playerIdsRef.current.push(id);
+      forceUpdate({}); // only updates RemoteOpponentsWithGroundHeight
+    }
+  };
+
+  const removePlayerId = (id: string) => {
+    playerIdsRef.current = playerIdsRef.current.filter((pid) => pid !== id);
+    forceUpdate({}); // same here
+  };
 
   // Player connection handling
   useEffect(() => {
@@ -100,8 +153,6 @@ const FirstPersonGame: React.FC = () => {
     });
     socket.on("playerMoved", ({ id, position, velocity }) => {
 
-      console.log("Opponent Velocity: ", velocity)
-
       // Store position and velocity in ref to avoid re-renders
       playerDataRef.current = {
         ...playerDataRef.current,
@@ -110,22 +161,17 @@ const FirstPersonGame: React.FC = () => {
           velocity: new THREE.Vector3(velocity.x, velocity.y, velocity.z),
         },
       };
-
-
-      // Trigger re-render if this is a new player
-      if (!playerIdsRef.current.includes(id)) {
-        playerIdsRef.current.push(id);
-      }
+      addPlayerId(id);
 
 
     });
 
     socket.on("youDied", () => {
       console.log("you died");
-      setIsPlayerDead(true);
+      isPlayerDead.current = true;
 
       setTimeout(() => {
-        setIsPlayerDead(false);
+        isPlayerDead.current = false;
       }, 5000);
     });
 
@@ -139,7 +185,7 @@ const FirstPersonGame: React.FC = () => {
       playerDataRef.current = updated;
 
       // Optional: remove from rendering logic if needed
-      playerIdsRef.current = playerIdsRef.current.filter(id => id !== playerId);
+      removePlayerId(playerId);
 
 
       // Set respawn timer (e.g. 3 seconds)
@@ -149,11 +195,9 @@ const FirstPersonGame: React.FC = () => {
           velocity: new THREE.Vector3(0, 0, 0),
         };
 
-        if (!playerIdsRef.current.includes(playerId)) {
-          playerIdsRef.current.push(playerId);
-        }
+        addPlayerId(playerId); // Re-add player ID to trigger re-render
 
-      }, 10000); // 3 seconds
+      }, 3000); // 3 seconds
     });
 
 
@@ -163,15 +207,11 @@ const FirstPersonGame: React.FC = () => {
       playerDataRef.current = updated;
 
       // Update player IDs when a player leaves
-      if (!playerIdsRef.current.includes(id)) {
-        playerIdsRef.current.push(id);
-      }
+      removePlayerId(id);
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      // Chrome requires returnValue to be set
-      e.returnValue = '';
       window.location.href = '/';
       socket.disconnect();
     };
@@ -214,23 +254,24 @@ const FirstPersonGame: React.FC = () => {
     })
   }
 
-  const [killFeed, setKillFeed] = useState<{ id: number; name: any }[]>([]);
   let toastId = 0;
 
 
   function showKillToast(name: string) {
     const id = toastId++;
-    setKillFeed((prev) => [...prev, { id, name }]);
+    killFeedRef.current = [...killFeedRef.current, { id, name }];
+    forceUpdate({}); // only re-render the minimal UI that shows kill feed
 
     setTimeout(() => {
-      setKillFeed((prev) => prev.filter((item) => item.id !== id));
+      killFeedRef.current = killFeedRef.current.filter(item => item.id !== id);
+      forceUpdate({});
     }, 3000);
   }
+
 
   useEffect(() => {
     const interval = setInterval(() => {
       calculatePing();
-      console.log(playerIdsRef.current);
     }, 1000);
 
     return () => clearInterval(interval);
@@ -278,34 +319,40 @@ const FirstPersonGame: React.FC = () => {
   });
 
   // Example Opponent component that uses the useGroundHeight hook
-  const OpponentWithGroundHeight = React.memo(
+  const RemoteOpponentsWithGroundHeight = ({
+    playerIdsRef,
+    addObstacleRef,
+    hitPlayers,
+  }: {
+    playerIdsRef: React.MutableRefObject<string[]>;
+    addObstacleRef: any;
+    hitPlayers: Record<string, boolean>;
+  }) => {
+    const getGroundHeight = useGroundHeight();
 
-    ({ playerId, addObstacleRef, isHit }: { playerId: string, addObstacleRef: any, isHit: boolean }) => {
-      const getGroundHeight = useGroundHeight();
-      const positionRef = useRef<THREE.Vector3 | null>(null);
-      const velocityRef = useRef<THREE.Vector3 | null>(null);
+    return (
+      <>
+        {playerIdsRef.current.map((playerId) => {
+          const data = playerDataRef.current[playerId];
+          if (!data) return null;
 
-      console.log("Rendering OpponentWithGroundHeight for:", playerId);
-      useEffect(() => {
-        positionRef.current = playerDataRef.current[playerId]?.position || null;
-        velocityRef.current = playerDataRef.current[playerId]?.velocity || null;
-      }, [playerId]);
+          return (
+            <Opponent
+              key={playerId}
+              positionRef={() => playerDataRef.current[playerId]?.position || null}
+              velocityRef={() => playerDataRef.current[playerId]?.velocity || null}
+              isRemote={true}
+              addObstacleRef={addObstacleRef}
+              smoothnessRef={smoothnessRef}
+              isHit={!!hitPlayers[playerId]}
+              getGroundHeight={getGroundHeight}
+            />
+          );
+        })}
+      </>
+    );
+  };
 
-      if (!playerDataRef.current[playerId]) return null;
-
-      return (
-        <Opponent
-          positionRef={() => playerDataRef.current[playerId]?.position || null} // Pass as a function
-          velocityRef={() => playerDataRef.current[playerId]?.velocity || null} // Pass as a function}
-          isRemote={true}
-          addObstacleRef={addObstacleRef}
-          smoothnessRef={smoothnessRef}
-          isHit={isHit}
-          getGroundHeight={getGroundHeight}
-        />
-      );
-    }
-  );
 
   const groundProps = {
     addObstacleRef,
@@ -322,7 +369,9 @@ const FirstPersonGame: React.FC = () => {
 
   return (
     <div className="w-full h-screen relative">
-      <KillFeed feed={killFeed} />
+      {killFeedRef.current.map(item => (
+        <KillFeed key={item.id} feed={killFeedRef.current} />
+      ))}
       {isReady ? (
         <>
           <GameInfo
@@ -353,15 +402,12 @@ const FirstPersonGame: React.FC = () => {
                 otherPlayers={playerDataRef}
               />
 
-              {playerIdsRef.current
-                .map((id) => (
-                  <OpponentWithGroundHeight
-                    key={id}
-                    playerId={id}
-                    addObstacleRef={addObstacleRef}
-                    isHit={!!hitPlayers[id]}
-                  />
-                ))}
+              <RemoteOpponentsWithGroundHeight
+                playerIdsRef={playerIdsRef}
+                addObstacleRef={addObstacleRef}
+                hitPlayers={hitPlayers}
+              />
+
             </Ground>
           </Canvas>
         </>

@@ -13,7 +13,7 @@ interface GameInfoProps {
   health: number; // Player health (0-100)
   kills: number;
   pingRef: RefObject<number>;
-  isPlayerDead?: boolean; // Optional prop to indicate if the player is dead
+  isPlayerDead?: RefObject<boolean>; // Optional prop to indicate if the player is dead
 }
 
 // Reusable HUD Box component
@@ -213,19 +213,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             </span>
           </div>
 
-          <div className="flex justify-between text-xs">
-            <span>Team:</span>
-            <span
-              className={`font-medium ${team === 'red' ? 'text-red-400' :
-                team === 'blue' ? 'text-blue-400' : 'text-gray-300'
-                }`}
-            >
-              {team ?? 'No team'}
-            </span>
-          </div>
         </HudBox>
-
-        {isPlayerDead && (
+        {isPlayerDead?.current && (
           <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
             <div className="text-center">
               <h1 className="text-white text-4xl font-bold mb-4">You Died</h1>
@@ -233,7 +222,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             </div>
           </div>
         )}
-
       </>
     );
   }

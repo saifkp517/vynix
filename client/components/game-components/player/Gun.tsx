@@ -113,7 +113,6 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             active: true
         };
 
-        console.log("Tracer created at barrel position:", barrelWorldPos);
         bulletTracersRef.current = [...bulletTracersRef.current, newTracer];
         // Trigger a re-render for new tracer
         setTimeout(() => {
@@ -244,47 +243,6 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             }
 
             animateTracer();
-
-            // Raycast for hit detection
-            let rayOrigin = new THREE.Vector3();
-            if (gunRef.current && barrelEndRef.current) {
-                barrelEndRef.current.getWorldPosition(rayOrigin);
-            } else {
-                rayOrigin = camera.position.clone();
-            }
-            const shootRaycaster = new THREE.Raycaster();
-            shootRaycaster.set(rayOrigin, bulletDirection);
-
-            const maxDistance = 100;
-            const thresholdRadius = 3;
-
-            const players = Object.values(otherPlayers.current);
-
-            players.forEach((player) => {
-                const playerPos = player.position.clone();
-                const toPlayer = new THREE.Vector3().subVectors(playerPos, rayOrigin);
-                const projectionLength = toPlayer.dot(bulletDirection);
-
-                if (projectionLength < 0) {
-                    return;
-                }
-
-                const closestPointOnRay = rayOrigin.clone().add(bulletDirection.clone().multiplyScalar(projectionLength));
-                const distanceToRay = playerPos.distanceTo(closestPointOnRay);
-
-                if (distanceToRay <= thresholdRadius) {
-                    const shootObject = {
-                        rayOrigin,
-                        rayDirection: bulletDirection,
-                        timestamp: Date.now(),
-                        ping: pingRef.current,
-                    };
-                    socket.emit("shoot", { userId, shootObject });
-                    console.log("Hit detected, distance to ray:", distanceToRay);
-                } else {
-                    console.log("Player far from ray, distance:", distanceToRay);
-                }
-            });
         };
 
         console.log("break");
