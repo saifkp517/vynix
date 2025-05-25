@@ -115,7 +115,7 @@ export const Opponent = ({
   });
 
   return (
-    <group ref={group} name="Player" position={[0, -2, 0]} dispose={null}>
+    <group ref={group} name="Player" position={[0, 0, 0]} dispose={null}>
       {/* Torso */}
       <mesh ref={torsoRef} position={[0, 0.9, 0]}>
         <boxGeometry args={[0.8, 1, 0.5]} />

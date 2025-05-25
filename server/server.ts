@@ -364,12 +364,24 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             );
             // Try values that are "near" the ray
 
-            const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 1);
+            const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 1.5);
 
             console.log(`[Check] playerId: ${playerId}, hit: ${hit}, distance: ${distance.toFixed(3)} units`);
 
             if (hit) {
                 console.log(`--> User-id(${playerId}) is hit!`);
+                // Handle hit logic here, e.g., reduce health, notify players, etc.
+                const hitPlayer = players[playerId];
+                if (hitPlayer) {
+                    hitPlayer.health = (hitPlayer.health || 100) - 10; // Reduce health by 10
+                    if (hitPlayer.health <= 0) {
+                        console.log(`Player ${playerId} is dead!`);
+                        io.to(playerId).emit("youDied", { message: "You are dead!" });
+                        // Handle player death logic here
+                        io.to(userId).emit("playerDead", {userId, playerId}); // Notify others
+                    }
+                }
+                
             } else {
                 console.log(`--> User-id(${playerId}) missed by ${distance.toFixed(3)} units`);
             }
