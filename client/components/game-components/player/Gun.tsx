@@ -27,11 +27,10 @@ interface BulletTracer {
 }
 
 const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, ammoRef, otherPlayers }) => {
-    const maxAmmo = 100;
+    const maxAmmo = 10;
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
-    const [muzzleFlash, setMuzzleFlash] = useState(false);
-    const [isReloading, setIsReloading] = useState(false);
-    const [ammo, setAmmo] = useState(maxAmmo);
+    const muzzleFlash = useRef(false);
+    const isReloading = useRef(false);
     const bulletTracersRef = useRef<BulletTracer[]>([]);
     const scene = useThree().scene;
 
@@ -46,7 +45,6 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
 
     const updateAmmo = (newAmmo: number) => {
         ammoRef.current = newAmmo;
-        setAmmo(newAmmo);
     };
 
     // Animation loop for bullet tracers
@@ -121,7 +119,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
     };
 
     const reload = () => {
-        if (isReloading) return;
+        if (isReloading.current) return;
 
         const reloadSound = new Howl({
             src: ['/sounds/reload.mp3'],
@@ -129,24 +127,18 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         });
         reloadSound.play();
 
-        setIsReloading(true);
+        isReloading.current = true
 
         setTimeout(() => {
             updateAmmo(maxAmmo);
-            setIsReloading(false);
+            isReloading.current = false
         }, 2000);
     };
 
-    const currentAmmo = useRef(ammo);
-
-    useEffect(() => {
-        currentAmmo.current = ammo;
-    }, [ammo]);
-
     const shootBullet = () => {
-        if (isReloading) return;
+        if (isReloading.current) return;
 
-        if (currentAmmo.current <= 0) {
+        if (ammoRef.current <= 0) {
             reload();
             return;
         }
@@ -174,30 +166,29 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
 
         const fireOnce = () => {
             console.log("fired");
-            if (isReloading || currentAmmo.current <= 0) {
+            if (isReloading.current || ammoRef.current <= 0) {
                 if (shootingInterval.current) {
                     clearInterval(shootingInterval.current);
                     shootingInterval.current = null;
                 }
 
-                if (currentAmmo.current <= 0 && !isReloading) {
+                if (ammoRef.current <= 0 && !isReloading.current) {
                     reload();
                 }
                 return;
             }
 
             recoilAnimate();
-            currentAmmo.current -= 1;
-            updateAmmo(currentAmmo.current);
+            ammoRef.current -= 1;
             gunShotSound.play();
-            setMuzzleFlash(true);
+            muzzleFlash.current = true
 
             if (muzzleFlashTimeout.current) {
                 clearTimeout(muzzleFlashTimeout.current);
             }
 
             muzzleFlashTimeout.current = setTimeout(() => {
-                setMuzzleFlash(false);
+                muzzleFlash.current = false
             }, 50);
 
             // Create bullet tracer from barrel position
@@ -279,9 +270,9 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
     useEffect(() => {
         let animationFrame: number;
         const animateReload = () => {
-            if (isReloading) {
+            if (isReloading.current) {
                 const time = Date.now() % 1200 / 1200;
-                const rotationX = isReloading ? -Math.sin(time * Math.PI) * 0.3 : 0;
+                const rotationX = isReloading.current ? -Math.sin(time * Math.PI) * 0.3 : 0;
 
                 if (gunRef.current) {
                     gunRef.current.rotation.x = rotationX;
@@ -298,7 +289,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         return () => {
             cancelAnimationFrame(animationFrame);
         };
-    }, [isReloading]);
+    }, [isReloading.current]);
 
     // Force update workaround for react-three-fiber
     const [, setDummy] = useState(0);
@@ -326,7 +317,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
                 <boxGeometry args={[0.3, 0.3, 0.15]} />
                 <meshStandardMaterial color="darkgray" />
             </mesh>
-            {muzzleFlash && (
+            {muzzleFlash.current && (
                 <>
                     <mesh position={[0, 0, -0.95]}>
                         <sphereGeometry args={[0.1, 8, 8]} />
@@ -363,7 +354,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
                     </group>
                 )
             ))}
-            {isReloading && (
+            {isReloading.current && (
                 <mesh position={[0, -0.5 - (Math.sin(Date.now() % 1200 / 1200 * Math.PI) * 0.3), -0.3]}>
                     <boxGeometry args={[0.28, 0.28, 0.13]} />
                     <meshStandardMaterial color="black" />

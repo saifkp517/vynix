@@ -9,6 +9,7 @@ interface Props {
     addObstacleRef: (ref: THREE.Mesh | null) => void;
     smoothnessRef: RefObject<number>;
     playerDataRef: RefObject<Record<string, PlayerData>>;
+    showKillToast: (name: string) => void;
 }
 
 type PlayerData = {
@@ -16,7 +17,7 @@ type PlayerData = {
     velocity: THREE.Vector3;
 };
 
-const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothnessRef, playerDataRef }) => {
+const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothnessRef, playerDataRef, showKillToast }) => {
     const [playerIds, setPlayerIds] = useState<string[]>([]);
     const getGroundHeight = useGroundHeight();
 
@@ -35,18 +36,20 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
         };
 
         const handlePlayerDead = ({ userId, playerId }: any) => {
+            showKillToast(userId);
             console.log(`${playerId} was killed by ${userId}`);
             delete playerDataRef.current[playerId];
             setPlayerIds((prev) => prev.filter(id => id !== playerId));
 
             // Optional: Respawn after 3 seconds
             setTimeout(() => {
-                playerDataRef.current[playerId] = {
-                    position: new THREE.Vector3(0, 0, 0),
-                    velocity: new THREE.Vector3(0, 0, 0),
-                };
-                setPlayerIds((prev) => [...prev, playerId]);
-            }, 3000);
+            }, 5000);
+
+            // playerDataRef.current[playerId] = {
+            //     position: new THREE.Vector3(0, 0, 0),
+            //     velocity: new THREE.Vector3(0, 0, 0),
+            // };
+            // setPlayerIds((prev) => [...prev, playerId]);
         };
 
         socket.on("playerMoved", handlePlayerMoved);
