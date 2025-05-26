@@ -159,7 +159,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
         const generateTreeAndStonePositions = () => {
             const radius = 1000;
-            const densityFactor = 0.003;
+            const densityFactor = 0.004;
             const center = [0, 0, 0];
             const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
@@ -245,7 +245,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         socket.emit("pong-check", clientTime);
     }));
 
-    const innerRadius = 60;
+    const innerRadius = 50;
 
     console.log('User connected:', socket.id);
 

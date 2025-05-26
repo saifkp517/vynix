@@ -319,6 +319,7 @@ const FirstPersonGame: React.FC = () => {
                 addObstacleRef={addObstacleRef}
                 smoothnessRef={smoothnessRef}
                 playerDataRef={playerDataRef}
+                showKillToast={showKillToast}
               />
 
             </Ground>
