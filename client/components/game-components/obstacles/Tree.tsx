@@ -17,20 +17,20 @@ export const TreeVisual: React.FC<{
 
     // Create realistic tree geometries
     const geometry = useMemo(() => {
-        // Main trunk - thicker and more imposing
-        const mainTrunk = new THREE.CylinderGeometry(1.2, 1.5, 26, 64, 64, false);
+        // Main trunk - thicker and more imposing, height doubled from 26 to 52
+        const mainTrunk = new THREE.CylinderGeometry(1.2, 1.5, 48, 64, 64, false);
         modifyGeometryForNaturalLook(mainTrunk);
 
-        // Aerial roots - characteristic of banyan trees
-        const aerialRoot = new THREE.CylinderGeometry(0.15, 0.25, 26, 8, 6, false);
+        // Aerial roots - characteristic of banyan trees, height doubled from 26 to 52
+        const aerialRoot = new THREE.CylinderGeometry(0.15, 0.25, 36, 8, 6, false);
         modifyGeometryForNaturalLook(aerialRoot);
 
         const largeCanopy = new THREE.SphereGeometry(2.8, 12, 8);   // Smaller radius & segments
         const mediumCanopy = new THREE.SphereGeometry(2.0, 10, 6);  // Reduced size & detail
         const smallCanopy = new THREE.SphereGeometry(1.4, 8, 5);    // Lightest/least dense
 
-        // Wide plate-like canopy, now thinner & flatter
-        const canopyPlate = new THREE.CylinderGeometry(8.0, 4.5, 4.8, 12, 1); // Smaller spread
+        // Wide spherical canopy to match other canopies, replacing cylinder
+        const canopyPlate = new THREE.SphereGeometry(3.5, 12, 8); // Slightly larger than largeCanopy
 
         // Add organic variation
         [largeCanopy, mediumCanopy, smallCanopy, canopyPlate].forEach(geo => {
@@ -149,12 +149,12 @@ export const TreeVisual: React.FC<{
             flatShading: false,
         });
 
-        // Horizontal plates material
+        // Horizontal plates material, now matching canopy style
         const plateMaterial = new THREE.MeshStandardMaterial({
             color: '#1B5E20',
             roughness: 0.8,
             metalness: 0.0,
-            flatShading: true,
+            flatShading: false, // Changed to false to match other canopies
         });
 
         return {
@@ -204,8 +204,6 @@ export const TreeVisual: React.FC<{
             }
         }
 
-
-
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(2, 4);
@@ -223,39 +221,71 @@ export const TreeVisual: React.FC<{
 
     // Animation for subtle movement
     useFrame(({ clock }) => {
-        if (!largeCanopyRef.current || !mediumCanopyRef.current || !smallCanopyRef.current) return;
+        if (!largeCanopyRef.current || !mediumCanopyRef.current || !smallCanopyRef.current || !canopyPlateRef.current) return;
 
-        // Very subtle canopy movement to simulate wind
+        // Very subtle canopy movement to simulate wind for all canopy layers
         for (let i = 0; i < positions.length; i++) {
             dummy.position.copy(new THREE.Vector3(...positions[i].position));
 
-            // Get the base matrix for this instance
+            // Update largeCanopy
             largeCanopyRef.current.getMatrixAt(i, dummy.matrix);
-
-            // Convert to position/quaternion/scale
-            const position = new THREE.Vector3();
-            const quaternion = new THREE.Quaternion();
-            const scale = new THREE.Vector3();
-            dummy.matrix.decompose(position, quaternion, scale);
-
-            // Apply subtle rotation based on time
+            const largePosition = new THREE.Vector3();
+            const largeQuaternion = new THREE.Quaternion();
+            const largeScale = new THREE.Vector3();
+            dummy.matrix.decompose(largePosition, largeQuaternion, largeScale);
             const windFactor = Math.sin(clock.elapsedTime * 0.5 + i) * 0.2;
             dummy.rotation.x = windFactor;
             dummy.rotation.z = windFactor * 0.7;
-
-            // Update position
-            dummy.position.copy(position);
-            dummy.scale.copy(scale);
-
-            // Rebuild matrix and save
+            dummy.position.copy(largePosition);
+            dummy.scale.copy(largeScale);
             dummy.updateMatrix();
             largeCanopyRef.current.setMatrixAt(i, dummy.matrix);
+
+            // Update mediumCanopy
+            mediumCanopyRef.current.getMatrixAt(i, dummy.matrix);
+            const mediumPosition = new THREE.Vector3();
+            const mediumQuaternion = new THREE.Quaternion();
+            const mediumScale = new THREE.Vector3();
+            dummy.matrix.decompose(mediumPosition, mediumQuaternion, mediumScale);
+            dummy.rotation.x = windFactor;
+            dummy.rotation.z = windFactor * 0.7;
+            dummy.position.copy(mediumPosition);
+            dummy.scale.copy(mediumScale);
+            dummy.updateMatrix();
+            mediumCanopyRef.current.setMatrixAt(i, dummy.matrix);
+
+            // Update smallCanopy
+            smallCanopyRef.current.getMatrixAt(i, dummy.matrix);
+            const smallPosition = new THREE.Vector3();
+            const smallQuaternion = new THREE.Quaternion();
+            const smallScale = new THREE.Vector3();
+            dummy.matrix.decompose(smallPosition, smallQuaternion, smallScale);
+            dummy.rotation.x = windFactor;
+            dummy.rotation.z = windFactor * 0.7;
+            dummy.position.copy(smallPosition);
+            dummy.scale.copy(smallScale);
+            dummy.updateMatrix();
+            smallCanopyRef.current.setMatrixAt(i, dummy.matrix);
+
+            // Update canopyPlate
+            canopyPlateRef.current.getMatrixAt(i, dummy.matrix);
+            const platePosition = new THREE.Vector3();
+            const plateQuaternion = new THREE.Quaternion();
+            const plateScale = new THREE.Vector3();
+            dummy.matrix.decompose(platePosition, plateQuaternion, plateScale);
+            dummy.rotation.x = windFactor;
+            dummy.rotation.z = windFactor * 0.7;
+            dummy.position.copy(platePosition);
+            dummy.scale.copy(plateScale);
+            dummy.updateMatrix();
+            canopyPlateRef.current.setMatrixAt(i, dummy.matrix);
         }
 
         // Update matrices
         largeCanopyRef.current.instanceMatrix.needsUpdate = true;
         mediumCanopyRef.current.instanceMatrix.needsUpdate = true;
         smallCanopyRef.current.instanceMatrix.needsUpdate = true;
+        canopyPlateRef.current.instanceMatrix.needsUpdate = true;
     });
 
     useEffect(() => {
@@ -309,34 +339,33 @@ export const TreeVisual: React.FC<{
                 }
             }
 
-            // --------- Canopy plate (horizontal spread) ---------
+            // --------- Canopy plate (spherical, at original position) ---------
             // Create the distinctive horizontal spread of a banyan tree
-            dummy.position.set(position[0], groundHeight + 3.2 * baseScale, position[2]);
+            dummy.position.set(position[0], groundHeight + 6.4 * baseScale, position[2]);
             dummy.rotation.set(0, rotation + Math.random() * 0.5, 0);
-            dummy.scale.set(baseScale * 1.3, baseScale * 0.4, baseScale * 1.3);
+            dummy.scale.set(baseScale * 2.6, baseScale * 0.8, baseScale * 2.6); // Adjusted for spherical shape
             dummy.updateMatrix();
             canopyPlateRef.current ? canopyPlateRef.current.setMatrixAt(i, dummy.matrix) : null;
 
             // --------- Large canopy (bottom layer) ---------
             dummy.position.set(
                 position[0],
-                groundHeight + 12.2 * baseScale,
+                groundHeight + 20.4 * baseScale,
                 position[2]
             );
             dummy.rotation.set(0, rotation + Math.random() * Math.PI, 0);
             dummy.scale.set(
-                baseScale * 4.0,  // Very wide spread
-                baseScale * 1.2,  // Relatively flat
-                baseScale * 4.0   // Very wide spread
+                baseScale * 6.0,
+                baseScale * 2.4,
+                baseScale * 6.0
             );
             dummy.updateMatrix();
-            largeCanopyRef.current ? largeCanopyRef.current.setMatrixAt(i, dummy.matrix) : null
+            largeCanopyRef.current ? largeCanopyRef.current.setMatrixAt(i, dummy.matrix) : null;
 
             // --------- Medium canopy (middle layer) ---------
-            // Add slight offset for natural appearance
             dummy.position.set(
                 position[0] + (Math.random() - 0.5) * 0.5,
-                groundHeight + 12.8 * baseScale,
+                groundHeight + 21.6 * baseScale,
                 position[2] + (Math.random() - 0.5) * 0.5
             );
             dummy.rotation.set(0, rotation + Math.random() * Math.PI, 0);
@@ -351,7 +380,7 @@ export const TreeVisual: React.FC<{
             // --------- Small canopy (top layer) ---------
             dummy.position.set(
                 position[0] + (Math.random() - 0.5) * 0.3,
-                groundHeight + 12.3 * baseScale,
+                groundHeight + 20.6 * baseScale,
                 position[2] + (Math.random() - 0.5) * 0.3
             );
             dummy.rotation.set(0, rotation + Math.random() * Math.PI, 0);
@@ -393,7 +422,7 @@ export const TreeVisual: React.FC<{
                 frustumCulled={false}
             />
 
-            {/* Horizontal plate structure */}
+            {/* Spherical canopy structure */}
             <instancedMesh
                 ref={canopyPlateRef}
                 args={[geometry.canopyPlate, materials.plateMaterial, positions.length]}
@@ -459,9 +488,9 @@ export const TreeColliders: React.FC<{ positions: Vegetation[], addObstacleRef: 
                         }}
                         position={treePos.position}
                         frustumCulled={false}
-                        scale={[treePos.scale * 0.8, treePos.scale * 1.8, treePos.scale * 0.8]}
+                        scale={[treePos.scale * 0.8, treePos.scale * 3.6, treePos.scale * 0.8]}
                     >
-                        <cylinderGeometry args={[1.5, 1.5, 26, 8]} />
+                        <cylinderGeometry args={[1.5, 1.5, 48, 8]} />
                         <meshBasicMaterial visible={false} />
                     </mesh>
                 ))}
