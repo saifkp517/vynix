@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 // });
 
 
- const prodSocket = io("https://dosage-mailto-urban-correspondence.trycloudflare.com", {
+ const prodSocket = io("https://intervention-tamil-discover-original.trycloudflare.com", {
      withCredentials: true,
  });
 
