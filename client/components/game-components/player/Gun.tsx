@@ -1,7 +1,6 @@
 import React, { useRef, useState, RefObject, useEffect } from 'react';
 import * as THREE from 'three';
 import { Howl } from 'howler';
-import socket from '@/lib/socket';
 import { EventEmitter } from 'events';
 import { useFrame, useThree } from '@react-three/fiber';
 
@@ -27,21 +26,102 @@ interface BulletTracer {
 }
 
 const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, ammoRef, otherPlayers }) => {
-    const maxAmmo = 10;
+    const maxAmmo = 30;
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const muzzleFlash = useRef(false);
     const isReloading = useRef(false);
     const bulletTracersRef = useRef<BulletTracer[]>([]);
     const scene = useThree().scene;
 
-    const raycaster = useRef(new THREE.Raycaster());
     const muzzleFlashTimeout = useRef<NodeJS.Timeout | null>(null);
-    const bulletIdCounter = useRef(0);
     const barrelEndRef = useRef<THREE.Mesh>(null);
     const isRecoiling = useRef(false);
     const recoilProgress = useRef(0);
-    const tracerSpeed = 150; // units per second
+    const bulletSpeed = 150; // units per second
     const maxTracerDistance = 100;
+
+    const instancedTracers = useRef<THREE.InstancedMesh | null>(null);
+    const maxInstances = 100;
+    const instanceData = useRef<Array<{
+        active: boolean;
+        position: THREE.Vector3;
+        direction: THREE.Vector3;
+        startPos: THREE.Vector3;
+        createdAt: number;
+    }>>([]);
+
+
+    // Initialize bullets instanced mesh
+    useEffect(() => {
+        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const material = new THREE.MeshStandardMaterial({
+            color: "#ffff00",
+            emissive: "#ffff00",
+            emissiveIntensity: 0.8
+        });
+
+        const instancedMesh = new THREE.InstancedMesh(geometry, material, maxInstances);
+        instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        instancedMesh.frustumCulled = false;
+
+        // Initialize all instances as inactive (scale to 0)
+        const matrix = new THREE.Matrix4();
+        for (let i = 0; i < maxInstances; i++) {
+            matrix.makeScale(0, 0, 0); // Hidden
+            instancedMesh.setMatrixAt(i, matrix);
+            instanceData.current.push({
+                active: false,
+                position: new THREE.Vector3(),
+                direction: new THREE.Vector3(),
+                startPos: new THREE.Vector3(),
+                createdAt: 0
+            });
+        }
+
+        instancedMesh.instanceMatrix.needsUpdate = true;
+        instancedTracers.current = instancedMesh;
+        scene.add(instancedMesh);
+
+        return () => {
+            scene.remove(instancedMesh);
+            geometry.dispose();
+            material.dispose();
+        };
+    }, []);
+
+    // Modified createBulletTracer
+    const createBulletTracer = () => {
+        if (!instancedTracers.current) return;
+
+        // Find inactive instance
+        const availableIndex = instanceData.current.findIndex(data => !data.active);
+        if (availableIndex === -1) return;
+
+        // Get barrel position
+        let barrelWorldPos = new THREE.Vector3();
+        if (gunRef.current && barrelEndRef.current) {
+            barrelEndRef.current.getWorldPosition(barrelWorldPos);
+        } else {
+            barrelWorldPos = camera.position.clone();
+        }
+
+        const bulletDirection = camera.getWorldDirection(new THREE.Vector3()).normalize();
+
+        // Activate instance
+        const data = instanceData.current[availableIndex];
+        data.active = true;
+        data.position.copy(barrelWorldPos);
+        data.direction.copy(bulletDirection);
+        data.startPos.copy(barrelWorldPos);
+        data.createdAt = Date.now();
+
+        // Update matrix
+        const matrix = new THREE.Matrix4();
+        matrix.makeTranslation(barrelWorldPos.x, barrelWorldPos.y, barrelWorldPos.z);
+        instancedTracers.current.setMatrixAt(availableIndex, matrix);
+        instancedTracers.current.instanceMatrix.needsUpdate = true;
+    };
+
 
     const updateAmmo = (newAmmo: number) => {
         ammoRef.current = newAmmo;
@@ -49,74 +129,41 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
 
     // Animation loop for bullet tracers
     useFrame((state, delta) => {
+        if (!instancedTracers.current) return;
+
         const now = Date.now();
-        const traceLifetime = 100; // ms for inactive tracers
-        const updatedTracers = bulletTracersRef.current.map(tracer => {
-            if (!tracer.active) return tracer;
+        let needsUpdate = false;
+        const matrix = new THREE.Matrix4();
 
-            // Calculate new position
-            const movement = tracer.direction.clone().multiplyScalar(tracer.speed * delta);
-            const newPosition = tracer.position.clone().add(movement);
+        instanceData.current.forEach((data, index) => {
+            if (!data.active) return;
 
-            // Check if tracer has traveled max distance
-            const distanceTraveled = newPosition.distanceTo(tracer.startPos);
+            // Move tracer
+            const movement = data.direction.clone().multiplyScalar(bulletSpeed * delta);
+            data.position.add(movement);
 
-            if (distanceTraveled >= tracer.maxDistance) {
-                return { ...tracer, active: false };
+            // Check if should deactivate
+            const distanceTraveled = data.position.distanceTo(data.startPos);
+            const age = now - data.createdAt;
+
+            if (distanceTraveled >= maxTracerDistance || age > 1000) {
+                // Deactivate
+                data.active = false;
+                matrix.makeScale(0, 0, 0); // Hide
+                needsUpdate = true;
+            } else {
+                // Update position
+                matrix.makeTranslation(data.position.x, data.position.y, data.position.z);
+                needsUpdate = true;
             }
 
-            return {
-                ...tracer,
-                position: newPosition
-            };
-        }).filter(tracer => {
-            // Remove inactive tracers after a short delay
-            const age = now - tracer.createdAt;
-            return tracer.active || age < traceLifetime;
+            instancedTracers.current!.setMatrixAt(index, matrix);
         });
 
-        // Only update state if tracers have changed
-        if (updatedTracers.length !== bulletTracersRef.current.length ||
-            updatedTracers.some((t, i) => t.active !== bulletTracersRef.current[i]?.active ||
-                t.position !== bulletTracersRef.current[i]?.position)) {
-            bulletTracersRef.current = updatedTracers;
-            // Trigger a re-render only when necessary
-            setTimeout(() => {
-                (document as any).dispatchEvent(new CustomEvent('forceUpdate'));
-            }, 0);
+        if (needsUpdate) {
+            instancedTracers.current.instanceMatrix.needsUpdate = true;
         }
     });
-
-    const createBulletTracer = () => {
-        // Get the world position of the barrel end
-        let barrelWorldPos = new THREE.Vector3();
-        if (gunRef.current && barrelEndRef.current) {
-            barrelEndRef.current.getWorldPosition(barrelWorldPos);
-        } else {
-            barrelWorldPos = camera.position.clone();
-            console.warn("Gun or barrel ref not available, using camera position");
-        }
-
-        // Get the camera's direction for the bullet
-        const bulletDirection = camera.getWorldDirection(new THREE.Vector3()).normalize();
-
-        const newTracer: BulletTracer = {
-            id: bulletIdCounter.current++,
-            position: barrelWorldPos.clone(),
-            direction: bulletDirection.clone(),
-            startPos: barrelWorldPos.clone(),
-            maxDistance: maxTracerDistance,
-            speed: tracerSpeed,
-            createdAt: Date.now(),
-            active: true
-        };
-
-        bulletTracersRef.current = [...bulletTracersRef.current, newTracer];
-        // Trigger a re-render for new tracer
-        setTimeout(() => {
-            (document as any).dispatchEvent(new CustomEvent('forceUpdate'));
-        }, 0);
-    };
 
     const reload = () => {
         if (isReloading.current) return;
@@ -155,7 +202,6 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
 
         const recoilAnimate = () => {
             if (!gunRef.current) return;
-            console.log("animate");
             gunRef.current.position.z = -0.7;
             setTimeout(() => {
                 if (gunRef.current) {
@@ -165,7 +211,6 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         };
 
         const fireOnce = () => {
-            console.log("fired");
             if (isReloading.current || ammoRef.current <= 0) {
                 if (shootingInterval.current) {
                     clearInterval(shootingInterval.current);
@@ -194,49 +239,8 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             // Create bullet tracer from barrel position
             createBulletTracer();
 
-            // Optional: Keep ArrowHelper for debugging
-            const bulletDirection = camera.getWorldDirection(new THREE.Vector3());
-            let arrowStartPos = new THREE.Vector3();
-            if (gunRef.current && barrelEndRef.current) {
-                barrelEndRef.current.getWorldPosition(arrowStartPos);
-            } else {
-                arrowStartPos = camera.position.clone();
-            }
-
-            //tracer animation
-            const tracerMat = new THREE.LineBasicMaterial({ color: 0xffff00 });
-            const tracerGeo = new THREE.BufferGeometry().setFromPoints([
-                arrowStartPos.clone(),
-                arrowStartPos.clone()
-            ]);
-            const tracer = new THREE.Line(tracerGeo, tracerMat);
-            scene.add(tracer);
-
-            const tracerStart = performance.now();
-            const tracerLength = 200;
-            const tracerDuration = 100; // ms
-
-            function animateTracer() {
-                const elapsed = performance.now() - tracerStart;
-                const progress = elapsed / tracerDuration;
-
-                if (progress >= 1) {
-                    scene.remove(tracer);
-                    tracerGeo.dispose();
-                    tracerMat.dispose();
-                    return;
-                }
-
-                const endPoint = arrowStartPos.clone().add(bulletDirection.clone().multiplyScalar(tracerLength * progress));
-                tracerGeo.setFromPoints([arrowStartPos, endPoint]);
-
-                requestAnimationFrame(animateTracer);
-            }
-
-            animateTracer();
         };
 
-        console.log("break");
         fireOnce();
         shootingInterval.current = setInterval(fireOnce, 150);
     };
@@ -330,15 +334,15 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
                 tracer.active && (
                     <group key={tracer.id} userData={{ tracerId: tracer.id }}>
                         <mesh position={[tracer.position.x, tracer.position.y, tracer.position.z]}>
-                            <sphereGeometry args={[0.02, 8, 8]} />
+                            <sphereGeometry args={[0.1, 8, 8]} />
                             <meshStandardMaterial
                                 color="#ffff00"
                                 emissive="#ffff00"
-                                emissiveIntensity={0.8}
+                                emissiveIntensity={10.8}
                             />
                         </mesh>
                         <mesh position={[tracer.position.x, tracer.position.y, tracer.position.z]}>
-                            <sphereGeometry args={[0.05, 8, 8]} />
+                            <sphereGeometry args={[0.08, 8, 8]} />
                             <meshBasicMaterial
                                 color="#ffaa00"
                                 transparent
