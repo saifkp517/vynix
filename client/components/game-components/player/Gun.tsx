@@ -37,8 +37,8 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
     const barrelEndRef = useRef<THREE.Mesh>(null);
     const isRecoiling = useRef(false);
     const recoilProgress = useRef(0);
-    const bulletSpeed = 150; // units per second
-    const maxTracerDistance = 100;
+    const bulletSpeed = 10; // units per second
+    const maxTracerDistance = 1000;
 
     const instancedTracers = useRef<THREE.InstancedMesh | null>(null);
     const maxInstances = 100;

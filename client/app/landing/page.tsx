@@ -90,7 +90,7 @@ const FirstPersonGame: React.FC = () => {
   const smoothnessRef = useRef(0);
 
   //grandparent states to communicate data with children
-  const ammoRef = useRef(10);
+  const ammoRef = useRef(30);
   const grenadeCoolDownRef = useRef(false);
 
 
@@ -300,7 +300,6 @@ const FirstPersonGame: React.FC = () => {
             isPlayerDead={isPlayerDead}
           />
           <Crosshair />
-
           <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
             <Stats />
             <ambientLight intensity={0.5} />

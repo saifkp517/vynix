@@ -165,19 +165,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           </div>
         </HudBox>
 
-
-        {/* Controls - Bottom Left */}
-        <HudBox position="bottom-4 left-4" className="w-48">
-          <div className="text-xs font-medium mb-1 text-cyan-400">Controls</div>
-          <div className="flex flex-wrap gap-1">
-            <span className="bg-gray-700/60 px-2 py-1 rounded text-xs">WASD: Move</span>
-            <span className="bg-gray-700/60 px-2 py-1 rounded text-xs">Mouse: Aim/Shoot</span>
-            <span className="bg-gray-700/60 px-2 py-1 rounded text-xs">R: Reload</span>
-            <span className="bg-gray-700/60 px-2 py-1 rounded text-xs">G: Grenade</span>
-            <span className="bg-gray-700/60 px-2 py-1 rounded text-xs">ESC: Menu</span>
-          </div>
-        </HudBox>
-
         {/* Game Info - Top Right */}
         <HudBox position="top-4 right-4" className="min-w-48">
           <div className="flex items-center mb-2">
