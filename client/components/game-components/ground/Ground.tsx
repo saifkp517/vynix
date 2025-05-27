@@ -10,6 +10,7 @@ import { Forest } from "../forest/ForestGenerator";
 import { Sky } from "@react-three/drei";
 import { Mountains } from "../obstacles/Mountains";
 import TallGrass from "../obstacles/Grass";
+import Loot from "../player/Loot";
 
 import type { Vegetation } from "@/app/types/types";
 
@@ -339,7 +340,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
       {/* Tall Grass */}
       <Suspense fallback={null}>
-        <TallGrass 
+        <TallGrass
           getGroundHeight={getGroundHeight}
           center={[targetPosition[0], targetPosition[1], targetPosition[2]]}
         />
@@ -368,6 +369,17 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         intensity={1.2}
         area={300}
         center={targetPosition}
+      />
+
+      <Loot
+        position={[0, getGroundHeight(0, 0) + 1, 0]}
+        lootType="ammo"
+        playerPosition={new THREE.Vector3(2, 3, 5)} // Your player's current position
+        onPickup={() => {
+          console.log("Picked up ammo!");
+          // Add ammo to player, play sound, etc.
+        }}
+        pickupDistance={2}
       />
 
       {/* Forest */}

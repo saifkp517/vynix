@@ -45,11 +45,11 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
             setTimeout(() => {
             }, 5000);
 
-            // playerDataRef.current[playerId] = {
-            //     position: new THREE.Vector3(0, 0, 0),
-            //     velocity: new THREE.Vector3(0, 0, 0),
-            // };
-            // setPlayerIds((prev) => [...prev, playerId]);
+                // playerDataRef.current[playerId] = {
+                //     position: new THREE.Vector3(0, 0, 0),
+                //     velocity: new THREE.Vector3(0, 0, 0),
+                // };
+                // setPlayerIds((prev) => [...prev, playerId]);
         };
 
         socket.on("playerMoved", handlePlayerMoved);
