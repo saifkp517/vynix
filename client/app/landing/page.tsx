@@ -4,7 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
 import * as THREE from 'three';
-import { Stats } from '@react-three/drei';
+
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
@@ -301,10 +301,9 @@ const FirstPersonGame: React.FC = () => {
           />
           <Crosshair />
           <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
-            <Stats />
+            {/* <Stats /> */}
             <ambientLight intensity={0.5} />
             <pointLight position={[10, 10, 10]} intensity={1} />
-            <gridHelper args={[50, 50]} />
 
             <Ground {...groundProps}>
               <PlayerWithGroundHeight

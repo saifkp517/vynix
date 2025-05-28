@@ -58,8 +58,7 @@ const RainEffect = memo(
     center
   }: any) => {
     const rainRef = useRef<Points>(null);
-    console.log(center)
-
+    console.log("RainEffect rendered");
     // Create raindrops - memoized so it's not recreated on rerenders
     const raindrops = useMemo(() => {
       const positions = new Float32Array(count * 3);
@@ -187,10 +186,10 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Define height logic - memoized so it's stable across renders
   const getGroundHeight = useMemo(() => {
     return (x: number, z: number): number => {
-      const primaryFrequency = 0.05;
+      const primaryFrequency = 0.01; // controls the frequency of hills
       // Higher frequency = more hills, lower frequency = larger hills
       const secondaryFrequency = 0.2;
-      const amplitude = 10; // increases height of hills
+      const amplitude = 50; // increases height of hills
       const noiseAmplitude = 0.2; // increases noise variation
 
       const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
@@ -242,7 +241,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     initializedRef.current = true;
   }, [grassMap, roughnessMap, noiseMap]);
 
-  const sunPosition = useMemo(() => new THREE.Vector3(100, 300, 100), []);
+  const sunPosition = useMemo(() => new THREE.Vector3(100, 1000, 100), []);
 
   // Apply terrain deformation - once during initial render
   useEffect(() => {
@@ -323,7 +322,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         position={[0, -0.1, 0]}
         receiveShadow
       >
-        <planeGeometry ref={geometryRef} args={[1500, 1500, 512, 512]} />
+        <planeGeometry ref={geometryRef} args={[2048, 2048, 512, 512]} />
         <meshStandardMaterial
           ref={materialRef}
           map={grassMap}
@@ -386,7 +385,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       {vegetationPositions ? (
         <ForestWrapper {...forestProps} />
       ) : (
-        <Suspense fallback={<div>Loading components...</div>} />
+        <Suspense  />
       )}
 
       {/* Children can use the context via useGroundHeight */}

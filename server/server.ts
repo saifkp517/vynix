@@ -267,6 +267,10 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
     }));
 
+    socket.on("chatMessage", withDelay((roomId, userId, message) => {
+        socket.to(roomId).emit("chatMessage", { userId, message }); 
+    }));
+
     socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
     let newCenter: Position = { x: 0, y: 0, z: 0 };
@@ -280,7 +284,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         let distance = Math.sqrt(
             Math.pow(position.x - newCenter.x, 2) +
-            Math.pow(position.y - 0, 2) +
+            Math.pow(position.y - newCenter.y, 2) +
             Math.pow(position.z - newCenter.z, 2)
         );
         if (distance > innerRadius) {
