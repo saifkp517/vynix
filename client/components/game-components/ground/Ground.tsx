@@ -188,9 +188,9 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     return (x: number, z: number): number => {
       const primaryFrequency = 0.01; // controls the frequency of hills
       // Higher frequency = more hills, lower frequency = larger hills
-      const secondaryFrequency = 0.2;
+      const secondaryFrequency = 0.06;
       const amplitude = 50; // increases height of hills
-      const noiseAmplitude = 0.2; // increases noise variation
+      const noiseAmplitude = 3; // increases noise variation
 
       const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
       const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;

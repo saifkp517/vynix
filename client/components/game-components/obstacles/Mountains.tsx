@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { SimplexNoise } from 'three-stdlib';
 
 // Mountain Component that creates borders around a square map
-export const Mountains = ({ mapSize = 1000, height = 400, thickness = 250, detail = 64 }) => {
+export const Mountains = ({ mapSize = 2000, height = 400, thickness = 25, detail = 64 }) => {
   // Create a new simplex noise instance
   const simplex = useMemo(() => new SimplexNoise(), []);
   
@@ -104,7 +104,7 @@ export const Mountains = ({ mapSize = 1000, height = 400, thickness = 250, detai
   }, []);
   
   // Pre-calculate positions
-  const halfMap = mapSize / 2;
+  const halfMap = mapSize / 4;
   const offset = halfMap + thickness / 2;
   
   return (

@@ -14,12 +14,12 @@ type TallGrassProps = {
 };
 
 const TallGrass = memo(({
-    count = 50000, // Maximum count for performance constraints
+    count = 100000, // Maximum count for performance constraints
     radius = 150, // REDUCED radius to increase density
     center = [0, 0, 0],
     windStrength = 0.15,
     windSpeed = 0.3,
-    hidePlayerRadius = 5, // Player radius
+    hidePlayerRadius = 0, // Player radius
     getGroundHeight
 }: TallGrassProps) => {
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
