@@ -6,6 +6,7 @@ import { Stats } from '@react-three/drei';
 interface GameInfoProps {
   roomId: string | null;
   userid: string | null;
+  controlsRef?: RefObject<any>;
   team: string | null;
   grenadeCoolDownRef: RefObject<boolean>;
   ammoRef: RefObject<number>;
@@ -35,7 +36,7 @@ interface ChatMessage {
 }
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, ammoRef, bulletsAvailable, health, kills, pingRef, isPlayerDead }) => {
+  ({ roomId, userid, team, ammoRef, bulletsAvailable, health, kills, pingRef, isPlayerDead, controlsRef }) => {
     const [pingInfo, setPingInfo] = useState(0);
     const [showPlayerList, setShowPlayerList] = useState(false);
     const [showChat, setShowChat] = useState(false);
@@ -51,6 +52,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     ]);
 
     const chatMessages = useRef<ChatMessage[]>([]);
+    const [, forceUpdate] = useState({});
 
     useEffect(() => {
       const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
@@ -60,6 +62,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           message,
           timestamp: new Date(),
         });
+        // Force re-render to show new message in persistent chat log
+        forceUpdate({});
       };
 
       socket.on("recieveMessage", handleReceiveMessage);
@@ -69,27 +73,28 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       };
     }, [socket]);
 
-useEffect(() => {
-  const interval = setInterval(() => {
-    setPingInfo(pingRef.current || 0);
-  }, 1000); // Update every 1 second (adjust as needed)
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setPingInfo(pingRef.current || 0);
+      }, 1000); // Update every 1 second (adjust as needed)
 
-  return () => clearInterval(interval);
-}, []);
+      return () => clearInterval(interval);
+    }, []);
 
-    // Helper function to temporarily exit pointer lock
-    const exitPointerLock = () => {
-      if (document.pointerLockElement) {
-        document.exitPointerLock();
+    // Helper function to unlock controls (disable pointer lock)
+    const unlockControls = () => {
+      if (controlsRef?.current && controlsRef.current.isLocked) {
+        controlsRef.current.unlock();
       }
     };
 
-    // Helper function to request pointer lock back
-    const requestPointerLock = () => {
-      if (!showChat && !showPlayerList && document.body) {
-        document.body.requestPointerLock();
+    // Helper function to lock controls (enable pointer lock)
+    const lockControls = () => {
+      if (controlsRef?.current && !controlsRef.current.isLocked && !showChat && !showPlayerList) {
+        controlsRef.current.lock();
       }
     };
+
     const handleSendMessage = () => {
       console.log('Sending message:', chatMessage);
       if (chatMessage.trim()) {
@@ -97,8 +102,8 @@ useEffect(() => {
         socket.emit("sendMessage", { roomId, userId: userid, message: chatMessage.trim() });
         setChatMessage('');
         setShowChat(false);
-        // Re-enable pointer lock after sending message
-        setTimeout(requestPointerLock, 100);
+        // Re-enable controls immediately after sending message
+        setTimeout(lockControls, 50);
       }
     };
 
@@ -107,12 +112,12 @@ useEffect(() => {
         if (event.key.toLowerCase() === 'c' && !showChat) {
           event.preventDefault();
           event.stopPropagation();
-          exitPointerLock(); // Exit pointer lock before opening chat
+          unlockControls(); // Unlock controls before opening chat
           setShowChat(true);
           setChatMessage('');
           setTimeout(() => {
             chatInputRef.current?.focus();
-          }, 100); // Small delay to ensure pointer lock is exited
+          }, 100);
         }
         // Handle escape key
         else if (event.key === 'Escape') {
@@ -121,10 +126,10 @@ useEffect(() => {
           if (showChat) {
             setShowChat(false);
             setChatMessage('');
-            setTimeout(requestPointerLock, 100); // Re-enable pointer lock after closing chat
+            setTimeout(lockControls, 50); // Re-enable controls after closing chat
           } else if (showPlayerList) {
             setShowPlayerList(false);
-            setTimeout(requestPointerLock, 100);
+            setTimeout(lockControls, 50);
           }
         }
         // Handle tab key for player list
@@ -132,12 +137,12 @@ useEffect(() => {
           event.preventDefault();
           event.stopPropagation();
           if (!showPlayerList) {
-            exitPointerLock();
+            unlockControls();
           }
           setShowPlayerList((prev) => {
             const newValue = !prev;
             if (!newValue) {
-              setTimeout(requestPointerLock, 100);
+              setTimeout(lockControls, 50);
             }
             return newValue;
           });
@@ -165,12 +170,10 @@ useEffect(() => {
       };
     }, [showChat, showPlayerList, chatMessage, handleSendMessage]);
 
-
-
     const handleChatClose = () => {
       setShowChat(false);
       setChatMessage('');
-      setTimeout(requestPointerLock, 100);
+      setTimeout(lockControls, 50);
     };
 
     const getPingColor = (ping: number) => {
@@ -197,6 +200,11 @@ useEffect(() => {
         );
       }
       return bars;
+    };
+
+    // Get last 2 messages for persistent chat log
+    const getRecentMessages = () => {
+      return chatMessages.current.slice(-2);
     };
 
     return (
@@ -243,16 +251,32 @@ useEffect(() => {
           </div>
         </div>
 
+        {/* Persistent Chat Log - Bottom Left (Translucent) */}
+        {!showChat && getRecentMessages().length > 0 && (
+          <div className="fixed bottom-4 left-4 z-20 pointer-events-none">
+            <div className="space-y-1 max-w-xs">
+              {getRecentMessages().map((msg) => (
+                <div key={msg.id} className="bg-black/20 backdrop-blur-sm rounded px-2 py-1 text-xs transition-opacity duration-300">
+                  <span className="font-medium text-white/70">
+                    {msg.playerName}:
+                  </span>
+                  <span className="text-white/60 ml-1">{msg.message}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Player List Toggle - Left Side */}
         <div className="fixed left-0 top-1/2 transform -translate-y-1/2 z-30">
           <button
             onClick={() => {
               if (!showPlayerList) {
-                exitPointerLock();
+                unlockControls();
               }
               setShowPlayerList(!showPlayerList);
               if (showPlayerList) {
-                setTimeout(requestPointerLock, 100);
+                setTimeout(lockControls, 50);
               }
             }}
             className="bg-black/30 backdrop-blur-sm p-2 rounded-r-lg border-r border-white/10 hover:bg-black/50 transition-colors"
@@ -278,7 +302,7 @@ useEffect(() => {
                 <button
                   onClick={() => {
                     setShowPlayerList(false);
-                    setTimeout(requestPointerLock, 100);
+                    setTimeout(lockControls, 50);
                   }}
                   className="text-white/50 hover:text-white/80 transition-colors"
                 >
@@ -357,7 +381,7 @@ useEffect(() => {
                 }}
                 onFocus={() => {
                   console.log('Input focused');
-                  exitPointerLock(); // Ensure pointer lock is disabled when input is focused
+                  unlockControls(); // Ensure controls are unlocked when input is focused
                 }}
                 onBlur={() => console.log('Input blurred')}
                 placeholder="Say something..."

@@ -385,7 +385,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       {vegetationPositions ? (
         <ForestWrapper {...forestProps} />
       ) : (
-        <Suspense />
+        <Suspense fallback={<div>Loading Forest Components</div>}  />
       )}
 
       {/* Children can use the context via useGroundHeight */}

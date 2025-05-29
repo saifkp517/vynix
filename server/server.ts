@@ -159,7 +159,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
         const generateTreeAndStonePositions = () => {
             const radius = 1000;
-            const densityFactor = 0.003;
+            const densityFactor = 0.002;
             const center = [0, 0, 0];
             const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
@@ -267,18 +267,13 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
     }));
 
-    socket.on("sendMessage", withDelay(({roomId, userId, message}) => {
-        console.log(`Message from ${userId} in room ${roomId}: ${message}`);
-        io.in(roomId).emit("recieveMessage", { userId, message }); 
-    }));
-
     socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
     let newCenter: Position = { x: 0, y: 0, z: 0 };
 
     socket.on("requestForestUpdate", withDelay(() => {
         console.log("requested");
-        socket.emit('updateFocrest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
+        socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
     }));
 
     socket.on('updatePosition', withDelay((position, velocity) => {

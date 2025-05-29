@@ -4,7 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
 import * as THREE from 'three';
-
+import { PointerLockControls } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
@@ -84,7 +84,7 @@ const FirstPersonGame: React.FC = () => {
   const playerDataRef = useRef<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   // We need to keep a state to force re-renders when players join/leave
-  const playerIdsRef = useRef<string[]>([]);
+  const controlsRef = useRef<any>(null); // for PointerLockControls locked state
 
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
@@ -238,6 +238,7 @@ const FirstPersonGame: React.FC = () => {
     return (
       <Player
         {...props}
+        controlsRef={controlsRef}
         userId={localPlayerId}
         grenadeCoolDownRef={grenadeCoolDownRef}
         pingRef={pingRef} //pass ping to gun component for sending during shoot events
@@ -278,6 +279,7 @@ const FirstPersonGame: React.FC = () => {
           <GameInfo
             roomId={roomId}
             grenadeCoolDownRef={grenadeCoolDownRef}
+            controlsRef={controlsRef}
             userid={localPlayerId}
             team={team}
             ammoRef={ammoRef}
@@ -295,6 +297,7 @@ const FirstPersonGame: React.FC = () => {
             <pointLight position={[10, 10, 10]} intensity={1} />
 
             <Ground {...groundProps}>
+              <PointerLockControls ref={controlsRef} />
               <PlayerWithGroundHeight
                 addObstacleRef={addObstacleRef}
                 obstacles={obstacles.current}

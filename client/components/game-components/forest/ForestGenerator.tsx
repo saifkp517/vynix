@@ -49,6 +49,8 @@ export const Forest: React.FC<ForestProps> = ({
 
     socket.on("updateForest", handleUpdateForest);
     socket.emit("requestForestUpdate");
+    console.log("First 5 tree positions:", vegetationPositions.slice(0, 5).map(v => v.position));
+
 
     return () => {
       socket.off("updateForest", handleUpdateForest);

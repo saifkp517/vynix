@@ -18,6 +18,7 @@ interface PlayerProps {
     getGroundHeight: (x: number, z: number) => number;
     ammoRef: RefObject<number>;
     otherPlayers: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
+    controlsRef: RefObject<any>;
     userId: string;
 }
 
@@ -101,6 +102,7 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 
 const Player: React.FC<PlayerProps> = ({
     obstacles,
+    controlsRef,
     getGroundHeight,
     grenadeCoolDownRef,
     otherPlayers,
@@ -428,7 +430,6 @@ const Player: React.FC<PlayerProps> = ({
 
     const playerSpeed = useRef(10);
     const playerHeight = 3;
-    const controlsRef = useRef<any>(null);
     
 
     const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -529,7 +530,7 @@ const Player: React.FC<PlayerProps> = ({
 
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
-        if (!controlsRef.current?.isLocked) return;
+        if (!controlsRef?.current?.isLocked) return;
 
 
         let isGrounded = false;
@@ -819,7 +820,7 @@ const Player: React.FC<PlayerProps> = ({
 
     return (
         <>
-            <PointerLockControls ref={controlsRef} />
+            
             {fireballs.map((fireball) => (
                 <Fireball
                     key={fireball.id}
