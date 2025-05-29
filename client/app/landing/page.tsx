@@ -113,7 +113,7 @@ const FirstPersonGame: React.FC = () => {
     }
 
     // Room and team assignment
-    socket.on("roomAssigned", ({ room: any, team }) => {
+    socket.on("roomAssigned", ({ room, team }: any) => {
       console.log(`Assigned to room: ${room.id}`);
       setRoomId(room.id);
       vegetationPositions.current = room.vegetationPositions
