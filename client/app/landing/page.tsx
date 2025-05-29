@@ -152,7 +152,7 @@ const FirstPersonGame: React.FC = () => {
 
     socket.emit("ping-check", startTime);
 
-    socket.on("pong-check", (clientTime) => {
+    socket.on("pong-check", (clientTime: any) => {
       const endTime = Date.now();
       const pingValue = endTime - clientTime;
       pingRef.current = pingValue;
