@@ -245,7 +245,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         socket.emit("pong-check", clientTime);
     }));
 
-    const innerRadius = 50;
+    const innerRadius = 100;
 
     console.log('User connected:', socket.id);
 
@@ -267,8 +267,9 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
     }));
 
-    socket.on("chatMessage", withDelay((roomId, userId, message) => {
-        socket.to(roomId).emit("chatMessage", { userId, message }); 
+    socket.on("sendMessage", withDelay(({roomId, userId, message}) => {
+        console.log(`Message from ${userId} in room ${roomId}: ${message}`);
+        io.in(roomId).emit("recieveMessage", { userId, message }); 
     }));
 
     socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
@@ -277,7 +278,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
     socket.on("requestForestUpdate", withDelay(() => {
         console.log("requested");
-        socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
+        socket.emit('updateFocrest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
     }));
 
     socket.on('updatePosition', withDelay((position, velocity) => {

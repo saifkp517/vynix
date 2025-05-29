@@ -1,13 +1,21 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
 
-let toastId = 0;
+export function KillFeedRenderer({
+  subscribe,
+}: {
+  subscribe: (cb: (data: { id: number; name: string }[]) => void) => void;
+}) {
+  const [feed, setFeed] = useState<{ id: number; name: string }[]>([]);
 
-export default function KillFeed({ feed }: any) {
+  useEffect(() => {
+    subscribe(setFeed);
+  }, [subscribe]);
+
   return (
     <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 space-y-2">
       <AnimatePresence>
-        {feed.map((item: any) => (
+        {feed.map((item) => (
           <motion.div
             key={item.id}
             initial={{ opacity: 0, y: -50, scale: 0.9 }}

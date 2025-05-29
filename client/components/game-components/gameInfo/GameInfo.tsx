@@ -1,6 +1,7 @@
 import React, { RefObject, useEffect, useState, useRef } from 'react';
-import { Heart, Target, Users, MessageCircle, Send, X, Minus, Activity, Wifi, Skull } from 'lucide-react';
-import { Stats } from '@react-three/drei'; // Add this import
+import { Heart, Target, Users, MessageCircle, X, Skull } from 'lucide-react';
+import socket from '@/lib/socket';
+import { Stats } from '@react-three/drei';
 
 interface GameInfoProps {
   roomId: string | null;
@@ -28,11 +29,9 @@ interface Player {
 
 interface ChatMessage {
   id: string;
-  playerId: string;
   playerName: string;
   message: string;
   timestamp: Date;
-  team?: string;
 }
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
@@ -51,41 +50,127 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       { id: '4', name: 'Player4', kills: 6, deaths: 7, health: 45, team: 'blue', isAlive: true },
     ]);
 
-    const [chatMessages] = useState<ChatMessage[]>([
-      { id: '1', playerId: '1', playerName: 'Player1', message: 'Nice shot!', timestamp: new Date(), team: 'red' },
-      { id: '2', playerId: '2', playerName: 'Player2', message: 'gg wp', timestamp: new Date(), team: 'blue' },
-      { id: '3', playerId: '3', playerName: 'Player3', message: 'Behind you!', timestamp: new Date(), team: 'red' },
-    ]);
+    const chatMessages = useRef<ChatMessage[]>([]);
 
     useEffect(() => {
-      setPingInfo(pingRef.current || 0);
-    }, [pingRef.current]);
+      const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
+        chatMessages.current.push({
+          id: `${userId}-${Date.now()}`,
+          playerName: userId, // Replace with actual player name if available
+          message,
+          timestamp: new Date(),
+        });
+      };
+
+      socket.on("recieveMessage", handleReceiveMessage);
+
+      return () => {
+        socket.off('recieveMessage', handleReceiveMessage);
+      };
+    }, [socket]);
+
+useEffect(() => {
+  const interval = setInterval(() => {
+    setPingInfo(pingRef.current || 0);
+  }, 1000); // Update every 1 second (adjust as needed)
+
+  return () => clearInterval(interval);
+}, []);
+
+    // Helper function to temporarily exit pointer lock
+    const exitPointerLock = () => {
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+    };
+
+    // Helper function to request pointer lock back
+    const requestPointerLock = () => {
+      if (!showChat && !showPlayerList && document.body) {
+        document.body.requestPointerLock();
+      }
+    };
+    const handleSendMessage = () => {
+      console.log('Sending message:', chatMessage);
+      if (chatMessage.trim()) {
+        console.log(roomId, userid, chatMessage.trim());
+        socket.emit("sendMessage", { roomId, userId: userid, message: chatMessage.trim() });
+        setChatMessage('');
+        setShowChat(false);
+        // Re-enable pointer lock after sending message
+        setTimeout(requestPointerLock, 100);
+      }
+    };
 
     useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
-          if (event.key.toLowerCase() === 'c') {
-            setShowChat((prev) => !prev);
-            if (!showChat && chatInputRef.current) {
-              setTimeout(() => chatInputRef.current?.focus(), 0);
-            }
-          }
-        if (event.key === 'Tab') {
+        if (event.key.toLowerCase() === 'c' && !showChat) {
           event.preventDefault();
-          setShowPlayerList((prev) => !prev);
+          event.stopPropagation();
+          exitPointerLock(); // Exit pointer lock before opening chat
+          setShowChat(true);
+          setChatMessage('');
+          setTimeout(() => {
+            chatInputRef.current?.focus();
+          }, 100); // Small delay to ensure pointer lock is exited
+        }
+        // Handle escape key
+        else if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (showChat) {
+            setShowChat(false);
+            setChatMessage('');
+            setTimeout(requestPointerLock, 100); // Re-enable pointer lock after closing chat
+          } else if (showPlayerList) {
+            setShowPlayerList(false);
+            setTimeout(requestPointerLock, 100);
+          }
+        }
+        // Handle tab key for player list
+        else if (event.key === 'Tab') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!showPlayerList) {
+            exitPointerLock();
+          }
+          setShowPlayerList((prev) => {
+            const newValue = !prev;
+            if (!newValue) {
+              setTimeout(requestPointerLock, 100);
+            }
+            return newValue;
+          });
+        }
+        // Handle Enter key when chat is open
+        else if (event.key === 'Enter' && showChat) {
+          event.preventDefault();
+          event.stopPropagation();
+          console.log('Enter pressed globally, sending message:', chatMessage);
+          handleSendMessage();
+          return; // Early return to prevent further processing
+        }
+
+        // When chat is open, prevent ALL other game controls (except Enter which we handled above)
+        if (showChat || showPlayerList) {
+          event.stopPropagation();
         }
       };
 
-      window.addEventListener('keydown', handleKeyDown);
-      return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-      };
-    }, [showChat]);
+      // Use capture phase to intercept events before pointer lock controls
+      document.addEventListener('keydown', handleKeyDown, { capture: true });
 
-    const handleSendMessage = (message: string) => {
-      if (chatMessage.trim()) {
-        // Add socket emit here
-        setChatMessage(message);
-      }
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown, { capture: true });
+      };
+    }, [showChat, showPlayerList, chatMessage, handleSendMessage]);
+
+
+
+    const handleChatClose = () => {
+      setShowChat(false);
+      setChatMessage('');
+      setTimeout(requestPointerLock, 100);
     };
 
     const getPingColor = (ping: number) => {
@@ -117,14 +202,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     return (
       <>
         <Stats />
-
-        {/* Health Bar - Top Left Corner */}
-        <div className="fixed top-12 left-0 w-64 h-1 bg-black/20 z-30">
-          <div
-            className="h-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-300"
-            style={{ width: `${health}%` }}
-          />
-        </div>
 
         {/* Health Text - Top Left */}
         <div className="fixed top-14 left-2 z-30">
@@ -169,7 +246,15 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         {/* Player List Toggle - Left Side */}
         <div className="fixed left-0 top-1/2 transform -translate-y-1/2 z-30">
           <button
-            onClick={() => setShowPlayerList(!showPlayerList)}
+            onClick={() => {
+              if (!showPlayerList) {
+                exitPointerLock();
+              }
+              setShowPlayerList(!showPlayerList);
+              if (showPlayerList) {
+                setTimeout(requestPointerLock, 100);
+              }
+            }}
             className="bg-black/30 backdrop-blur-sm p-2 rounded-r-lg border-r border-white/10 hover:bg-black/50 transition-colors"
           >
             <Users size={16} className="text-white/70" />
@@ -191,7 +276,10 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-medium">Players ({players.length})</h3>
                 <button
-                  onClick={() => setShowPlayerList(false)}
+                  onClick={() => {
+                    setShowPlayerList(false);
+                    setTimeout(requestPointerLock, 100);
+                  }}
                   className="text-white/50 hover:text-white/80 transition-colors"
                 >
                   <X size={16} />
@@ -239,10 +327,9 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         {showChat && (
           <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 w-96 z-40">
             <div className="mb-2 space-y-1 max-h-32 overflow-y-auto">
-              {chatMessages.slice(-4).map((msg) => (
+              {chatMessages.current.slice(-4).map((msg) => (
                 <div key={msg.id} className="bg-black/60 backdrop-blur-sm rounded px-2 py-1 text-xs">
-                  <span className={`font-medium ${msg.team === 'red' ? 'text-red-400' : 'text-blue-400'
-                    }`}>
+                  <span className={`font-medium`}>
                     {msg.playerName}:
                   </span>
                   <span className="text-white/80 ml-1">{msg.message}</span>
@@ -255,14 +342,27 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
                 ref={chatInputRef}
                 type="text"
                 value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
+                onChange={(e) => {
+                  setChatMessage(e.target.value);
+                }}
                 onKeyDown={(e) => {
+                  console.log('Key pressed in input:', e.key);
+                  // Don't use stopPropagation here as we want the event to bubble up
+                  // but prevent default browser behavior for Enter
                   if (e.key === 'Enter') {
-                    handleSendMessage(chatMessage);
+                    e.preventDefault();
+                    console.log('Enter pressed, sending message:', chatMessage);
+                    handleSendMessage();
                   }
                 }}
+                onFocus={() => {
+                  console.log('Input focused');
+                  exitPointerLock(); // Ensure pointer lock is disabled when input is focused
+                }}
+                onBlur={() => console.log('Input blurred')}
                 placeholder="Say something..."
                 className="w-full bg-transparent text-white text-sm placeholder-white/50 focus:outline-none"
+                autoFocus
               />
             </div>
           </div>
@@ -272,7 +372,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         {isPlayerDead?.current && (
           <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="text-center">
-              <div className="w-16 h-16 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto mb-6" />
+              <div className="w-16 h-16 border-4 borcder-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto mb-6" />
               <h1 className="text-white text-3xl font-light mb-2">Eliminated</h1>
               <p className="text-white/60 text-sm">Respawning...</p>
             </div>

@@ -429,6 +429,7 @@ const Player: React.FC<PlayerProps> = ({
     const playerSpeed = useRef(10);
     const playerHeight = 3;
     const controlsRef = useRef<any>(null);
+    
 
     const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const direction = useRef<THREE.Vector3>(new THREE.Vector3());

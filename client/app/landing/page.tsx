@@ -9,7 +9,7 @@ import Ground, { useGroundHeight } from '@/components/game-components/ground/Gro
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
 import RemoteOpponents from '@/components/game-components/player/RemoteOpponents';
-import KillFeed from '@/components/game-components/toast/KillFeed';
+import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 
 import type { Vegetation } from '../types/types';
 
@@ -99,22 +99,11 @@ const FirstPersonGame: React.FC = () => {
 
 
   const killFeedRef = useRef<{ id: number; name: any }[]>([]);
+  const listenersRef = useRef<((list: any[]) => void)[]>([]);
 
 
 
-
-  console.log("FirstPersonGame component rendered");
-
-
-  const addPlayerId = (id: string) => {
-    if (!playerIdsRef.current.includes(id)) {
-      playerIdsRef.current.push(id);
-    }
-  };
-
-  const removePlayerId = (id: string) => {
-    playerIdsRef.current = playerIdsRef.current.filter((pid) => pid !== id);
-  };
+  console.log("FirstPersonGame component rendered")
 
   // Player connection handling
   useEffect(() => {
@@ -151,7 +140,7 @@ const FirstPersonGame: React.FC = () => {
       }, 5000);
     });
 
-  
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       window.location.href = '/';
@@ -199,10 +188,12 @@ const FirstPersonGame: React.FC = () => {
 
   function showKillToast(name: string) {
     const id = toastId++;
-    killFeedRef.current = [...killFeedRef.current, { id, name }];
+    killFeedRef.current.push({ id, name });
+    listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
 
     setTimeout(() => {
       killFeedRef.current = killFeedRef.current.filter(item => item.id !== id);
+      listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
     }, 3000);
   }
 
@@ -260,7 +251,7 @@ const FirstPersonGame: React.FC = () => {
 
   const groundProps = {
     addObstacleRef,
-    fogDistance: 25,
+    fogDistance: 2500,
     vegetationPositions: vegetationPositions.current,
     fogColor: "#65888a"
   };
@@ -281,9 +272,7 @@ const FirstPersonGame: React.FC = () => {
 
   return (
     <div className="w-full h-screen relative">
-      {killFeedRef.current.map(item => (
-        <KillFeed key={item.id} feed={killFeedRef.current} />
-      ))}
+      <KillFeedRenderer subscribe={cb => listenersRef.current.push(cb)} />
       {isReady ? (
         <>
           <GameInfo

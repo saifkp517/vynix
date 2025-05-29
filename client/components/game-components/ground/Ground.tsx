@@ -329,7 +329,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
           roughnessMap={roughnessVariation || roughnessMap}
           roughness={6}
           metalnessMap={noiseMap}
-          metalness={0.05}
+          metalness={0}
           displacementMap={noiseMap}
           displacementScale={0.8}
           normalScale={new THREE.Vector2(10.0, 10.0)}
@@ -338,12 +338,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       </mesh>
 
       {/* Tall Grass */}
-      <Suspense fallback={null}>
+      {/* <Suspense fallback={null}>
         <TallGrass
           getGroundHeight={getGroundHeight}
           center={[targetPosition[0], targetPosition[1], targetPosition[2]]}
         />
-      </Suspense>
+      </Suspense> */}
 
       {/* Lighting */}
       <directionalLight
@@ -382,11 +382,11 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       />
 
       {/* Forest */}
-      {vegetationPositions ? (
+      {/* {vegetationPositions ? (
         <ForestWrapper {...forestProps} />
       ) : (
-        <Suspense  />
-      )}
+        <Suspense />
+      )} */}
 
       {/* Children can use the context via useGroundHeight */}
       {children}
