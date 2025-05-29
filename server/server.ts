@@ -267,6 +267,11 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
     }));
 
+    socket.on("sendMessage", withDelay(({roomId, userId, message}) => {
+        console.log(`Message from ${userId} in room ${roomId}: ${message}`);
+        io.to(roomId).emit("receiveMessage", { userId, message });
+    }));
+
     socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
     let newCenter: Position = { x: 0, y: 0, z: 0 };

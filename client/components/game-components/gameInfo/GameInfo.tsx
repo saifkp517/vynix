@@ -37,6 +37,7 @@ interface ChatMessage {
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
   ({ roomId, userid, team, ammoRef, bulletsAvailable, health, kills, pingRef, isPlayerDead, controlsRef }) => {
+
     const [pingInfo, setPingInfo] = useState(0);
     const [showPlayerList, setShowPlayerList] = useState(false);
     const [showChat, setShowChat] = useState(false);
@@ -56,6 +57,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
     useEffect(() => {
       const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
+        console.log('Received message:', userId, message);
         chatMessages.current.push({
           id: `${userId}-${Date.now()}`,
           playerName: userId, // Replace with actual player name if available
@@ -66,10 +68,10 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         forceUpdate({});
       };
 
-      socket.on("recieveMessage", handleReceiveMessage);
+      socket.on("receiveMessage", handleReceiveMessage);
 
       return () => {
-        socket.off('recieveMessage', handleReceiveMessage);
+        socket.off('receiveMessage', handleReceiveMessage);
       };
     }, [socket]);
 
@@ -84,19 +86,19 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     // Helper function to unlock controls (disable pointer lock)
     const unlockControls = () => {
       if (controlsRef?.current && controlsRef.current.isLocked) {
-        controlsRef.current.unlock();
+        controlsRef.current.isLocked = true;
+        
       }
     };
 
     // Helper function to lock controls (enable pointer lock)
     const lockControls = () => {
       if (controlsRef?.current && !controlsRef.current.isLocked && !showChat && !showPlayerList) {
-        controlsRef.current.lock();
+        controlsRef.current.isLocked = false;
       }
     };
 
     const handleSendMessage = () => {
-      console.log('Sending message:', chatMessage);
       if (chatMessage.trim()) {
         console.log(roomId, userid, chatMessage.trim());
         socket.emit("sendMessage", { roomId, userId: userid, message: chatMessage.trim() });
@@ -151,8 +153,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         else if (event.key === 'Enter' && showChat) {
           event.preventDefault();
           event.stopPropagation();
-          console.log('Enter pressed globally, sending message:', chatMessage);
           handleSendMessage();
+          unlockControls(); 
           return; // Early return to prevent further processing
         }
 
@@ -370,12 +372,10 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
                   setChatMessage(e.target.value);
                 }}
                 onKeyDown={(e) => {
-                  console.log('Key pressed in input:', e.key);
                   // Don't use stopPropagation here as we want the event to bubble up
                   // but prevent default browser behavior for Enter
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    console.log('Enter pressed, sending message:', chatMessage);
                     handleSendMessage();
                   }
                 }}
