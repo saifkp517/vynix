@@ -14,6 +14,7 @@ import { EventEmitter } from 'events';
 interface PlayerProps {
     obstacles: any;
     pingRef: RefObject<number>;
+    crosshairRef: RefObject<{ triggerHit: () => void }>;
     grenadeCoolDownRef: RefObject<boolean>;
     getGroundHeight: (x: number, z: number) => number;
     ammoRef: RefObject<number>;
@@ -103,6 +104,7 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 const Player: React.FC<PlayerProps> = ({
     obstacles,
     controlsRef,
+    crosshairRef,
     getGroundHeight,
     grenadeCoolDownRef,
     otherPlayers,
@@ -180,6 +182,7 @@ const Player: React.FC<PlayerProps> = ({
                     if (!hit) {
                         hit = true;
                         console.log("hit!");
+                        crosshairRef?.current?.triggerHit();
                         const shootObject = {
                             rayOrigin: camera.position,
                             rayDirection: shootDirection,

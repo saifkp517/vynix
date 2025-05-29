@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback} from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/Player';
@@ -10,7 +10,7 @@ import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
 import RemoteOpponents from '@/components/game-components/player/RemoteOpponents';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
-
+import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import type { Vegetation } from '../types/types';
 
 // Define types for player and obstacle
@@ -33,18 +33,7 @@ type Room = {
   gameStarted: boolean;
 }
 
-const Crosshair = React.memo(() => (
-  <div style={{
-    position: 'fixed',
-    top: '50%',
-    left: '50%',
-    width: '4px',
-    height: '4px',
-    backgroundColor: 'red',
-    transform: 'translate(-50%, -50%)',
-    zIndex: 1000,
-  }} />
-));
+
 
 // Main game component
 const FirstPersonGame: React.FC = () => {
@@ -92,7 +81,7 @@ const FirstPersonGame: React.FC = () => {
   //grandparent states to communicate data with children
   const ammoRef = useRef(30);
   const grenadeCoolDownRef = useRef(false);
-
+  const CrosshairRef = useRef(null);
 
   //prevent multiple joins requests by same user
   const hasJoinedRoom = useRef(false);
@@ -239,6 +228,7 @@ const FirstPersonGame: React.FC = () => {
       <Player
         {...props}
         controlsRef={controlsRef}
+        crosshairRef={CrosshairRef}
         userId={localPlayerId}
         grenadeCoolDownRef={grenadeCoolDownRef}
         pingRef={pingRef} //pass ping to gun component for sending during shoot events
@@ -290,7 +280,7 @@ const FirstPersonGame: React.FC = () => {
             pingRef={pingRef}
             isPlayerDead={isPlayerDead}
           />
-          <Crosshair />
+          <Crosshair ref={CrosshairRef} />
           <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
             {/* <Stats /> */}
             <ambientLight intensity={0.5} />
