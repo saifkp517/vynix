@@ -255,7 +255,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
         {/* Persistent Chat Log - Bottom Left (Translucent) */}
         {!showChat && getRecentMessages().length > 0 && (
-          <div className="fixed bottom-4 left-4 z-20 pointer-events-none">
+          <div className="fixed bottom-20 left-4 z-20 pointer-events-none">
             <div className="space-y-1 max-w-xs">
               {getRecentMessages().map((msg) => (
                 <div key={msg.id} className="bg-black/20 backdrop-blur-sm rounded px-2 py-1 text-xs transition-opacity duration-300">

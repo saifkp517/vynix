@@ -338,12 +338,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       </mesh>
 
       {/* Tall Grass */}
-      {/* <Suspense fallback={null}>
+      <Suspense fallback={null}>
         <TallGrass
           getGroundHeight={getGroundHeight}
           center={[targetPosition[0], targetPosition[1], targetPosition[2]]}
         />
-      </Suspense> */}
+      </Suspense>
 
       {/* Lighting */}
       <directionalLight
@@ -382,11 +382,11 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       />
 
       {/* Forest */}
-      {/* {vegetationPositions ? (
+      {vegetationPositions ? (
         <ForestWrapper {...forestProps} />
       ) : (
         <Suspense fallback={<div>Loading Forest Components</div>}  />
-      )} */}
+      )}
 
       {/* Children can use the context via useGroundHeight */}
       {children}
