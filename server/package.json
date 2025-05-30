@@ -31,6 +31,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.14.1",
+    "simplex-noise": "^4.0.3",
     "socket.io": "^4.8.1",
     "three": "^0.176.0",
     "uuid": "^11.1.0"

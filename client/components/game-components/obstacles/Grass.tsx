@@ -26,6 +26,9 @@ const TallGrass = memo(({
     useThree();
     const time = useRef(0);
     const lastTime = useRef(performance.now());
+    const fpsLastTime = useRef(performance.now());
+    const framesSinceLast = useRef(0);
+    const measuredFPS = useRef(60); // default to 60 initially
 
     // Create noise for natural grass distribution
     const noise = useMemo(() => new SimplexNoise(), []);
@@ -259,7 +262,7 @@ const TallGrass = memo(({
             const grassHeight = 1.8 + Math.random() * 1.4; // Shorter (avg 2.9 vs 3.7)
 
             // MUCH wider blades for ultimate coverage
-            const grassWidth = 0.4 + Math.random() * 0.3; // WAY wider (0.4-0.7 vs 0.25-0.35)
+            const grassWidth = 0.6 + Math.random() * 0.3; // WAY wider (0.4-0.7 vs 0.25-0.35)
 
             scale.set(grassWidth, grassHeight, 1);
 
@@ -297,11 +300,16 @@ const TallGrass = memo(({
         // Only update a subset of blades each frame for even better performance
         // Complete cycle every ~5 frames (more optimized)
         const now = performance.now();
-        const delta = now - lastTime.current;
-        const currentFPS = 1000 / delta;
-        console.log(`Current FPS: ${currentFPS.toFixed(2)}`);
-        lastTime.current = now;
+        framesSinceLast.current++;
 
+        if (now - fpsLastTime.current >= 1000) {
+            measuredFPS.current = (framesSinceLast.current * 1000) / (now - fpsLastTime.current);
+            fpsLastTime.current = now;
+            framesSinceLast.current = 0;
+        }
+
+        const currentFPS = measuredFPS.current;
+        lastTime.current = now;
 
         // Clamp FPS range between 10 and 60 for mapping
         const clampedFPS = Math.max(10, Math.min(currentFPS, 60));

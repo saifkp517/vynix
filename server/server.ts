@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { Server, Socket } from "socket.io"
 import { createServer } from "http"
 import { Ray, Vector3 } from "three"
+import { createNoise2D } from 'simplex-noise';
 import { v4 as uuidv4 } from "uuid"
 import fs from "fs";
 import cookieParser from "cookie-parser";
@@ -132,15 +133,21 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
     let room = rooms.find(r => r.players.length < r.maxPlayers);
     if (!room) {
 
-        const getGroundHeight = (x: number, z: number): number => {
-            const primaryFrequency = 0.05;
-            // Higher frequency = more hills, lower frequency = larger hills
-            const secondaryFrequency = 0.2;
-            const amplitude = 5; // increases height of hills
-            const noiseAmplitude = 0.2; // increases noise variation
+        const SEED = 12345;
 
-            const baseHeight = Math.sin(x * primaryFrequency) * Math.cos(z * primaryFrequency) * amplitude;
-            const noise = Math.sin(x * secondaryFrequency * 3.7) * Math.cos(z * secondaryFrequency * 2.3) * noiseAmplitude;
+        const getGroundHeight = (x: number, z: number): number => {
+
+            const noise2D = createNoise2D(() => SEED);
+            const primaryFrequency = 0.005; // Controls the scale of hills
+            const secondaryFrequency = 0.01; // Controls smaller variations
+            const amplitude = 25; // Height of hills
+            const noiseAmplitude = 3; // Height of smaller variations
+
+            // Primary terrain height using Simplex noise
+            const baseHeight = noise2D(x * primaryFrequency, z * primaryFrequency) * amplitude;
+
+            // Secondary noise for additional variation
+            const noise = noise2D(x * secondaryFrequency * 3.7, z * secondaryFrequency * 2.3) * noiseAmplitude;
 
             return baseHeight + noise;
         }
@@ -159,7 +166,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
         const generateTreeAndStonePositions = () => {
             const radius = 1000;
-            const densityFactor = 0.003;
+            const densityFactor = 0.004;
             const center = [0, 0, 0];
             const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
@@ -267,7 +274,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
     }));
 
-    socket.on("sendMessage", withDelay(({roomId, userId, message}) => {
+    socket.on("sendMessage", withDelay(({ roomId, userId, message }) => {
         console.log(`Message from ${userId} in room ${roomId}: ${message}`);
         io.to(roomId).emit("receiveMessage", { userId, message });
     }));
@@ -383,10 +390,10 @@ io.on('connection', (socket: AuthenticatedSocket) => {
                         console.log(`Player ${playerId} is dead!`);
                         io.to(playerId).emit("youDied", { message: "You are dead!" });
                         // Handle player death logic here
-                        io.to(userId).emit("playerDead", {userId, playerId}); // Notify others
+                        io.to(userId).emit("playerDead", { userId, playerId }); // Notify others
                     }
                 }
-                
+
             } else {
                 console.log(`--> User-id(${playerId}) missed by ${distance.toFixed(3)} units`);
             }

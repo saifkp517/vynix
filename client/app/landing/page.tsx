@@ -243,7 +243,6 @@ const FirstPersonGame: React.FC = () => {
   const groundProps = {
     addObstacleRef,
     vegetationPositions: vegetationPositions.current,
-    fogColor: "#65888a"
   };
 
 
