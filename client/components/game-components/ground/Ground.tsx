@@ -2,6 +2,7 @@ import { useThree, useLoader, useFrame } from "@react-three/fiber";
 import { createNoise2D } from 'simplex-noise';
 import React, { Suspense, createContext, useContext, memo } from "react";
 import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
+import { Zone } from "../zone/Zone";
 import { Points } from 'three';
 import * as THREE from "three";
 import { TextureLoader } from "three";
@@ -128,7 +129,7 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 // Main Ground component implementation - wrapped in memo at the end
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
-  fogDistance = 100,
+  fogDistance = 25,
   vegetationPositions,
   fogColor = "#B0C4DE",
   addObstacleRef
@@ -338,12 +339,13 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       </mesh>
 
       {/* Tall Grass */}
-      <Suspense fallback={null}>
+      {/* <Suspense fallback={null}>
         <TallGrass
           getGroundHeight={getGroundHeight}
           center={[targetPosition[0], targetPosition[1], targetPosition[2]]}
         />
-      </Suspense>
+      </Suspense> */}
+
 
       {/* Lighting */}
       <directionalLight
@@ -382,13 +384,15 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       />
 
       {/* Forest */}
-      {vegetationPositions ? (
+      {/* {vegetationPositions ? (
         <ForestWrapper {...forestProps} />
       ) : (
         <Suspense fallback={<div>Loading Forest Components</div>}  />
-      )}
+      )} */}
 
       {/* Children can use the context via useGroundHeight */}
+
+      <Zone />
       {children}
     </GroundHeightContext.Provider>
   );
