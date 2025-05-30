@@ -65,7 +65,7 @@ type PlayerMap = {
     [socketId: string]: {
         position: Position;
         velocity: Position;
-        health?: number;
+        health: number;
         team?: string;
     };
 };
@@ -302,7 +302,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             newCenter = position;
         }
 
-        players[socket.id] = { position, velocity };
+        players[socket.id] = { position, velocity, health: 100 };
 
         const cellKey = getCellKey(position);
 
@@ -385,7 +385,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
                 // Handle hit logic here, e.g., reduce health, notify players, etc.
                 const hitPlayer = players[playerId];
                 if (hitPlayer) {
-                    hitPlayer.health = (hitPlayer.health || 100) - 10; // Reduce health by 10
+                    hitPlayer.health -= 10; // Reduce health by 10
                     if (hitPlayer.health <= 0) {
                         console.log(`Player ${playerId} is dead!`);
                         io.to(playerId).emit("youDied", { message: "You are dead!" });
