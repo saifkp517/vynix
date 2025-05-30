@@ -11,6 +11,6 @@ const prodSocket = io("https://assurance-mixture-oman-production.trycloudflare.c
   withCredentials: true,
 });
 
-const socket = devSocket;
+const socket = prodSocket;
 
 export default socket;
