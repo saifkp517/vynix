@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 // });
 
 
-const prodSocket = io("https://assurance-mixture-oman-production.trycloudflare.com", {
+const prodSocket = io("https://debate-quite-artistic-arms.trycloudflare.com", {
   withCredentials: true,
 });
 
