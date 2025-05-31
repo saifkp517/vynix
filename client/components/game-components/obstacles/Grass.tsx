@@ -262,7 +262,7 @@ const TallGrass = memo(({
             const grassHeight = 1.8 + Math.random() * 1.4; // Shorter (avg 2.9 vs 3.7)
 
             // MUCH wider blades for ultimate coverage
-            const grassWidth = 0.6 + Math.random() * 0.3; // WAY wider (0.4-0.7 vs 0.25-0.35)
+            const grassWidth = 0.4 + Math.random() * 0.3; // WAY wider (0.4-0.7 vs 0.25-0.35)
 
             scale.set(grassWidth, grassHeight, 1);
 

@@ -133,7 +133,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
   fogDistance = 20,
   vegetationPositions,
-  fogColor = "#B0C4DE",
+  fogColor = "#A8B8D0",
   addObstacleRef
 }, ref) => {
   const { scene } = useThree();
@@ -396,11 +396,11 @@ useEffect(() => {
 
       {/* Rain Effect - memoized component */}
       <RainEffect
-        count={600}
+        count={1000}
         size={0.3}
         color="#A9CCE3"
         intensity={1.2}
-        area={300}
+        area={150}
         center={targetPosition}
       />
 
