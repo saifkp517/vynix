@@ -10,14 +10,15 @@ import { TextureLoader } from "three";
 import socket from "@/lib/socket";
 import { Forest } from "../forest/ForestGenerator";
 import { Sky } from "@react-three/drei";
-import { Mountains } from "../obstacles/Mountains";
-import TallGrass from "../obstacles/Grass";
+import { Mountains } from "../elements/Mountains";
+import { RainEffect } from "../elements/Rain";
+import TallGrass from "../elements/Grass";
 import Loot from "../player/Loot";
 
 
 import type { Vegetation } from "@/app/types/types";
 
-// Create a context for the ground height function
+// Create a context for the ground height function  
 type GroundHeightContextType = {
   getGroundHeight: (x: number, z: number) => number;
 };
@@ -49,74 +50,6 @@ type GroundProps = {
 
 // TallGrass component to add grass blades to the scene
 
-
-// RainEffect component is memoized to prevent unnecessary rerenders
-const RainEffect = memo(
-  ({
-    count = 5000,
-    size = 2,
-    color = "#D6EAF8",
-    intensity = 10,
-    area = 100,
-    center
-  }: any) => {
-    const rainRef = useRef<Points>(null);
-    console.log("RainEffect rendered");
-    // Create raindrops - memoized so it's not recreated on rerenders
-    const raindrops = useMemo(() => {
-      const positions = new Float32Array(count * 3);
-      const velocities = new Float32Array(count);
-
-      const rainFallHeight = 100;
-
-      for (let i = 0; i < count; i++) {
-        positions[i * 3] = (Math.random() - 0.5) * area + center[0];
-        positions[i * 3 + 1] = Math.random() * rainFallHeight + center[1];
-        positions[i * 3 + 2] = (Math.random() - 0.5) * area + center[2];
-        velocities[i] = (Math.random() + 0.1) * intensity;
-      }
-
-      return { positions, velocities };
-    }, [count, area, intensity]);
-
-    useFrame((state, delta) => {
-      if (!rainRef.current) return;
-
-      const positions = rainRef.current.geometry.attributes.position.array;
-
-      for (let i = 0; i < count; i++) {
-        positions[i * 3 + 1] -= raindrops.velocities[i];
-
-        if (positions[i * 3 + 1] < -5) {
-          positions[i * 3] = (Math.random() - 0.5) * area + center[0];
-          positions[i * 3 + 1] = Math.random() * 100 + center[1];
-          positions[i * 3 + 2] = (Math.random() - 0.5) * area + center[2];
-        }
-      }
-
-      rainRef.current.geometry.attributes.position.needsUpdate = true;
-    });
-
-    return (
-      <points ref={rainRef} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            args={[raindrops.positions, 3]}
-          />
-        </bufferGeometry>
-        <pointsMaterial
-          attach="material"
-          color={color}
-          size={size}
-          fog={true}
-          transparent={true}
-        />
-      </points>
-    );
-  }
-);
-
 // ForestWrapper component is memoized to prevent unnecessary rerenders
 const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef, vegetationPositions }: any) => {
   return (
@@ -131,7 +64,7 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 // Main Ground component implementation - wrapped in memo at the end
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
-  fogDistance = 20,
+  fogDistance = 15,
   vegetationPositions,
   fogColor = "#A8B8D0",
   addObstacleRef
@@ -396,11 +329,11 @@ useEffect(() => {
 
       {/* Rain Effect - memoized component */}
       <RainEffect
-        count={1000}
+        count={500}
         size={0.3}
         color="#A9CCE3"
-        intensity={1.2}
-        area={150}
+        intensity={8}
+        area={300}
         center={targetPosition}
       />
 
