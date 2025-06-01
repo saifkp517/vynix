@@ -42,6 +42,7 @@ export const useGroundHeight = () => {
 
 type GroundProps = {
   children?: React.ReactNode;
+  playerCenterRef: React.RefObject<THREE.Vector3>;
   fogDistance?: number;
   vegetationPositions?: Vegetation[],
   fogColor?: string;
@@ -64,10 +65,11 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 // Main Ground component implementation - wrapped in memo at the end
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
-  fogDistance = 15,
+  fogDistance = 1005,
   vegetationPositions,
   fogColor = "#A8B8D0",
-  addObstacleRef
+  addObstacleRef,
+  playerCenterRef
 }, ref) => {
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
@@ -264,6 +266,7 @@ useEffect(() => {
     density: 0.01,
     types: ["banyan"],
     getGroundHeight,
+    playerCenterRef,
     addObstacleRef
   }), [getGroundHeight, addObstacleRef]);
 
@@ -307,7 +310,7 @@ useEffect(() => {
       <Suspense fallback={null}>
         <TallGrass
           getGroundHeight={getGroundHeight}
-          center={[targetPosition[0], targetPosition[1], targetPosition[2]]}
+          center={[playerCenterRef.current.x, playerCenterRef.current.y, playerCenterRef.current.z]}
         />
       </Suspense>
 
@@ -349,11 +352,11 @@ useEffect(() => {
       />
 
       {/* Forest */}
-      {vegetationPositions ? (
+      {/* {vegetationPositions ? (
           <ForestWrapper {...forestProps} />
         ) : (
           <Suspense fallback={<div>Loading Forest Components</div>} />
-        )}
+        )} */}
 
       {/* Children can use the context via useGroundHeight */}
 

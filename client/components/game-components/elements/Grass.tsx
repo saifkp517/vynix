@@ -15,13 +15,15 @@ type TallGrassProps = {
 
 const TallGrass = memo(({
     count = 50000, // Maximum count for performance constraints
-    radius = 100, // REDUCED radius to increase density
+    radius = 50, // REDUCED radius to increase density
     center = [0, 0, 0],
     windStrength = 0.15,
     windSpeed = 0.3,
     hidePlayerRadius = 0, // Player radius
     getGroundHeight
 }: TallGrassProps) => {
+
+    
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
     useThree();
     const time = useRef(0);
@@ -287,6 +289,8 @@ const TallGrass = memo(({
     // Optimized animation - less computation per blade
     useFrame((state) => {
         if (!instancedMeshRef.current) return;
+
+        console.log("center from grass", center)
 
         time.current += state.clock.elapsedTime * 0.0002;
 

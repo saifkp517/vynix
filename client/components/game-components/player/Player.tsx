@@ -13,6 +13,8 @@ import { EventEmitter } from 'events';
 
 interface PlayerProps {
     obstacles: any;
+    onCenterUpdate: (center: THREE.Vector3) => void;
+    playerCenterRef: RefObject<THREE.Vector3>;
     pingRef: RefObject<number>;
     crosshairRef: RefObject<{ triggerHit: () => void }>;
     grenadeCoolDownRef: RefObject<boolean>;
@@ -103,6 +105,8 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 
 const Player: React.FC<PlayerProps> = ({
     obstacles,
+    onCenterUpdate,
+    playerCenterRef,
     controlsRef,
     crosshairRef,
     getGroundHeight,
@@ -167,7 +171,7 @@ const Player: React.FC<PlayerProps> = ({
                 let hit = false;
 
 
-                
+
                 players.forEach((player) => {
                     const playerPosition = player.position.clone();
                     // Assume player is a sphere with radius 1 (adjust as needed)
@@ -220,6 +224,13 @@ const Player: React.FC<PlayerProps> = ({
         // Get player center for calculations
         const playerCenter = new THREE.Vector3();
         playerBox.getCenter(playerCenter);
+
+
+        //update player center every 10 seconds
+        if (playerBox && playerCenterRef) {
+            playerCenterRef.current = playerCenter;
+            onCenterUpdate(playerCenter.clone())
+        }
 
         // Check collision with each obstacle
         let isColliding = false;
@@ -376,6 +387,8 @@ const Player: React.FC<PlayerProps> = ({
             }
         }
         setColliding(isColliding);
+
+        // Return a cleanup function if needed
     };
 
 
@@ -433,7 +446,7 @@ const Player: React.FC<PlayerProps> = ({
 
     const playerSpeed = useRef(10);
     const playerHeight = 3;
-    
+
 
     const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const direction = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -823,7 +836,7 @@ const Player: React.FC<PlayerProps> = ({
 
     return (
         <>
-            
+
             {fireballs.map((fireball) => (
                 <Fireball
                     key={fireball.id}
