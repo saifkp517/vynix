@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 // });
 
 
-const socket = io("https://pillow-efficient-code-crime.trycloudflare.com", {
+const socket = io("https://ottawa-coupon-affected-gothic.trycloudflare.com", {
   withCredentials: true,
 });
 
