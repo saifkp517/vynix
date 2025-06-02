@@ -2,7 +2,8 @@
 import React, { useRef, useState, useEffect, useCallback} from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
-import Player from '@/components/game-components/player/Player';
+// import Player from '@/components/game-components/player/Player';
+import Player from '@/components/game-components/player/TPP';
 import * as THREE from 'three';
 import { PointerLockControls } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
@@ -176,7 +177,6 @@ const FirstPersonGame: React.FC = () => {
   let toastId = 0;
 
   function handlePlayerCenterUpdate(center: THREE.Vector3) {
-    console.log("player center updated: ", center)
     playerCenterRef.current = center.clone();
   }
 

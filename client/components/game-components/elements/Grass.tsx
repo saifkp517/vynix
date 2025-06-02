@@ -15,7 +15,7 @@ type TallGrassProps = {
 
 const TallGrass = memo(({
     count = 50000, // Maximum count for performance constraints
-    radius = 50, // REDUCED radius to increase density
+    radius = 100, // REDUCED radius to increase density
     center = [0, 0, 0],
     windStrength = 0.15,
     windSpeed = 0.3,
@@ -290,7 +290,6 @@ const TallGrass = memo(({
     useFrame((state) => {
         if (!instancedMeshRef.current) return;
 
-        console.log("center from grass", center)
 
         time.current += state.clock.elapsedTime * 0.0002;
 

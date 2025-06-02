@@ -65,7 +65,7 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 // Main Ground component implementation - wrapped in memo at the end
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
-  fogDistance = 1005,
+  fogDistance = 25,
   vegetationPositions,
   fogColor = "#A8B8D0",
   addObstacleRef,
@@ -352,11 +352,11 @@ useEffect(() => {
       />
 
       {/* Forest */}
-      {/* {vegetationPositions ? (
+      {vegetationPositions ? (
           <ForestWrapper {...forestProps} />
         ) : (
           <Suspense fallback={<div>Loading Forest Components</div>} />
-        )} */}
+        )}
 
       {/* Children can use the context via useGroundHeight */}
 
