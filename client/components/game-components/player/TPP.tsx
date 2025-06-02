@@ -8,6 +8,7 @@ import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
 import * as THREE from 'three';
 import { EventEmitter } from 'events';
+import { cp } from 'fs';
 
 
 
@@ -553,7 +554,7 @@ const Player: React.FC<PlayerProps> = ({
         const handleMouseMove = (event: MouseEvent) => {
             if (!controlsRef?.current?.isLocked) return;
 
-            const sensitivity = 0.002;
+            const sensitivity = 0.001;
 
             // Update camera angles based on mouse movement
             cameraAngles.current.horizontal -= event.movementX * sensitivity;
@@ -598,8 +599,8 @@ const Player: React.FC<PlayerProps> = ({
         );
 
         // Third person camera positioning
-        const cameraDistance = 6;
-        const baseHeight = 6;
+        const cameraDistance = 4;
+        const baseHeight = 4;
 
         // Calculate camera position using angles
         const horizontalAngle = cameraAngles.current.horizontal;
@@ -669,10 +670,6 @@ const Player: React.FC<PlayerProps> = ({
             isJumpingRef.current = true;
             jumpRequested.current = false;
         }
-        //work later
-        // if (isJumpingRef.current && moveState.forward == false) {
-        //     camera.position.addScaledVector(jumpDirection.current, playerSpeed.current / 2 * delta);
-        // }
 
         // Apply gravity
 
@@ -691,9 +688,11 @@ const Player: React.FC<PlayerProps> = ({
             isGrounded = true;
         }
 
+        checkCollisions(playerPosition.current)
 
         //collision detection handling
         if (colliding) {
+            console.log(collisionType)
             isJumpingRef.current = false;
             const normal = collisionNormal!.clone().normalize();
 
@@ -734,9 +733,9 @@ const Player: React.FC<PlayerProps> = ({
                     const nextY = playerPosition.current.y + playerVelocity.current.y * delta;
 
                     if (nextY >= topHeight) {
-                        camera.position.y = nextY;
+                        playerPosition.current.y = nextY;
                     } else {
-                        camera.position.y = topHeight;
+                        playerPosition.current.y = topHeight;
                         playerVelocity.current.y = 0;
                         isJumpingRef.current = false;
                     }
@@ -777,7 +776,7 @@ const Player: React.FC<PlayerProps> = ({
                     const slideVector = moveVector.clone().projectOnPlane(normal);
 
                     // Add a small push away from the surface to prevent sticking
-                    const pushDistance = 0.001;
+                    const pushDistance = 0.1;
                     playerPosition.current.addScaledVector(normal, pushDistance);
                     playerPosition.current.add(slideVector);
                 }
