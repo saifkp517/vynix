@@ -65,7 +65,7 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 // Main Ground component implementation - wrapped in memo at the end
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
-  fogDistance = 25,
+  fogDistance = 15,
   vegetationPositions,
   fogColor = "#A8B8D0",
   addObstacleRef,

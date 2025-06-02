@@ -544,6 +544,28 @@ const Player: React.FC<PlayerProps> = ({
     }, []);
 
     const playerRotation = useRef<THREE.Euler>(new THREE.Euler(0, 0, 0));
+    // Add state to track camera angles
+    const cameraAngles = useRef({ horizontal: 0, vertical: 0 });
+    const isThirdPerson = useRef(true);
+
+    // Add mouse movement handler
+    useEffect(() => {
+        const handleMouseMove = (event: MouseEvent) => {
+            if (!controlsRef?.current?.isLocked) return;
+
+            const sensitivity = 0.002;
+
+            // Update camera angles based on mouse movement
+            cameraAngles.current.horizontal -= event.movementX * sensitivity;
+            cameraAngles.current.vertical -= event.movementY * sensitivity;
+
+            // Clamp vertical angle to prevent over-rotation
+            cameraAngles.current.vertical = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, cameraAngles.current.vertical));
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        return () => document.removeEventListener('mousemove', handleMouseMove);
+    }, []);
 
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
@@ -556,7 +578,6 @@ const Player: React.FC<PlayerProps> = ({
         //get parent terrain ground height
         const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
         let onGround = playerPosition.current.y <= groundY + playerHeight + 0.1;
-
 
 
         // Calculate movement direction based on camera orientation
@@ -576,19 +597,60 @@ const Player: React.FC<PlayerProps> = ({
             horizontalMove.z
         );
 
-        // Get camera direction (excluding y-axis)
-        const cameraDirection = new THREE.Vector3();
-        camera.getWorldDirection(cameraDirection);
-        cameraDirection.y = 0;
-        cameraDirection.normalize();
+        // Third person camera positioning
+        const cameraDistance = 6;
+        const baseHeight = 6;
 
+        // Calculate camera position using angles
+        const horizontalAngle = cameraAngles.current.horizontal;
+        const verticalAngle = cameraAngles.current.vertical;
+
+        const cameraOffset = new THREE.Vector3(
+            -Math.sin(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance,
+            -Math.sin(verticalAngle) * cameraDistance + baseHeight,
+            -Math.cos(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance
+        );
+
+        const targetCameraPosition = playerPosition.current.clone().add(cameraOffset);
+
+        // Smooth camera movement
+        
+
+        // Always look at player (this is what you need!)
+        const playerLookAtPoint = playerPosition.current.clone().add(new THREE.Vector3(0, playerHeight, 0));
+        camera.lookAt(playerLookAtPoint);
+
+        // Update movement direction based on camera angle (not camera.rotation which is overridden by lookAt)
+        const cameraDirection = new THREE.Vector3();
+        cameraDirection.x = Math.sin(horizontalAngle);
+        cameraDirection.z = Math.cos(horizontalAngle);
+        cameraDirection.normalize()
+
+        camera.position.lerp(targetCameraPosition, 1 - Math.pow(0.0001, delta));
 
         // Calculate movement in camera space
         const moveQuat = new THREE.Quaternion();
         moveQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), cameraDirection);
-        moveVector.applyQuaternion(moveQuat);
+        horizontalMove.applyQuaternion(moveQuat);
 
         const previousPosition = playerPosition.current.clone();
+
+        // Only rotate player when actually moving
+        if (horizontalMove.length() > 0.01) {
+            const moveDirection = horizontalMove.clone().normalize();
+            const targetRotation = Math.atan2(moveDirection.x, moveDirection.z);
+
+            if (playerRef.current) {
+                // Smooth rotation towards movement direction
+                const currentRotation = playerRef.current.rotation.y;
+                const rotationDiff = targetRotation - currentRotation;
+
+                // Handle rotation wrapping (shortest path)
+                const wrappedDiff = ((rotationDiff + Math.PI) % (2 * Math.PI)) - Math.PI;
+
+                playerRef.current.rotation.y += wrappedDiff * 10 * delta; // Smooth rotation
+            }
+        }
 
         // Apply horizontal movement to player position
         playerPosition.current.x += horizontalMove.x;
@@ -793,23 +855,12 @@ const Player: React.FC<PlayerProps> = ({
             }
         }
 
-        const cameraDistance = 6;
 
-        const cameraOffset = new THREE.Vector3(0, playerHeight - 2, -cameraDistance);
-
-        // Apply camera's Y rotation to the offset to orbit around player
-        const rotationMatrix = new THREE.Matrix4().makeRotationY(camera.rotation.y);
-        cameraOffset.applyMatrix4(rotationMatrix);
-
-        const targetCameraPosition = playerPosition.current.clone().add(cameraOffset);
-
-        // Smooth movement with delta
-        camera.position.lerp(targetCameraPosition, 1 - Math.pow(0.001, delta));
 
         // update player to match position and rotation
         if (playerRef.current) {
             playerRef.current.position.copy(playerPosition.current);
-            playerRotation.current.y = -camera.rotation.y;
+            playerRotation.current.y = camera.rotation.y;
             playerRef.current.rotation.copy(playerRotation.current);
         }
 
@@ -846,12 +897,6 @@ const Player: React.FC<PlayerProps> = ({
                 <Explosion key={explosion.id} position={explosion.position} explosionRadius={15} />
             ))}
             <group ref={playerRef} position={playerPosition.current}>
-                {/* Collision box */}
-                <mesh position={[0, 0, 0.5]}> {/* Forward indicator */}
-                    <boxGeometry args={[0.1, 0.1, 0.3]} />
-                    <meshStandardMaterial color="red" />
-                </mesh>
-
                 {/* Player body */}
                 <mesh position={[0, -1, 0]}>
                     <sphereGeometry args={[0.5]} />
