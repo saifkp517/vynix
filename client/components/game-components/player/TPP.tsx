@@ -543,6 +543,7 @@ const Player: React.FC<PlayerProps> = ({
         };
     }, []);
 
+    const playerRotation = useRef<THREE.Euler>(new THREE.Euler(0, 0, 0));
 
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
@@ -554,13 +555,9 @@ const Player: React.FC<PlayerProps> = ({
 
         //get parent terrain ground height
         const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
-        let onGround = playerPosition.current.y <= groundY + playerHeight;
+        let onGround = playerPosition.current.y <= groundY + playerHeight + 0.1;
 
-        if (playerRef.current) {
-            playerRef.current.position.copy(playerPosition.current);
-        }
 
-        checkCollisions(playerPosition.current);
 
         // Calculate movement direction based on camera orientation
         direction.current.z = Number(moveState.forward) - Number(moveState.backward);
@@ -605,13 +602,11 @@ const Player: React.FC<PlayerProps> = ({
 
         //handle jump
 
-        if (jumpRequested.current && onGround) {
-            jumpDirection.current.copy(cameraDirection);
+        if (jumpRequested.current && (onGround || isGrounded)) {
             playerVelocity.current.y = jumpStrength;
             isJumpingRef.current = true;
             jumpRequested.current = false;
         }
-
         //work later
         // if (isJumpingRef.current && moveState.forward == false) {
         //     camera.position.addScaledVector(jumpDirection.current, playerSpeed.current / 2 * delta);
@@ -619,7 +614,7 @@ const Player: React.FC<PlayerProps> = ({
 
         // Apply gravity
 
-        if (!isGrounded) {
+        if (!onGround && !isGrounded) {
             playerVelocity.current.y += gravity * delta;
         }
         // Apply vertical movement
@@ -627,10 +622,11 @@ const Player: React.FC<PlayerProps> = ({
 
 
         // Ground collision
-        if (playerPosition.current.y < groundY + playerHeight - 0.5) {
+        if (playerPosition.current.y < groundY + playerHeight) {
             isJumpingRef.current = false;
-            playerPosition.current.y = groundY + playerHeight - 0.5;
+            playerPosition.current.y = groundY + playerHeight;
             playerVelocity.current.y = 0;
+            isGrounded = true;
         }
 
 
@@ -797,15 +793,24 @@ const Player: React.FC<PlayerProps> = ({
             }
         }
 
-        const cameraOffset = new THREE.Vector3(0, playerHeight, -6);
+        const cameraDistance = 6;
+
+        const cameraOffset = new THREE.Vector3(0, playerHeight - 2, -cameraDistance);
+
+        // Apply camera's Y rotation to the offset to orbit around player
+        const rotationMatrix = new THREE.Matrix4().makeRotationY(camera.rotation.y);
+        cameraOffset.applyMatrix4(rotationMatrix);
+
         const targetCameraPosition = playerPosition.current.clone().add(cameraOffset);
 
         // Smooth movement with delta
         camera.position.lerp(targetCameraPosition, 1 - Math.pow(0.001, delta));
 
-        // update player to match position
+        // update player to match position and rotation
         if (playerRef.current) {
             playerRef.current.position.copy(playerPosition.current);
+            playerRotation.current.y = -camera.rotation.y;
+            playerRef.current.rotation.copy(playerRotation.current);
         }
 
         playerPosition.current.copy(playerPosition.current);
@@ -820,7 +825,7 @@ const Player: React.FC<PlayerProps> = ({
             lastUpdateTime.current = currentTime;
         }
 
-
+        checkCollisions(playerPosition.current)
     });
 
     return (
@@ -840,15 +845,16 @@ const Player: React.FC<PlayerProps> = ({
             {explosions.map((explosion) => (
                 <Explosion key={explosion.id} position={explosion.position} explosionRadius={15} />
             ))}
-            <group ref={playerRef} position={camera.position}>
+            <group ref={playerRef} position={playerPosition.current}>
                 {/* Collision box */}
-                <mesh position={[0, -1, 0]}>
-                    <sphereGeometry args={[0.2]} />
+                <mesh position={[0, 0, 0.5]}> {/* Forward indicator */}
+                    <boxGeometry args={[0.1, 0.1, 0.3]} />
+                    <meshStandardMaterial color="red" />
                 </mesh>
 
-                {/* Visible player mesh */}
+                {/* Player body */}
                 <mesh position={[0, -1, 0]}>
-                    {/* <capsuleGeometry args={[0.5, 1, 8, 16]} /> */}
+                    <sphereGeometry args={[0.5]} />
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
 
