@@ -14,14 +14,16 @@ type TallGrassProps = {
 };
 
 const TallGrass = memo(({
-    count = 150000, // Maximum count for performance constraints
-    radius = 150, // REDUCED radius to increase density
+    count = 100000, // Maximum count for performance constraints
+    radius = 100, // REDUCED radius to increase density
     center = [0, 0, 0],
     windStrength = 0.15,
     windSpeed = 0.3,
     hidePlayerRadius = 0, // Player radius
     getGroundHeight
 }: TallGrassProps) => {
+
+    
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
     useThree();
     const time = useRef(0);
@@ -259,10 +261,10 @@ const TallGrass = memo(({
 
             // WIDER, SHORTER blades for better ground coverage
             // Using shorter but wider blades creates more density per blade
-            const grassHeight = 1.8 + Math.random() * 1.4; // Shorter (avg 2.9 vs 3.7)
+            const grassHeight = 2.8 + Math.random() * 1.4; // Shorter (avg 2.9 vs 3.7)
 
             // MUCH wider blades for ultimate coverage
-            const grassWidth = 0.4 + Math.random() * 0.3; // WAY wider (0.4-0.7 vs 0.25-0.35)
+            const grassWidth = 0.2 + Math.random() * 0.3; // WAY wider (0.4-0.7 vs 0.25-0.35)
 
             scale.set(grassWidth, grassHeight, 1);
 
@@ -287,6 +289,7 @@ const TallGrass = memo(({
     // Optimized animation - less computation per blade
     useFrame((state) => {
         if (!instancedMeshRef.current) return;
+
 
         time.current += state.clock.elapsedTime * 0.0002;
 

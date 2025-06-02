@@ -2,7 +2,8 @@
 import React, { useRef, useState, useEffect, useCallback} from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
-import Player from '@/components/game-components/player/Player';
+// import Player from '@/components/game-components/player/Player';
+import Player from '@/components/game-components/player/TPP';
 import * as THREE from 'three';
 import { PointerLockControls } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
@@ -75,6 +76,7 @@ const FirstPersonGame: React.FC = () => {
   // We need to keep a state to force re-renders when players join/leave
   const controlsRef = useRef<any>(null); // for PointerLockControls locked state
 
+  const playerCenterRef = useRef<THREE.Vector3>(new THREE.Vector3())
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
 
@@ -174,6 +176,9 @@ const FirstPersonGame: React.FC = () => {
 
   let toastId = 0;
 
+  function handlePlayerCenterUpdate(center: THREE.Vector3) {
+    playerCenterRef.current = center.clone();
+  }
 
   function showKillToast(name: string) {
     const id = toastId++;
@@ -227,6 +232,8 @@ const FirstPersonGame: React.FC = () => {
     return (
       <Player
         {...props}
+        onCenterUpdate={handlePlayerCenterUpdate}
+        playerCenterRef={playerCenterRef}
         controlsRef={controlsRef}
         crosshairRef={CrosshairRef}
         userId={localPlayerId}
@@ -241,6 +248,7 @@ const FirstPersonGame: React.FC = () => {
 
 
   const groundProps = {
+    playerCenterRef,
     addObstacleRef,
     vegetationPositions: vegetationPositions.current,
   };

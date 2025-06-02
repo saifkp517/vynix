@@ -8,6 +8,7 @@ import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
 import * as THREE from 'three';
 import { EventEmitter } from 'events';
+import { cp } from 'fs';
 
 
 
@@ -42,11 +43,11 @@ type GunProps = {
 
 
 
-const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, direction, speed = 6, obstacles, onExplode }) => {
+const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, direction, speed = 20, obstacles, onExplode }) => {
     const fireballRef = useRef<THREE.Mesh>(null);
     const startTime = useRef<number>(Date.now());
 
-    const gravity = 9.8 / 4; // Gravity constant (adjust for desired arc height)
+    const gravity = 9.8 * 4; // Gravity constant (adjust for desired arc height)
 
 
 
@@ -130,6 +131,13 @@ const Player: React.FC<PlayerProps> = ({
     const lastUpdateTime = useRef(0);
     const explosionRadius = 15; // Explosion radius for damage calculation
     const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
+
+    const playerPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 5, 0));
+    const playerVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
+    const playerSpeed = useRef(10);
+    const playerHeight = 3;
+    const gravity = -9.8 * 4;
+    const jumpStrength = 20;
 
 
     const raycaster = new THREE.Raycaster();
@@ -441,13 +449,6 @@ const Player: React.FC<PlayerProps> = ({
         }, 1000);
     };
 
-    const gravity = -9.8 * 4;
-    const jumpStrength = 15;
-
-    const playerSpeed = useRef(10);
-    const playerHeight = 3;
-
-
     const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const direction = useRef<THREE.Vector3>(new THREE.Vector3());
     const [moveState, setMoveState] = useState({
@@ -544,294 +545,214 @@ const Player: React.FC<PlayerProps> = ({
     }, []);
 
 
-    // Move player based on keyboard input and check collisions
-    useFrame((_, delta) => {
-        if (!controlsRef?.current?.isLocked) return;
+    // Add state to track camera angles
+    const cameraAngles = useRef({ horizontal: 0, vertical: 0 });
 
+    //mouse movement in tpp
+    useEffect(() => {
+        let isMouseLocked = false;
 
-        let isGrounded = false;
+        const handleClick = () => {
+            if (!isMouseLocked) {
+                // Request pointer lock for mouse capture
+                document.body.requestPointerLock();
+            }
+        };
 
-        //get parent terrain ground height
-        const groundY = getGroundHeight(camera.position.x, camera.position.z);
-        let onGround = camera.position.y <= groundY + playerHeight;
+        const handlePointerLockChange = () => {
+            isMouseLocked = document.pointerLockElement === document.body;
+        };
 
-        if (playerRef.current) {
-            playerRef.current.position.copy(camera.position);
+        interface MouseMoveEvent extends MouseEvent {
+            movementX: number;
+            movementY: number;
         }
 
-        checkCollisions(playerRef.current?.position || new THREE.Vector3(0, 0, 0));
+        interface CameraAngles {
+            horizontal: number;
+            vertical: number;
+        }
+
+        const handleMouseMove = (event: MouseMoveEvent) => {
+            if (!isMouseLocked) return;
+
+            const sensitivity: number = 0.002; // Adjust this value to change mouse sensitivity
+
+            // Update camera angles based on mouse movement
+            (cameraAngles.current as CameraAngles).horizontal -= event.movementX * sensitivity;
+            (cameraAngles.current as CameraAngles).vertical += event.movementY * sensitivity;
+
+            // Clamp vertical angle to prevent camera flipping
+            const maxVerticalAngle: number = Math.PI / 3; // 60 degrees up
+            const minVerticalAngle: number = -Math.PI / 6; // 30 degrees down
+            (cameraAngles.current as CameraAngles).vertical = Math.max(minVerticalAngle, Math.min(maxVerticalAngle, (cameraAngles.current as CameraAngles).vertical));
+        };
+
+        // Add event listeners
+        document.addEventListener('click', handleClick);
+        document.addEventListener('pointerlockchange', handlePointerLockChange);
+        document.addEventListener('mousemove', handleMouseMove);
+
+        // Cleanup
+        return () => {
+            document.removeEventListener('click', handleClick);
+            document.removeEventListener('pointerlockchange', handlePointerLockChange);
+            document.removeEventListener('mousemove', handleMouseMove);
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+        };
+    }, []);
+
+
+    // Move player based on keyboard input and check collisions
+    useFrame((_, delta) => {
+        // Removed the controlsRef check since PointerLockControls is disabled
+        // if (!controlsRef?.current?.isLocked) return;
+
+        // Get ground height for the player
+        const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
+        const onGround = playerPosition.current.y <= groundY + playerHeight + 0.1;
 
         // Calculate movement direction based on camera orientation
-        direction.current.z = Number(moveState.forward) - Number(moveState.backward);
+        direction.current.z = Number(moveState.backward) - Number(moveState.forward);
         direction.current.x = Number(moveState.right) - Number(moveState.left);
         direction.current.normalize();
 
-        // Apply movement in the camera direction
-        const frontVector = new THREE.Vector3(0, 0, Number(moveState.forward) - Number(moveState.backward));
-        const sideVector = new THREE.Vector3(Number(moveState.left) - Number(moveState.right), 0, 0);
-        const horizontalMove = frontVector.add(sideVector).normalize().multiplyScalar(playerSpeed.current * delta);
 
-        // Combine and normalize movement vector
-        const moveVector = new THREE.Vector3(
-            horizontalMove.x,
-            velocity.current.y * delta, // Vertical movement from gravity
-            horizontalMove.z
+        const cameraDistance = 3; // Distance behind/around player
+        const cameraHeight = 1.5; // Base height above player
+        const smoothingFactor = 0.1; // Camera smoothing
+
+        // Get player head position
+        const playerHeadPosition = playerPosition.current.clone().add(new THREE.Vector3(0, playerHeight, 0));
+
+        // Calculate camera position using spherical coordinates from mouse angles
+        const horizontalAngle = cameraAngles.current.horizontal;
+        const verticalAngle = cameraAngles.current.vertical;
+
+        // Convert spherical coordinates to cartesian for camera offset
+        const cameraOffset = new THREE.Vector3(
+            Math.sin(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance,
+            Math.sin(verticalAngle) * cameraDistance + cameraHeight,
+            Math.cos(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance
         );
 
-        // Get camera direction (excluding y-axis)
-        const cameraDirection = new THREE.Vector3();
-        camera.getWorldDirection(cameraDirection);
-        cameraDirection.y = 0;
-        cameraDirection.normalize();
+        const idealCameraPosition = playerHeadPosition.clone().add(cameraOffset);
 
+        // Smooth camera movement
+        camera.position.lerp(idealCameraPosition, smoothingFactor);
 
-        // Calculate movement in camera space
-        const moveQuat = new THREE.Quaternion();
-        moveQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), cameraDirection);
-        moveVector.applyQuaternion(moveQuat);
+        // Handle camera collision with obstacles
+        const raycaster = new THREE.Raycaster();
+        const rayDirection = cameraOffset.clone().normalize();
+        raycaster.set(playerHeadPosition, rayDirection);
 
-        const playerPosition = camera.position.clone();
+        const intersects = raycaster.intersectObjects(obstacles, true);
+        if (intersects.length > 0 && intersects[0].distance < cameraDistance) {
+            // Pull camera closer if there's an obstacle
+            const safeDistance = Math.max(intersects[0].distance * 0.9, 0.5);
+            const adjustedOffset = rayDirection.clone().multiplyScalar(safeDistance);
+            adjustedOffset.y += cameraHeight;
+            camera.position.copy(playerHeadPosition.clone().add(adjustedOffset));
+        }
 
-        velocity.current.set(moveVector.x / delta, velocity.current.y, moveVector.z / delta);
+        // Make camera look at player
+        camera.lookAt(playerHeadPosition);
 
+        // 4. UPDATE movement to use camera direction
+        // Replace your existing movement calculation with this:
 
-        // Step 2: Apply movement
-        camera.position.add(moveVector);
+        // Get movement direction from camera horizontal angle
+        const forwardDirection = new THREE.Vector3(
+            Math.sin(cameraAngles.current.horizontal),
+            0,
+            Math.cos(cameraAngles.current.horizontal)
+        );
+        const rightDirection = new THREE.Vector3(
+            Math.cos(cameraAngles.current.horizontal),
+            0,
+            -Math.sin(cameraAngles.current.horizontal)
+        );
 
-        //handle jump
+        // Calculate movement vector
+        const moveVector = new THREE.Vector3();
+        moveVector.addScaledVector(forwardDirection, direction.current.z); // forward/backward
+        moveVector.addScaledVector(rightDirection, direction.current.x); // left/right
+        moveVector.normalize();
 
-        if (jumpRequested.current && onGround) {
-            jumpDirection.current.copy(cameraDirection);
+        const horizontalMove = moveVector.multiplyScalar(playerSpeed.current * delta);
 
-            velocity.current.y = jumpStrength;
+        // Apply horizontal movement to player position
+        const previousPosition = playerPosition.current.clone();
+        playerPosition.current.x += horizontalMove.x;
+        playerPosition.current.z += horizontalMove.z;
+
+        
+        // Handle gravity and jumping
+        if (!onGround) {
+            playerVelocity.current.y += gravity * delta;
+        } else if (jumpRequested.current) {
+            playerVelocity.current.y = jumpStrength;
             isJumpingRef.current = true;
             jumpRequested.current = false;
         }
 
-        //work later
-        // if (isJumpingRef.current && moveState.forward == false) {
-        //     camera.position.addScaledVector(jumpDirection.current, playerSpeed.current / 2 * delta);
-        // }
+        // Apply vertical movement
+        playerPosition.current.y += playerVelocity.current.y * delta;
 
-        // Apply gravity
-
-        if (!isGrounded) {
-            velocity.current.y += gravity * delta;
-        }
-        camera.position.y += velocity.current.y * delta;
-
-
-
-        if (camera.position.y < groundY + playerHeight - 0.5) {
+        // Ground collision
+        if (playerPosition.current.y < groundY + playerHeight) {
             isJumpingRef.current = false;
-            camera.position.y = groundY + playerHeight - 0.5;
-            velocity.current.y = 0;
+            playerPosition.current.y = groundY + playerHeight;
+            playerVelocity.current.y = 0;
         }
 
+        // Check collisions with obstacles
+        checkCollisions(playerPosition.current);
 
-
-        //collision detection handling
-        if (colliding) {
-            isJumpingRef.current = false;
-            const normal = collisionNormal!.clone().normalize();
-
-            // Restore previous position
-            camera.position.copy(playerPosition);
-
-            // Check if the player is on top of something
+        // Handle collisions
+        if (colliding && collisionNormal) {
+            const normal = collisionNormal.clone().normalize();
             const isOnTop = normal.y > 0.7;
 
-            // console.log(collisionType)
-            if (collisionType === "sphere") {
-                // Spherical collision handling
-                if (isOnTop) {
-                    // Standing on top of sphere
-                    isGrounded = true;
-
-                    // Apply horizontal movement
-                    const cameraDirection = new THREE.Vector3();
-                    camera.getWorldDirection(cameraDirection);
-                    cameraDirection.y = 0;
-                    cameraDirection.normalize();
-
-                    if (jumpRequested.current) {
-                        cameraDirection.normalize().multiplyScalar(playerSpeed.current);
-
-                        velocity.current.y = jumpStrength;
-                        isJumpingRef.current = true;
-                        jumpRequested.current = false;
-                    }
-
-
-                    const moveQuat = new THREE.Quaternion();
-                    moveQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), cameraDirection);
-
-                    const horizontalMoveWorld = horizontalMove.clone().applyQuaternion(moveQuat);
-                    camera.position.x += horizontalMoveWorld.x;
-                    camera.position.z += horizontalMoveWorld.z;
-
-                    //jump from top
-                    const topHeight = camera.position.y;
-                    const nextY = camera.position.y + velocity.current.y * delta;
-
-                    if (nextY >= topHeight) {
-                        camera.position.y = nextY;
-                    } else {
-                        camera.position.y = topHeight;
-                        velocity.current.y = 0;
-                        isJumpingRef.current = false;
-                    }
-                } else {
-                    // Side collision with sphere
-                    const movingAwayFromCollision = moveVector.dot(normal) > 0;
-
-                    if (movingAwayFromCollision) {
-                        camera.position.add(moveVector);
-                    } else {
-                        // Project the movement onto the tangent plane of the sphere
-                        const slideVector = moveVector.clone().projectOnPlane(normal);
-                        const pushDistance = 0.001;
-
-                        camera.position.addScaledVector(normal, pushDistance);
-                        camera.position.add(slideVector);
-
-                        // Adjust vertical velocity based on where on the sphere we hit
-                        if (normal.y < 0) {
-                            // Hitting ceiling-like part of sphere
-                            velocity.current.y = Math.min(velocity.current.y, 0);
-                        } else if (Math.abs(normal.y) < 0.3) {
-                            // Side collision with sphere
-                            if (velocity.current.y > 0) {
-                                velocity.current.y *= 0.8;
-                            }
-                        }
-                    }
+            if (collisionType === "sphere" || collisionType === "cylinder-top" || (collisionType === "box" && isOnTop)) {
+                // Handle standing on top of objects
+                if (jumpRequested.current) {
+                    playerVelocity.current.y = jumpStrength;
+                    isJumpingRef.current = true;
+                    jumpRequested.current = false;
                 }
-            } else if (collisionType === "cylinder-side") {
-                // Cylinder side collision
-                const movingAwayFromCollision = moveVector.dot(normal) > 0;
-
-                if (movingAwayFromCollision) {
-                    camera.position.add(moveVector);
-                } else {
-                    // Project movement onto the tangent plane of the cylinder side
-                    const slideVector = moveVector.clone().projectOnPlane(normal);
-
-                    // Add a small push away from the surface to prevent sticking
-                    const pushDistance = 0.001;
-                    camera.position.addScaledVector(normal, pushDistance);
-                    camera.position.add(slideVector);
-                }
-            } else if (collisionType === "cylinder-top" || collisionType === "cylinder-bottom") {
-                // Cap collision - depends on orientation 
-                const movingAwayFromCollision = moveVector.dot(normal) > 0;
-
-                if (movingAwayFromCollision) {
-                    camera.position.add(moveVector);
-                } else {
-                    // Treat cap like a flat surface
-                    const slideVector = moveVector.clone().projectOnPlane(normal);
-
-                    // Check if this is a top cap that can be stood on
-                    // We only want the player to stand on relatively flat surfaces
-                    const upDot = normal.dot(new THREE.Vector3(0, 1, 0));
-                    if (Math.abs(upDot) > 0.7) { // Cap is mostly horizontal
-                        isGrounded = upDot > 0; // Only if normal points up
-
-                        if (isGrounded && jumpRequested.current) {
-                            velocity.current.y = jumpStrength;
-                            isJumpingRef.current = true;
-                            jumpRequested.current = false;
-                        }
-                    }
-
-                    // Add a small push away from the surface
-                    const pushDistance = 0.001;
-                    camera.position.addScaledVector(normal, pushDistance);
-                    camera.position.add(slideVector);
-                }
+                playerPosition.current.y = Math.max(playerPosition.current.y, groundY + playerHeight);
+                playerVelocity.current.y = 0;
             } else {
-                // Box collision (original code)
-                if (isOnTop) {
-
-                    isGrounded = true;
-                    onGround = true;
-
-                    const cameraDirection = new THREE.Vector3();
-                    camera.getWorldDirection(cameraDirection);
-                    cameraDirection.y = 0;
-                    cameraDirection.normalize();
-
-                    if (jumpRequested.current) {
-                        cameraDirection.normalize().multiplyScalar(playerSpeed.current);
-
-                        velocity.current.y = jumpStrength;
-                        isJumpingRef.current = true;
-                        jumpRequested.current = false;
-                    }
-
-
-
-                    const moveQuat = new THREE.Quaternion();
-                    moveQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), cameraDirection);
-
-                    const horizontalMoveWorld = horizontalMove.clone().applyQuaternion(moveQuat);
-                    camera.position.x += horizontalMoveWorld.x;
-                    camera.position.z += horizontalMoveWorld.z;
-
-                    //jump from top
-                    const topHeight = camera.position.y;
-                    const nextY = camera.position.y + velocity.current.y * delta;
-
-                    if (nextY >= topHeight) {
-                        camera.position.y = nextY;
-                    } else {
-                        camera.position.y = topHeight;
-                        velocity.current.y = 0;
-                        isJumpingRef.current = false;
-                    }
-                } else {
-                    const movingAwayFromWall = moveVector.dot(normal) > 0;
-
-                    if (movingAwayFromWall) {
-                        camera.position.add(moveVector);
-                    } else {
-                        const slideVector = moveVector.clone().projectOnPlane(normal);
-                        const pushDistance = 0.001;
-
-                        camera.position.addScaledVector(normal, pushDistance);
-                        camera.position.add(slideVector);
-                    }
-                }
+                // Handle side collisions
+                playerPosition.current.copy(previousPosition);
+                const slideVector = horizontalMove.clone().projectOnPlane(normal);
+                const pushDistance = 0.001;
+                playerPosition.current.addScaledVector(normal, pushDistance);
+                playerPosition.current.add(slideVector);
             }
         }
 
-
-
-        //sync player rotation with camera
+        // Update player position and rotation
         if (playerRef.current) {
-            playerRef.current.position.copy(camera.position);
-            // Sync rotation — full 3D (quaternion handles X, Y, Z correctly)
-            playerRef.current.quaternion.copy(camera.quaternion);
+            playerRef.current.position.copy(playerPosition.current);
+            if (horizontalMove.length() > 0.01) {
+                const moveDirection = horizontalMove.clone().normalize();
+                const targetRotation = Math.atan2(moveDirection.x, moveDirection.z);
+                const currentRotation = playerRef.current.rotation.y;
+                const rotationDiff = ((targetRotation - currentRotation + Math.PI) % (2 * Math.PI)) - Math.PI;
+                playerRef.current.rotation.y += rotationDiff * 10 * delta;
+            }
         }
 
-
-        playerPosition.copy(camera.position);
-        playerPosition.y -= playerHeight - 1.5;
-
-
+        // Update player position for networking
         const currentTime = performance.now();
-
-        // Only emit the position change every 100ms
-
         if (currentTime - lastUpdateTime.current >= 100) {
-            handlePositionChange(playerPosition.clone(), velocity.current.clone());
+            handlePositionChange(playerPosition.current.clone(), playerVelocity.current.clone());
             lastUpdateTime.current = currentTime;
         }
-
-        checkCollisions(playerPosition);
-
-
     });
 
     return (
@@ -851,15 +772,10 @@ const Player: React.FC<PlayerProps> = ({
             {explosions.map((explosion) => (
                 <Explosion key={explosion.id} position={explosion.position} explosionRadius={15} />
             ))}
-            <group ref={playerRef} position={camera.position}>
-                {/* Collision box */}
-                <mesh visible={false} position={[0, -1, 0]}>
-                    <boxGeometry args={[1, 2, 1]} />
-                </mesh>
-
-                {/* Visible player mesh */}
+            <group ref={playerRef} position={playerPosition.current}>
+                {/* Player body */}
                 <mesh position={[0, -1, 0]}>
-                    {/* <capsuleGeometry args={[0.5, 1, 8, 16]} /> */}
+                    <sphereGeometry args={[0.5]} />
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
 

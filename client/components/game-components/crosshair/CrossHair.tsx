@@ -21,8 +21,8 @@ export const Crosshair = React.memo(
                     position: 'fixed',
                     top: '50%',
                     left: '50%',
-                    width: '8px', // Slightly larger for visibility
-                    height: '8px',
+                    width: '2px', // Slightly larger for visibility
+                    height: '2px',
                     backgroundColor: hit ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 0, 0, 0.7)', // Semi-transparent for smoother blending
                     borderRadius: '50%', // Circular shape for a modern look
                     transform: hit ? 'translate(-50%, -50%) scale(1.5)' : 'translate(-50%, -50%) scale(1)', // Scale up on hit
@@ -38,8 +38,8 @@ export const Crosshair = React.memo(
                         position: 'absolute',
                         top: '50%',
                         left: '50%',
-                        width: '20px',
-                        height: '2px',
+                        width: '10px',
+                        height: '1px',
                         backgroundColor: hit ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 0, 0, 0.5)',
                         transform: 'translate(-50%, -50%)',
                         transition: 'background-color 0.15s ease',
@@ -50,8 +50,8 @@ export const Crosshair = React.memo(
                         position: 'absolute',
                         top: '50%',
                         left: '50%',
-                        width: '2px',
-                        height: '20px',
+                        width: '1px',
+                        height: '10px',
                         backgroundColor: hit ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 0, 0, 0.5)',
                         transform: 'translate(-50%, -50%)',
                         transition: 'background-color 0.15s ease',
