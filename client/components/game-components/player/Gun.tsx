@@ -353,7 +353,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
                             position={[tracer.position.x, tracer.position.y, tracer.position.z]}
                             color="#ffff00"
                             intensity={0.5}
-                            distance={3}
+                            distance={30}
                         />
                     </group>
                 )

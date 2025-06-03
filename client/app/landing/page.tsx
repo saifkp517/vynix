@@ -1,8 +1,7 @@
 'use client'
-import React, { useRef, useState, useEffect, useCallback} from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
-// import Player from '@/components/game-components/player/Player';
 import Player from '@/components/game-components/player/TPP';
 import * as THREE from 'three';
 import { PointerLockControls } from '@react-three/drei';
@@ -34,7 +33,14 @@ type Room = {
   gameStarted: boolean;
 }
 
-
+// Resolution presets for FPS optimization
+const RESOLUTION_PRESETS = [
+  { name: "Ultra Low (0.05x)", scale: 0.05, description: "Maximum FPS" },
+  { name: "Low (0.25x)", scale: 0.25, description: "High FPS" },
+  { name: "Medium (0.75x)", scale: 0.75, description: "Balanced" },
+  { name: "High (1.0x)", scale: 1.0, description: "Full Quality" },
+  { name: "Ultra (1.5x)", scale: 1.5, description: "Max Quality (Lower FPS)" },
+];
 
 // Main game component
 const FirstPersonGame: React.FC = () => {
@@ -63,8 +69,6 @@ const FirstPersonGame: React.FC = () => {
     });
   }
 
-
-
   const obstacles = useRef<THREE.Mesh[]>([]);
   const isPlayerDead = useRef(false);
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -73,26 +77,25 @@ const FirstPersonGame: React.FC = () => {
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
   const playerDataRef = useRef<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
-  // We need to keep a state to force re-renders when players join/leave
-  const controlsRef = useRef<any>(null); // for PointerLockControls locked state
+  const controlsRef = useRef<any>(null);
 
   const playerCenterRef = useRef<THREE.Vector3>(new THREE.Vector3())
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
 
-  //grandparent states to communicate data with children
   const ammoRef = useRef(30);
   const grenadeCoolDownRef = useRef(false);
   const CrosshairRef = useRef(null);
 
-  //prevent multiple joins requests by same user
   const hasJoinedRoom = useRef(false);
-
 
   const killFeedRef = useRef<{ id: number; name: any }[]>([]);
   const listenersRef = useRef<((list: any[]) => void)[]>([]);
 
-
+  // Resolution/FPS optimization states
+  const [pixelRatio, setPixelRatio] = useState(1.0);
+  const [zoomLevel, setZoomLevel] = useState(75);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
 
   console.log("FirstPersonGame component rendered")
 
@@ -106,15 +109,12 @@ const FirstPersonGame: React.FC = () => {
       }
     };
 
-    // Handle the connect event
     socket.on("connect", handleConnect);
 
-    // If already connected (like when opening a new tab), join immediately
     if (socket.connected) {
       handleConnect();
     }
 
-    // Room and team assignment
     socket.on("roomAssigned", ({ room, team }: any) => {
       console.log(`Assigned to room: ${room.id}`);
       setRoomId(room.id);
@@ -130,7 +130,6 @@ const FirstPersonGame: React.FC = () => {
         isPlayerDead.current = false;
       }, 5000);
     });
-
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -164,13 +163,10 @@ const FirstPersonGame: React.FC = () => {
       const maxPing = 500;
 
       const ping = pingRef.current || 0;
-
       const clampedPing = Math.min(Math.max(ping, 0), maxPing);
-
       const interpolationFactor = maxFactor - (clampedPing / maxPing) * (maxFactor - minFactor);
 
       smoothnessRef.current = interpolationFactor;
-
     })
   }
 
@@ -191,7 +187,6 @@ const FirstPersonGame: React.FC = () => {
     }, 3000);
   }
 
-
   useEffect(() => {
     const interval = setInterval(() => {
       calculatePing();
@@ -200,12 +195,10 @@ const FirstPersonGame: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Setup obstacle references
   useEffect(() => {
     obstacles.current = [];
   }, []);
 
-  // Sound effect
   useEffect(() => {
     const sound = new Howl({
       src: ['/sounds/breeze.mp3'],
@@ -219,7 +212,6 @@ const FirstPersonGame: React.FC = () => {
     };
   }, []);
 
-  // Add an obstacle to the collection
   const addObstacleRef = useCallback((ref: THREE.Mesh | null) => {
     if (ref && !obstacles.current.includes(ref)) {
       obstacles.current.push(ref);
@@ -238,21 +230,18 @@ const FirstPersonGame: React.FC = () => {
         crosshairRef={CrosshairRef}
         userId={localPlayerId}
         grenadeCoolDownRef={grenadeCoolDownRef}
-        pingRef={pingRef} //pass ping to gun component for sending during shoot events
+        pingRef={pingRef}
         ammoRef={ammoRef}
         getGroundHeight={getGroundHeight}
       />
     );
   });
 
-
-
   const groundProps = {
     playerCenterRef,
     addObstacleRef,
     vegetationPositions: vegetationPositions.current,
   };
-
 
   const isReady =
     typeof roomId === "string" &&
@@ -267,9 +256,68 @@ const FirstPersonGame: React.FC = () => {
     vegetationPositions,
   });
 
+  // Handle resolution/quality changes
+  const handleQualityChange = useCallback((scale: number) => {
+    setPixelRatio(scale);
+  }, []);
+
   return (
-    <div className="w-full h-screen relative">
-      <KillFeedRenderer subscribe={cb => listenersRef.current.push(cb)} />
+    <div
+      className="w-full h-screen relative"
+      style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+    >
+      {/* Quality/Resolution Controls */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '10px', 
+        right: '10px', 
+        zIndex: 20,
+        background: 'rgba(0,0,0,0.7)',
+        padding: '10px',
+        borderRadius: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px'
+      }}>
+        <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>
+          Quality Settings
+        </div>
+        
+        <select
+          value={pixelRatio}
+          onChange={(e) => handleQualityChange(Number(e.target.value))}
+          style={{
+            background: '#333',
+            color: 'white',
+            border: '1px solid #555',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            fontSize: '12px'
+          }}
+        >
+          {RESOLUTION_PRESETS.map((preset) => (
+            <option key={preset.scale} value={preset.scale}>
+              {preset.name} - {preset.description}
+            </option>
+          ))}
+        </select>
+
+        <div style={{ 
+          color: '#aaa', 
+          fontSize: '10px',
+          maxWidth: '200px',
+          lineHeight: '1.2'
+        }}>
+          Lower values = Higher FPS but lower visual quality
+        </div>
+
+        <div style={{ color: '#aaa', fontSize: '10px' }}>
+          Current: {(pixelRatio * 100).toFixed(0)}% render scale
+        </div>
+      </div>
+
+      <KillFeedRenderer subscribe={(cb) => listenersRef.current.push(cb)} />
+      
       {isReady ? (
         <>
           <GameInfo
@@ -287,11 +335,26 @@ const FirstPersonGame: React.FC = () => {
             isPlayerDead={isPlayerDead}
           />
           <Crosshair ref={CrosshairRef} />
-          <Canvas camera={{ position: [0, 1.6, 0], fov: 75 }}>
-            {/* <Stats /> */}
+          <Canvas
+            gl={{
+              antialias: pixelRatio >= 1.0, // Disable antialiasing on lower quality for better performance
+              pixelRatio: Math.min(window.devicePixelRatio * pixelRatio, 2), // This is the key change!
+              outputColorSpace: THREE.SRGBColorSpace,
+            }}
+            onCreated={(state) => {
+              // Let the canvas fill the full screen naturally
+              state.gl.domElement.style.width = '100%';
+              state.gl.domElement.style.height = '100%';
+              
+              if ((state.camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+                cameraRef.current = state.camera as THREE.PerspectiveCamera;
+              }
+            }}
+            camera={{ position: [0, 1.6, 0], fov: zoomLevel }}
+            style={{ width: '100%', height: '100%' }} // Ensure canvas takes full size
+          >
             <ambientLight intensity={0.5} />
             <pointLight position={[10, 10, 10]} intensity={1} />
-
             <Ground {...groundProps}>
               <PointerLockControls ref={controlsRef} />
               <PlayerWithGroundHeight
@@ -299,7 +362,6 @@ const FirstPersonGame: React.FC = () => {
                 obstacles={obstacles.current}
                 otherPlayers={playerDataRef}
               />
-
               <RemoteOpponents
                 hitPlayers={hitPlayers}
                 addObstacleRef={addObstacleRef}
@@ -307,7 +369,6 @@ const FirstPersonGame: React.FC = () => {
                 playerDataRef={playerDataRef}
                 showKillToast={showKillToast}
               />
-
             </Ground>
           </Canvas>
         </>

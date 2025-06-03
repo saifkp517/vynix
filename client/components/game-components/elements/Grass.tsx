@@ -15,7 +15,7 @@ type TallGrassProps = {
 
 const TallGrass = memo(({
     count = 200000, // Maximum count for performance constraints
-    radius = 200, // REDUCED radius to increase density
+    radius = 100, // REDUCED radius to increase density
     center = [0, 0, 0],
     windStrength = 0.15,
     windSpeed = 0.3,
