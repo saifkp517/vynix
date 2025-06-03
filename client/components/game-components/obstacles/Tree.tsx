@@ -469,31 +469,51 @@ export const TreeColliders: React.FC<{ positions: Vegetation[], addObstacleRef: 
 
         useEffect(() => {
             // Initialize the array with null values
-            colliderRefs.current = Array(positions.length).fill(null);
+            colliderRefs.current = Array(positions.length * 2).fill(null); // Doubled to account for trunk and canopy plate colliders
         }, [positions.length]);
 
         return (
             <>
-                {positions.map((treePos, index) => (
-                    <mesh
-                        name='tree'
-                        key={`tree-collider-${index}`}
-                        ref={(ref) => {
-                            // Store ref in our local array
-                            if (colliderRefs.current) {
-                                colliderRefs.current[index] = ref;
-                                // Also register with parent component for collision detection
-                                addObstacleRef(ref);
-                            }
-                        }}
-                        position={treePos.position}
-                        frustumCulled={false}
-                        scale={[treePos.scale * 0.8, treePos.scale * 3.6, treePos.scale * 0.8]}
-                    >
-                        <cylinderGeometry args={[1.5, 1.5, 48, 8]} />
-                        <meshBasicMaterial visible={false} />
-                    </mesh>
-                ))}
+                {positions.map((treePos, index) => {
+                    const { position, rotation, scale } = treePos;
+                    const baseScale = scale * 1.2;
+                    const groundHeight = position[1]; // Assuming position[1] is the y-coordinate set by getGroundHeight
+
+                    return (
+                        <group key={`tree-collider-group-${index}`}>
+                            {/* Trunk collider */}
+                            <mesh
+                                name='tree-trunk'
+                                ref={(ref) => {
+                                    colliderRefs.current[index * 2] = ref;
+                                    addObstacleRef(ref);
+                                }}
+                                position={treePos.position}
+                                frustumCulled={false}
+                                scale={[treePos.scale * 0.8, treePos.scale * 3.6, treePos.scale * 0.8]}
+                            >
+                                <cylinderGeometry args={[1.5, 1.5, 48, 8]} />
+                                <meshBasicMaterial visible={false} />
+                            </mesh>
+
+                            {/* Spherical canopy plate collider */}
+                            <mesh
+                                name='tree-canopy-plate'
+                                ref={(ref) => {
+                                    colliderRefs.current[index * 2 + 1] = ref;
+                                    addObstacleRef(ref);
+                                }}
+                                position={[position[0], groundHeight + 6.4 * baseScale, position[2]]}
+                                rotation={[0, rotation + Math.random() * 0.5, 0]}
+                                frustumCulled={false}
+                                scale={[baseScale * 2.6, baseScale * 0.8, baseScale * 2.6]}
+                            >
+                                <sphereGeometry args={[3.5, 12, 8]} /> {/* Matches canopyPlate geometry */}
+                                <meshBasicMaterial visible={false} />
+                            </mesh>
+                        </group>
+                    );
+                })}
             </>
         );
     };

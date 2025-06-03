@@ -35,7 +35,7 @@ type Room = {
 
 // Resolution presets for FPS optimization
 const RESOLUTION_PRESETS = [
-  { name: "Ultra Low (0.05x)", scale: 0.05, description: "Maximum FPS" },
+  { name: "Ultra Low (0.05x)", scale: 0.000000000005, description: "Maximum FPS" },
   { name: "Low (0.25x)", scale: 0.25, description: "High FPS" },
   { name: "Medium (0.75x)", scale: 0.75, description: "Balanced" },
   { name: "High (1.0x)", scale: 1.0, description: "Full Quality" },
@@ -93,7 +93,7 @@ const FirstPersonGame: React.FC = () => {
   const listenersRef = useRef<((list: any[]) => void)[]>([]);
 
   // Resolution/FPS optimization states
-  const [pixelRatio, setPixelRatio] = useState(1.0);
+  const [pixelRatio, setPixelRatio] = useState(5e-12);
   const [zoomLevel, setZoomLevel] = useState(75);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
 
@@ -147,6 +147,11 @@ const FirstPersonGame: React.FC = () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
+
+  useEffect(() => {
+    console.log("Current resolution scale (pixelRatio):", pixelRatio);
+  }, [pixelRatio]);
+
 
   function calculatePing() {
     const startTime = Date.now();
@@ -267,10 +272,10 @@ const FirstPersonGame: React.FC = () => {
       style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
     >
       {/* Quality/Resolution Controls */}
-      <div style={{ 
-        position: 'absolute', 
-        top: '10px', 
-        right: '10px', 
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
         zIndex: 20,
         background: 'rgba(0,0,0,0.7)',
         padding: '10px',
@@ -282,7 +287,7 @@ const FirstPersonGame: React.FC = () => {
         <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>
           Quality Settings
         </div>
-        
+
         <select
           value={pixelRatio}
           onChange={(e) => handleQualityChange(Number(e.target.value))}
@@ -302,8 +307,8 @@ const FirstPersonGame: React.FC = () => {
           ))}
         </select>
 
-        <div style={{ 
-          color: '#aaa', 
+        <div style={{
+          color: '#aaa',
           fontSize: '10px',
           maxWidth: '200px',
           lineHeight: '1.2'
@@ -317,7 +322,7 @@ const FirstPersonGame: React.FC = () => {
       </div>
 
       <KillFeedRenderer subscribe={(cb) => listenersRef.current.push(cb)} />
-      
+
       {isReady ? (
         <>
           <GameInfo
@@ -345,7 +350,7 @@ const FirstPersonGame: React.FC = () => {
               // Let the canvas fill the full screen naturally
               state.gl.domElement.style.width = '100%';
               state.gl.domElement.style.height = '100%';
-              
+
               if ((state.camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
                 cameraRef.current = state.camera as THREE.PerspectiveCamera;
               }
