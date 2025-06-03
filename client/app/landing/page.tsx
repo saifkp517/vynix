@@ -1,6 +1,6 @@
 'use client'
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/TPP';
 import * as THREE from 'three';
@@ -33,14 +33,7 @@ type Room = {
   gameStarted: boolean;
 }
 
-// Resolution presets for FPS optimization
-const RESOLUTION_PRESETS = [
-  { name: "Ultra Low (0.05x)", scale: 0.000000000005, description: "Maximum FPS" },
-  { name: "Low (0.25x)", scale: 0.25, description: "High FPS" },
-  { name: "Medium (0.75x)", scale: 0.75, description: "Balanced" },
-  { name: "High (1.0x)", scale: 1.0, description: "Full Quality" },
-  { name: "Ultra (1.5x)", scale: 1.5, description: "Max Quality (Lower FPS)" },
-];
+
 
 // Main game component
 const FirstPersonGame: React.FC = () => {
@@ -92,10 +85,10 @@ const FirstPersonGame: React.FC = () => {
   const killFeedRef = useRef<{ id: number; name: any }[]>([]);
   const listenersRef = useRef<((list: any[]) => void)[]>([]);
 
-  // Resolution/FPS optimization states
-  const [pixelRatio, setPixelRatio] = useState(5e-12);
-  const [zoomLevel, setZoomLevel] = useState(75);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  // Optimized settings (fixed)
+  const resolutionScale = 1.0;
+  const currentFov = 105;
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   console.log("FirstPersonGame component rendered")
 
@@ -147,11 +140,6 @@ const FirstPersonGame: React.FC = () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
-
-  useEffect(() => {
-    console.log("Current resolution scale (pixelRatio):", pixelRatio);
-  }, [pixelRatio]);
-
 
   function calculatePing() {
     const startTime = Date.now();
@@ -261,65 +249,19 @@ const FirstPersonGame: React.FC = () => {
     vegetationPositions,
   });
 
-  // Handle resolution/quality changes
-  const handleQualityChange = useCallback((scale: number) => {
-    setPixelRatio(scale);
-  }, []);
+
+
+  // Calculate actual canvas dimensions based on scale
+  const canvasWidth = Math.floor(window.innerWidth * resolutionScale);
+  const canvasHeight = Math.floor(window.innerHeight * resolutionScale);
+  const scaleTransform = 1 / resolutionScale;
 
   return (
     <div
       className="w-full h-screen relative"
       style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
     >
-      {/* Quality/Resolution Controls */}
-      <div style={{
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
-        zIndex: 20,
-        background: 'rgba(0,0,0,0.7)',
-        padding: '10px',
-        borderRadius: '8px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px'
-      }}>
-        <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>
-          Quality Settings
-        </div>
 
-        <select
-          value={pixelRatio}
-          onChange={(e) => handleQualityChange(Number(e.target.value))}
-          style={{
-            background: '#333',
-            color: 'white',
-            border: '1px solid #555',
-            borderRadius: '4px',
-            padding: '4px 8px',
-            fontSize: '12px'
-          }}
-        >
-          {RESOLUTION_PRESETS.map((preset) => (
-            <option key={preset.scale} value={preset.scale}>
-              {preset.name} - {preset.description}
-            </option>
-          ))}
-        </select>
-
-        <div style={{
-          color: '#aaa',
-          fontSize: '10px',
-          maxWidth: '200px',
-          lineHeight: '1.2'
-        }}>
-          Lower values = Higher FPS but lower visual quality
-        </div>
-
-        <div style={{ color: '#aaa', fontSize: '10px' }}>
-          Current: {(pixelRatio * 100).toFixed(0)}% render scale
-        </div>
-      </div>
 
       <KillFeedRenderer subscribe={(cb) => listenersRef.current.push(cb)} />
 
@@ -340,42 +282,62 @@ const FirstPersonGame: React.FC = () => {
             isPlayerDead={isPlayerDead}
           />
           <Crosshair ref={CrosshairRef} />
-          <Canvas
-            gl={{
-              antialias: pixelRatio >= 1.0, // Disable antialiasing on lower quality for better performance
-              pixelRatio: Math.min(window.devicePixelRatio * pixelRatio, 2), // This is the key change!
-              outputColorSpace: THREE.SRGBColorSpace,
+          
+          {/* Canvas container with scaling */}
+          <div 
+            ref={canvasContainerRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
             }}
-            onCreated={(state) => {
-              // Let the canvas fill the full screen naturally
-              state.gl.domElement.style.width = '100%';
-              state.gl.domElement.style.height = '100%';
-
-              if ((state.camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
-                cameraRef.current = state.camera as THREE.PerspectiveCamera;
-              }
-            }}
-            camera={{ position: [0, 1.6, 0], fov: zoomLevel }}
-            style={{ width: '100%', height: '100%' }} // Ensure canvas takes full size
           >
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} intensity={1} />
-            <Ground {...groundProps}>
-              <PointerLockControls ref={controlsRef} />
-              <PlayerWithGroundHeight
-                addObstacleRef={addObstacleRef}
-                obstacles={obstacles.current}
-                otherPlayers={playerDataRef}
-              />
-              <RemoteOpponents
-                hitPlayers={hitPlayers}
-                addObstacleRef={addObstacleRef}
-                smoothnessRef={smoothnessRef}
-                playerDataRef={playerDataRef}
-                showKillToast={showKillToast}
-              />
-            </Ground>
-          </Canvas>
+            <div style={{
+              width: `${canvasWidth}px`,
+              height: `${canvasHeight}px`,
+              transform: `scale(${scaleTransform})`,
+              transformOrigin: 'center center'
+            }}>
+              <Canvas
+                gl={{
+                  antialias: false, // Disable AA for better performance
+                  alpha: false,
+                  powerPreference: "high-performance",
+                  preserveDrawingBuffer: false,
+                  failIfMajorPerformanceCaveat: false,
+                  outputColorSpace: THREE.SRGBColorSpace,
+                }}
+                dpr={1} // Force device pixel ratio to 1
+                style={{ 
+                  width: `${canvasWidth}px`, 
+                  height: `${canvasHeight}px`,
+                  imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
+                }}
+                camera={{ position: [0, 1.6, 0], fov: currentFov, near: 0.1, far: 1000 }}
+              >
+                <ambientLight intensity={0.5} />
+                <pointLight position={[10, 10, 10]} intensity={1} />
+                <Ground {...groundProps}>
+                  <PointerLockControls ref={controlsRef} />
+                  <PlayerWithGroundHeight
+                    addObstacleRef={addObstacleRef}
+                    obstacles={obstacles.current}
+                    otherPlayers={playerDataRef}
+                  />
+                  <RemoteOpponents
+                    hitPlayers={hitPlayers}
+                    addObstacleRef={addObstacleRef}
+                    smoothnessRef={smoothnessRef}
+                    playerDataRef={playerDataRef}
+                    showKillToast={showKillToast}
+                  />
+                </Ground>
+              </Canvas>
+            </div>
+          </div>
         </>
       ) : (
         <div className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
