@@ -166,7 +166,7 @@ function findOrCreateRoom(userId: string, socketId: string, socket: Socket) {
 
         const generateTreeAndStonePositions = () => {
             const radius = 1000;
-            const densityFactor = 0.003;
+            const densityFactor = 0.002;
             const center = [0, 0, 0];
             const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);
 
