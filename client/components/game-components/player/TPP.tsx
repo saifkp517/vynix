@@ -8,7 +8,6 @@ import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
 import * as THREE from 'three';
 import { EventEmitter } from 'events';
-import { cp } from 'fs';
 
 
 
@@ -422,13 +421,6 @@ const Player: React.FC<PlayerProps> = ({
 
     };
 
-    const getDistance = (pos1: THREE.Vector3, pos2: number[]) => {
-        return Math.sqrt(
-            Math.pow(pos2[0] - pos1.x, 2) +
-            Math.pow(pos2[1] - pos1.y, 2) +
-            Math.pow(pos2[2] - pos1.z, 2)
-        );
-    };
 
     const handleExplosion = (position: THREE.Vector3) => {
 
@@ -548,21 +540,8 @@ const Player: React.FC<PlayerProps> = ({
     // Add state to track camera angles
     const cameraAngles = useRef({ horizontal: 0, vertical: 0 });
 
-    //mouse movement in tpp
+    // Simple third-person mouse controls - always active, no locking
     useEffect(() => {
-        let isMouseLocked = false;
-
-        const handleClick = () => {
-            if (!isMouseLocked) {
-                // Request pointer lock for mouse capture
-                document.body.requestPointerLock();
-            }
-        };
-
-        const handlePointerLockChange = () => {
-            isMouseLocked = document.pointerLockElement === document.body;
-        };
-
         interface MouseMoveEvent extends MouseEvent {
             movementX: number;
             movementY: number;
@@ -574,36 +553,28 @@ const Player: React.FC<PlayerProps> = ({
         }
 
         const handleMouseMove = (event: MouseMoveEvent) => {
-            if (!isMouseLocked) return;
+            const sensitivity: number = 0.002;
 
-            const sensitivity: number = 0.002; // Adjust this value to change mouse sensitivity
-
-            // Update camera angles based on mouse movement
+            // Always update camera angles when mouse moves
             (cameraAngles.current as CameraAngles).horizontal -= event.movementX * sensitivity;
             (cameraAngles.current as CameraAngles).vertical += event.movementY * sensitivity;
 
-            // Clamp vertical angle to prevent camera flipping
-            const maxVerticalAngle: number = Math.PI / 3; // 60 degrees up
-            const minVerticalAngle: number = -Math.PI / 6; // 30 degrees down
-            (cameraAngles.current as CameraAngles).vertical = Math.max(minVerticalAngle, Math.min(maxVerticalAngle, (cameraAngles.current as CameraAngles).vertical));
+            // Clamp vertical angle
+            const maxVerticalAngle: number = Math.PI / 3;
+            const minVerticalAngle: number = -Math.PI / 6;
+            (cameraAngles.current as CameraAngles).vertical = Math.max(
+                minVerticalAngle,
+                Math.min(maxVerticalAngle, (cameraAngles.current as CameraAngles).vertical)
+            );
         };
 
-        // Add event listeners
-        document.addEventListener('click', handleClick);
-        document.addEventListener('pointerlockchange', handlePointerLockChange);
+        // Just listen to mouse movement - that's it!
         document.addEventListener('mousemove', handleMouseMove);
 
-        // Cleanup
         return () => {
-            document.removeEventListener('click', handleClick);
-            document.removeEventListener('pointerlockchange', handlePointerLockChange);
             document.removeEventListener('mousemove', handleMouseMove);
-            if (document.pointerLockElement) {
-                document.exitPointerLock();
-            }
         };
     }, []);
-
 
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
@@ -620,9 +591,9 @@ const Player: React.FC<PlayerProps> = ({
         direction.current.normalize();
 
 
-        const cameraDistance = 3; // Distance behind/around player
-        const cameraHeight = 1.5; // Base height above player
-        const smoothingFactor = 0.1; // Camera smoothing
+        const cameraDistance = 6; // Distance behind/around player
+        const cameraHeight = 0.5; // Base height above player
+        const smoothingFactor = 0.2; // Camera smoothing
 
         // Get player head position
         const playerHeadPosition = playerPosition.current.clone().add(new THREE.Vector3(0, playerHeight, 0));
@@ -688,7 +659,7 @@ const Player: React.FC<PlayerProps> = ({
         playerPosition.current.x += horizontalMove.x;
         playerPosition.current.z += horizontalMove.z;
 
-        
+
         // Handle gravity and jumping
         if (!onGround) {
             playerVelocity.current.y += gravity * delta;

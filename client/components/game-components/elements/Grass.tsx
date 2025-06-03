@@ -14,8 +14,8 @@ type TallGrassProps = {
 };
 
 const TallGrass = memo(({
-    count = 100000, // Maximum count for performance constraints
-    radius = 100, // REDUCED radius to increase density
+    count = 200000, // Maximum count for performance constraints
+    radius = 200, // REDUCED radius to increase density
     center = [0, 0, 0],
     windStrength = 0.15,
     windSpeed = 0.3,
@@ -23,7 +23,7 @@ const TallGrass = memo(({
     getGroundHeight
 }: TallGrassProps) => {
 
-    
+
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
     useThree();
     const time = useRef(0);
@@ -314,15 +314,16 @@ const TallGrass = memo(({
         const currentFPS = measuredFPS.current;
         lastTime.current = now;
 
-        // Clamp FPS range between 10 and 60 for mapping
+        // Clamp FPS range between 10 and 60
         const clampedFPS = Math.max(10, Math.min(currentFPS, 60));
 
-        // Inverse scale: Higher FPS → lower smoothness rate (smoother updates)
-        const grassSmoothnessRate = Math.round(10 - ((clampedFPS - 0) / 50) * 9); // Scale 10→1
+        // More aggressive scale: Higher FPS → less movement
+        const grassSmoothnessRate = Math.ceil((clampedFPS - 10) / 10) + 1;
 
         const updateCount = Math.floor(count / grassSmoothnessRate);
-        const startIndex = Math.floor((state.clock.elapsedTime * 10) % grassSmoothnessRate) * updateCount;
+        const startIndex = Math.floor((state.clock.elapsedTime * 2) % grassSmoothnessRate) * updateCount;
         const endIndex = Math.min(startIndex + updateCount, count);
+
 
         // Update subset of blades with wind effect
         for (let i = startIndex; i < endIndex; i++) {
