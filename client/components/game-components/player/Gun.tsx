@@ -167,6 +167,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
 
     const reload = () => {
         if (isReloading.current) return;
+        if (ammoRef.current == 30) return;
 
         const reloadSound = new Howl({
             src: ['/sounds/reload.mp3'],
@@ -181,6 +182,30 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             isReloading.current = false
         }, 2000);
     };
+
+    //manual reloading
+    useEffect(() => {
+        interface KeyboardEventWithKey extends KeyboardEvent {
+            key: string;
+        }
+
+        const handleKeyDown = (e: KeyboardEventWithKey) => {
+            if (e.key.toLowerCase() === 'r') {
+
+                if (!isReloading.current) {
+                    console.log("reloading")
+                    reload();
+
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [])
 
     const shootBullet = () => {
         if (isReloading.current) return;
