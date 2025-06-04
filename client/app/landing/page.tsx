@@ -166,6 +166,7 @@ const FirstPersonGame: React.FC = () => {
   let toastId = 0;
 
   function handlePlayerCenterUpdate(center: THREE.Vector3) {
+    console.log("PLayer center updated with ref")
     playerCenterRef.current = center.clone();
   }
 

@@ -81,6 +81,7 @@ type Player = {
     id: string;
     team: string;
     position?: Position;
+    health: number;
 }
 
 type Room = {
@@ -252,7 +253,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         socket.emit("pong-check", clientTime);
     }));
 
-    const innerRadius = 50;
+    const innerRadius = 100;
 
     console.log('User connected:', socket.id);
 
@@ -267,7 +268,8 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
         const newPlayer: Player = {
             id: userId,
-            team: team
+            team: team,
+            health: 100
         }
         room.players.push(newPlayer)
         socket.emit('roomAssigned', { room: room, team });
@@ -302,7 +304,13 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             newCenter = position;
         }
 
-        players[socket.id] = { position, velocity, health: 100 };
+        const currentHealth = players[socket.id]?.health ?? 100;
+
+        players[socket.id] = {
+            position,
+            velocity,
+            health: currentHealth  // Preserve the current health
+        };
 
         const cellKey = getCellKey(position);
 
@@ -383,7 +391,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             if (hit) {
                 console.log(`--> User-id(${playerId}) is hit!`);
                 // Handle hit logic here, e.g., reduce health, notify players, etc.
-                const hitPlayer = players[playerId];
+                let hitPlayer = players[playerId];
                 if (hitPlayer) {
                     hitPlayer.health -= 10; // Reduce health by 10
                     if (hitPlayer.health <= 0) {

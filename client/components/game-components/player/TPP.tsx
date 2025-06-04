@@ -209,7 +209,7 @@ const Player: React.FC<PlayerProps> = ({
                 // Apply logic to the object (damage, highlight, etc.)
             }
         } else {
-            console.log("missed");
+            console.log("missed: ", intersects.length);
         }
 
     }
@@ -231,13 +231,6 @@ const Player: React.FC<PlayerProps> = ({
         // Get player center for calculations
         const playerCenter = new THREE.Vector3();
         playerBox.getCenter(playerCenter);
-
-
-        //update player center every 10 seconds
-        if (playerBox && playerCenterRef) {
-            playerCenterRef.current = playerCenter;
-            onCenterUpdate(playerCenter.clone())
-        }
 
         // Check collision with each obstacle
         let isColliding = false;
@@ -722,8 +715,11 @@ const Player: React.FC<PlayerProps> = ({
         const currentTime = performance.now();
         if (currentTime - lastUpdateTime.current >= 100) {
             handlePositionChange(playerPosition.current.clone(), playerVelocity.current.clone());
+            onCenterUpdate(playerPosition.current.clone());
             lastUpdateTime.current = currentTime;
         }
+
+
     });
 
     return (
@@ -745,9 +741,9 @@ const Player: React.FC<PlayerProps> = ({
             ))}
             <group ref={playerRef} position={playerPosition.current}>
                 {/* Player body */}
-                <mesh position={[0, -1, 0]}>
+                <mesh position={[0, -1.5, 0]}>
                     <sphereGeometry args={[0.5]} />
-                    <meshStandardMaterial color="skyblue" />
+                    <meshStandardMaterial color="green" />
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}

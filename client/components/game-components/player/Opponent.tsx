@@ -65,9 +65,9 @@ export const Opponent = ({
 
   return (
     <group ref={group} position={[0, 0, 0]} dispose={null}>
-      <mesh ref={sphereRef} position={[0, 0.5, 0]}>
-        <sphereGeometry args={[0.5, 32, 32]} />
-        <meshStandardMaterial color={isHit ? "red" : "blue"} />
+      <mesh ref={sphereRef} position={[0, -1.5, 0]}>
+        <sphereGeometry args={[0.5]} />
+        <meshStandardMaterial color="skyblue" />
       </mesh>
     </group>
   );

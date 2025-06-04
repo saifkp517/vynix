@@ -25,6 +25,7 @@ export type InstancedTreeProps = {
 };
 
 export type Vegetation = {
+    id?: string;
     type: string;
     position: [number, number, number];
     scale: number;
