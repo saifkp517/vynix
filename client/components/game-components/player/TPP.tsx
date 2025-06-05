@@ -180,10 +180,8 @@ const Player: React.FC<PlayerProps> = ({
 
 
                 players.forEach((player) => {
-                    const playerPosition = player.position.clone();
-                    // Assume player is a sphere with radius 1 (adjust as needed)
-                    const playerRadius = 1;
-                    // Ray-sphere intersection
+                    const playerPosition = player.position.clone().add(new THREE.Vector3(0, -1.5, 0)); // Adjust for sphere offset
+                    const playerRadius = 0.5; // Match the sphereGeometry radius
                     const originToCenter = playerPosition.clone().sub(camera.position);
                     const tca = originToCenter.dot(shootDirection);
                     if (tca < 0) return; // Player is behind shooter
