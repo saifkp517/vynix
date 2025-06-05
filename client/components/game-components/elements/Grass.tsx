@@ -14,7 +14,7 @@ type TallGrassProps = {
 };
 
 const TallGrass = memo(({
-    count = 100000, // Maximum count for performance constraints
+    count = 80000, // Maximum count for performance constraints
     radius = 50, // 
     playerCenterRef,
     windStrength = 0.15,

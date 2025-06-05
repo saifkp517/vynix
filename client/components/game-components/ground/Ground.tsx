@@ -307,12 +307,12 @@ useEffect(() => {
       </mesh>
 
       {/* Tall Grass */}
-      {/* <Suspense fallback={null}>
+      <Suspense fallback={null}>
         <TallGrass
           getGroundHeight={getGroundHeight}
           playerCenterRef={playerCenterRef}
         />
-      </Suspense> */}
+      </Suspense>
 
 
       {/* Lighting */}
@@ -352,11 +352,11 @@ useEffect(() => {
       />
 
       {/* Forest */}
-      {/* {vegetationPositions ? (
+      {vegetationPositions ? (
           <ForestWrapper {...forestProps} />
         ) : (
           <Suspense fallback={<div>Loading Forest Components</div>} />
-        )} */}
+        )}
        
       {/* Children can use the context via useGroundHeight */}
 

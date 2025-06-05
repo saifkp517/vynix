@@ -1,6 +1,10 @@
-import { RefObject, useEffect, useRef } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+
+const GREEN = new THREE.Color("green");
+const RED = new THREE.Color("red");
+const MAX_SPEED = 18;
 
 export const Opponent = ({
   positionRef,
@@ -23,6 +27,7 @@ export const Opponent = ({
   const sphereRef = useRef<THREE.Mesh>(null);
   const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const [color, setColor] = useState(GREEN.clone());
 
   useEffect(() => {
     if (addObstacleRef) {
@@ -61,13 +66,20 @@ export const Opponent = ({
         group.current.rotation.y = angle;
       }
     }
+
+    // Color interpolation based on speed
+    let speed = vel ? vel.length() : 0;
+    speed = Math.min(speed, MAX_SPEED);
+    const t = speed / MAX_SPEED;
+    const lerpedColor = GREEN.clone().lerp(RED, t);
+    setColor(lerpedColor);
   });
 
   return (
     <group ref={group} position={[0, 0, 0]} dispose={null}>
       <mesh ref={sphereRef} position={[0, -1.5, 0]}>
         <sphereGeometry args={[0.5]} />
-        <meshStandardMaterial color="skyblue" />
+        <meshStandardMaterial color={color.getStyle()} />
       </mesh>
     </group>
   );
