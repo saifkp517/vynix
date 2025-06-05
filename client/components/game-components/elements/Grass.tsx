@@ -1,4 +1,4 @@
-import { memo, useRef, useMemo, useEffect } from 'react';
+import { memo, useRef, useMemo, useEffect, RefObject, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { SimplexNoise } from 'three-stdlib';
@@ -6,7 +6,7 @@ import { SimplexNoise } from 'three-stdlib';
 type TallGrassProps = {
     count?: number;
     radius?: number;
-    center?: [number, number, number];
+    playerCenterRef: RefObject<THREE.Vector3>;
     windStrength?: number;
     windSpeed?: number;
     hidePlayerRadius?: number;
@@ -14,23 +14,25 @@ type TallGrassProps = {
 };
 
 const TallGrass = memo(({
-    count = 200000, // Maximum count for performance constraints
-    radius = 100, // 
-    center = [0, 0, 0],
+    count = 80000, // Maximum count for performance constraints
+    radius = 50, // 
+    playerCenterRef,
     windStrength = 0.15,
     windSpeed = 0.3,
     hidePlayerRadius = 0, // Player radius
     getGroundHeight
 }: TallGrassProps) => {
 
+    if (!playerCenterRef?.current) return null;
 
+    const [center, setCenter] = useState<THREE.Vector3>(playerCenterRef.current?.clone() ?? new THREE.Vector3());
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
-    useThree();
     const time = useRef(0);
     const lastTime = useRef(performance.now());
     const fpsLastTime = useRef(performance.now());
     const framesSinceLast = useRef(0);
     const measuredFPS = useRef(60); // default to 60 initially
+
 
     // Create noise for natural grass distribution
     const noise = useMemo(() => new SimplexNoise(), []);
@@ -152,7 +154,7 @@ const TallGrass = memo(({
 
     // Even grass distribution - removed strategic patches in favor of uniform coverage
     useEffect(() => {
-        if (!instancedMeshRef.current) return;
+        if (!instancedMeshRef.current || !playerCenterRef.current) return;
 
         const matrix = new THREE.Matrix4();
         const position = new THREE.Vector3();
@@ -174,7 +176,7 @@ const TallGrass = memo(({
         function distributeDenseGrass(placedCount: { value: number }, maxCount: number) {
             // Use a cellular-like grid approach for ultra-even distribution
             // Calculate cell size based on radius and blade count for maximum density
-            const cellSize = Math.sqrt((Math.PI * radius * radius) / (maxCount * 1.5));
+            const cellSize = Math.sqrt((Math.PI * radius * radius) / (maxCount * 1));
 
             // Create a grid-based distribution with jitter
             // This ensures even coverage while maintaining natural randomness
@@ -188,19 +190,19 @@ const TallGrass = memo(({
             for (let gx = 0; gx < gridSize && placedCount.value < maxCount; gx++) {
                 for (let gz = 0; gz < gridSize && placedCount.value < maxCount; gz++) {
                     // Convert grid position to world position
-                    const worldX = center[0] + (gx - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
-                    const worldZ = center[2] + (gz - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
+                    const worldX = center.x + (gx - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
+                    const worldZ = center.z + (gz - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
 
                     // Check if in radius
-                    const distSq = Math.pow(worldX - center[0], 2) + Math.pow(worldZ - center[2], 2);
+                    const distSq = Math.pow(worldX - center.x, 2) + Math.pow(worldZ - center.z, 2);
                     if (distSq > radius * radius) continue;
 
                     // Place grass blade
                     position.set(worldX, 0, worldZ);
 
                     // Noise-based density factor - avoid gaps by using high acceptance threshold
-                    const densityNoise = noise.noise(position.x * 0.05, position.z * 0.05);
-                    if (densityNoise < -0.1) continue; // Very high threshold for maximum density
+                    // const densityNoise = noise.noise(position.x * 0.05, position.z * 0.05);
+                    // if (densityNoise < -0.1) continue; // Very high threshold for maximum density
 
                     // Place the grass blade and mark cell as filled
                     placeGrassBlade(position, placedCount);
@@ -220,12 +222,12 @@ const TallGrass = memo(({
                     // Square root for uniform density across the circle
                     const dist = Math.sqrt(Math.random()) * radius;
 
-                    const worldX = center[0] + dist * Math.cos(theta);
-                    const worldZ = center[2] + dist * Math.sin(theta);
+                    const worldX = center.x + dist * Math.cos(theta);
+                    const worldZ = center.z + dist * Math.sin(theta);
 
                     // Convert to grid cell
-                    const gx = Math.floor((worldX - center[0]) / cellSize + halfGrid);
-                    const gz = Math.floor((worldZ - center[2]) / cellSize + halfGrid);
+                    const gx = Math.floor((worldX - center.x) / cellSize + halfGrid);
+                    const gz = Math.floor((worldZ - center.z) / cellSize + halfGrid);
 
                     // Check if cell is valid
                     if (gx < 0 || gx >= gridSize || gz < 0 || gz >= gridSize) continue;
@@ -324,6 +326,12 @@ const TallGrass = memo(({
         const startIndex = Math.floor((state.clock.elapsedTime * 2) % grassSmoothnessRate) * updateCount;
         const endIndex = Math.min(startIndex + updateCount, count);
 
+        if (!playerCenterRef.current) return;
+
+        // Only update if the movement is significant enough (avoid noisy updates)
+        if (center.distanceToSquared(playerCenterRef.current) > 15 * 15) {
+            setCenter(playerCenterRef.current.clone());
+        }
 
         // Update subset of blades with wind effect
         for (let i = startIndex; i < endIndex; i++) {

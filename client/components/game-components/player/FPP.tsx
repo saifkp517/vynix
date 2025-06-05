@@ -181,6 +181,7 @@ const Player: React.FC<PlayerProps> = ({
                     const tca = originToCenter.dot(shootDirection);
                     if (tca < 0) return; // Player is behind shooter
                     const d2 = originToCenter.lengthSq() - tca * tca;
+                    console.log(d2)
                     if (d2 > playerRadius * playerRadius) return; // Missed
                     // Hit!
                     if (!hit) {
@@ -202,7 +203,7 @@ const Player: React.FC<PlayerProps> = ({
                 // Apply logic to the object (damage, highlight, etc.)
             }
         } else {
-            console.log("missed");
+            console.log("missed: ", intersects.length);
         }
 
     }
@@ -852,15 +853,10 @@ const Player: React.FC<PlayerProps> = ({
                 <Explosion key={explosion.id} position={explosion.position} explosionRadius={15} />
             ))}
             <group ref={playerRef} position={camera.position}>
-                {/* Collision box */}
-                <mesh visible={false} position={[0, -1, 0]}>
-                    <boxGeometry args={[1, 2, 1]} />
-                </mesh>
-
-                {/* Visible player mesh */}
-                <mesh position={[0, -1, 0]}>
-                    {/* <capsuleGeometry args={[0.5, 1, 8, 16]} /> */}
-                    <meshStandardMaterial color="skyblue" />
+                {/* Player body */}
+                <mesh position={[0, 10.5, 0]}>
+                    <sphereGeometry args={[5]} />
+                    <meshStandardMaterial color="green" />
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}

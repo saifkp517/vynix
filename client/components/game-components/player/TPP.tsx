@@ -180,10 +180,8 @@ const Player: React.FC<PlayerProps> = ({
 
 
                 players.forEach((player) => {
-                    const playerPosition = player.position.clone();
-                    // Assume player is a sphere with radius 1 (adjust as needed)
-                    const playerRadius = 1;
-                    // Ray-sphere intersection
+                    const playerPosition = player.position.clone().add(new THREE.Vector3(0, -1.5, 0)); // Adjust for sphere offset
+                    const playerRadius = 0.5; // Match the sphereGeometry radius
                     const originToCenter = playerPosition.clone().sub(camera.position);
                     const tca = originToCenter.dot(shootDirection);
                     if (tca < 0) return; // Player is behind shooter
@@ -209,7 +207,7 @@ const Player: React.FC<PlayerProps> = ({
                 // Apply logic to the object (damage, highlight, etc.)
             }
         } else {
-            console.log("missed");
+            console.log("missed: ", intersects.length);
         }
 
     }
@@ -231,13 +229,6 @@ const Player: React.FC<PlayerProps> = ({
         // Get player center for calculations
         const playerCenter = new THREE.Vector3();
         playerBox.getCenter(playerCenter);
-
-
-        //update player center every 10 seconds
-        if (playerBox && playerCenterRef) {
-            playerCenterRef.current = playerCenter;
-            onCenterUpdate(playerCenter.clone())
-        }
 
         // Check collision with each obstacle
         let isColliding = false;
@@ -722,8 +713,11 @@ const Player: React.FC<PlayerProps> = ({
         const currentTime = performance.now();
         if (currentTime - lastUpdateTime.current >= 100) {
             handlePositionChange(playerPosition.current.clone(), playerVelocity.current.clone());
+            onCenterUpdate(playerPosition.current.clone());
             lastUpdateTime.current = currentTime;
         }
+
+
     });
 
     return (
@@ -745,9 +739,9 @@ const Player: React.FC<PlayerProps> = ({
             ))}
             <group ref={playerRef} position={playerPosition.current}>
                 {/* Player body */}
-                <mesh position={[0, -1, 0]}>
+                <mesh position={[0, -1.5, 0]}>
                     <sphereGeometry args={[0.5]} />
-                    <meshStandardMaterial color="skyblue" />
+                    <meshStandardMaterial color="green" />
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}

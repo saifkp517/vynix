@@ -310,7 +310,7 @@ useEffect(() => {
       <Suspense fallback={null}>
         <TallGrass
           getGroundHeight={getGroundHeight}
-          center={[playerCenterRef.current.x, playerCenterRef.current.y, playerCenterRef.current.z]}
+          playerCenterRef={playerCenterRef}
         />
       </Suspense>
 
