@@ -457,7 +457,7 @@ const Player: React.FC<PlayerProps> = ({
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 18;
+                    playerSpeed.current = 13;
                     break;
                 case 'KeyG': {
                     if (!grenadeCoolDownRef.current) {
@@ -741,7 +741,7 @@ const Player: React.FC<PlayerProps> = ({
                 {/* Player body */}
                 <mesh position={[0, -1.5, 0]}>
                     <sphereGeometry args={[0.5]} />
-                    <meshStandardMaterial color="green" />
+                    <meshStandardMaterial color="skyblue" />
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
