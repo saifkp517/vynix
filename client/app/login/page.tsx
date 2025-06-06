@@ -114,38 +114,7 @@ export default function GameLoginPage() {
             </div>
           </div>
 
-          <Card className={`bg-card/80 border-primary/20 ${radiusClass} overflow-hidden`}>
-            <CardHeader className="bg-primary/10 pb-2">
-              <CardTitle className="flex items-center justify-center">
-                <Crown className="mr-2 h-5 w-5 text-primary" />
-                <span>Arena Legends</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="space-y-3">
-                {arenaData.map((player, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                    <div className="flex items-center">
-                      <span className={`w-6 h-6 flex items-center justify-center mr-2 ${index === 0 ? "bg-yellow-500/20 text-yellow-500" :
-                        index === 1 ? "bg-slate-300/20 text-slate-300" :
-                          "bg-amber-700/20 text-amber-700"
-                        } rounded-full font-bold`}>
-                        {player.rank}
-                      </span>
-                      <span className="font-medium">{player.name}</span>
-                    </div>
-                    <span className="text-primary font-mono">
-                      {player.victories} <span className="text-xs text-muted-foreground">victories</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 text-sm text-muted-foreground italic">
-                In the wild or in warzones, the calmest player wins.
-              </div>
-            </CardContent>
-          </Card>
+         
 
         </div>
 
