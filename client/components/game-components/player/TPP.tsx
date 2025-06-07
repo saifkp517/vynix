@@ -131,7 +131,7 @@ const Player: React.FC<PlayerProps> = ({
     const explosionRadius = 15; // Explosion radius for damage calculation
     const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
 
-    const playerPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 5, 0));
+    const playerPosition = useRef<THREE.Vector3>(new THREE.Vector3(123, 5, 123));
     const playerVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const playerSpeed = useRef(10);
     const playerHeight = 3;
@@ -584,7 +584,7 @@ const Player: React.FC<PlayerProps> = ({
 
         const cameraDistance = 6; // Distance behind/around player
         const cameraHeight = 0.05; // Base height above player
-        const smoothingFactor = 0.25; // Camera smoothing
+        const smoothingFactor = 0.5; // Camera smoothing
 
         // Get player head position
         const playerHeadPosition = playerPosition.current.clone().add(new THREE.Vector3(0, playerHeight, 0));
