@@ -154,7 +154,7 @@ const CodeBattlePlatform = () => {
                     />
                     <Button
                       onClick={(e) => {
-                        window.location.href = `/battle?userName=${username}&elo=${100}`
+                        window.location.href = `/landing`
                       }}
                       className={
                         theme.name === 'dark' 

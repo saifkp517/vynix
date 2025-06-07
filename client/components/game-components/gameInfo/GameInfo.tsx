@@ -87,7 +87,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const unlockControls = () => {
       if (controlsRef?.current && controlsRef.current.isLocked) {
         controlsRef.current.isLocked = true;
-        
+
       }
     };
 
@@ -154,7 +154,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           event.preventDefault();
           event.stopPropagation();
           handleSendMessage();
-          unlockControls(); 
+          unlockControls();
           return; // Early return to prevent further processing
         }
 
@@ -297,47 +297,46 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
         {/* Player List Panel */}
         {showPlayerList && (
-          <div className="fixed left-0 top-0 h-full w-80 bg-black/80 backdrop-blur-xl border-r border-white/10 z-40">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-medium">Players ({players.length})</h3>
+          <div className="fixed left-0 top-0 h-full w-44 bg-black/50 backdrop-blur-sm border-r border-black/10 z-40">
+            <div className="p-1">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-gray-300 text-xs font-medium">{players.length}</span>
                 <button
                   onClick={() => {
                     setShowPlayerList(false);
                     setTimeout(lockControls, 50);
                   }}
-                  className="text-white/50 hover:text-white/80 transition-colors"
+                  className="text-gray-500 hover:text-gray-300"
                 >
-                  <X size={16} />
+                  <X size={10} />
                 </button>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-0.5">
                 {players.map((player) => (
-                  <div key={player.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${player.isAlive ? 'bg-green-400' : 'bg-red-400'}`} />
-                        <span className="text-white/90 font-medium">{player.name}</span>
+                  <div key={player.id} className="bg-black/20 rounded p-1">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-1">
+                        <div className={`w-0.5 h-0.5 rounded-full ${player.isAlive ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span className="text-gray-300 text-xs truncate max-w-[80px]">{player.name}</span>
                         {player.id === userid && (
-                          <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">You</span>
+                          <span className="text-[10px] bg-black/30 text-gray-300 px-0.5 rounded">You</span>
                         )}
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded ${player.team === 'red' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
-                        }`}>
-                        {player.team}
+                      <span className="text-[10px] bg-black/30 text-gray-300 px-0.5 rounded">
+                        teammate
                       </span>
                     </div>
 
-                    <div className="flex justify-between text-xs text-white/60">
-                      <span>K/D: {player.kills}/{player.deaths}</span>
-                      <span>HP: {player.health}%</span>
+                    <div className="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                      <span>{player.kills}/{player.deaths}</span>
+                      <span>{player.health}%</span>
                     </div>
 
                     {player.isAlive && player.health > 0 && (
-                      <div className="mt-2 w-full bg-gray-700/60 rounded-full h-1">
+                      <div className="mt-0.5 w-full bg-black/30 rounded-full h-0.5">
                         <div
-                          className="bg-green-400 h-1 rounded-full transition-all"
+                          className="bg-green-400 h-0.5 rounded-full"
                           style={{ width: `${player.health}%` }}
                         />
                       </div>

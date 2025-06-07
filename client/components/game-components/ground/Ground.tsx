@@ -1,10 +1,8 @@
 import { useThree, useLoader, useFrame } from "@react-three/fiber";
 import { createNoise2D } from 'simplex-noise';
-import { SimplexNoise } from "three-stdlib";
 import React, { Suspense, createContext, useContext, memo } from "react";
 import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
-import { Zone } from "../zone/Zone";
-import { Points } from 'three';
+// import { Zone } from "../zone/Zone";
 import * as THREE from "three";
 import { TextureLoader } from "three";
 import socket from "@/lib/socket";
@@ -360,7 +358,7 @@ useEffect(() => {
        
       {/* Children can use the context via useGroundHeight */}
 
-      <Zone />
+      {/* <Zone /> */}
       {children}
     </GroundHeightContext.Provider>
   );

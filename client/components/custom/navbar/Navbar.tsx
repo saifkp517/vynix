@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from 'next/navigation';
 import { useThemeConfig } from '@/app/theme-provider';
+import { useAuth } from '@/app/utils/AuthContext';
 
 interface NavbarProps {
     username?: string;
@@ -36,13 +37,16 @@ interface NavbarProps {
 }
 
 const Navbar = ({ username, icon, eloscore }: NavbarProps) => {
+    const { logOutUser } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
     const router = useRouter();
     const { theme, updateTheme  } = useThemeConfig();
 
     const handleLogout = () => {
         // Add logout logic here
-        router.push('/login');
+        logOutUser();
+        // router.push('/login');
     };
 
     const toggleTheme = () => {
