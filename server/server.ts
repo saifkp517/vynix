@@ -61,13 +61,16 @@ type Position = {
     z: number;
 };
 
+type Player = {
+    id: string;
+    team: string;
+    position: Position;
+    velocity: Position;
+    health: number;
+};
+
 type PlayerMap = {
-    [socketId: string]: {
-        position: Position;
-        velocity: Position;
-        health: number;
-        team?: string;
-    };
+    [socketId: string]: Player;
 };
 
 let players: PlayerMap = {};
@@ -77,12 +80,6 @@ function getRandomPosition(min = -10, max = 10) {
     return { x: rand(), y: 0, z: rand() }; // y is usually 0 for ground level
 }
 
-type Player = {
-    id: string;
-    team: string;
-    position?: Position;
-    health: number;
-}
 
 type Room = {
     id: string;
@@ -263,13 +260,19 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         const room = findOrCreateRoom(userId, socket.id, socket);
         socket.join(room.id);
 
+
+        // Assign a random position between 100 and 200 for x and z
+        const rand = () => Math.random() * 100 + 100;
+        const startPosition = { x: rand(), y: 0, z: rand() };
         //assign team to player
         const team = Math.random() < 0.5 ? "red" : "blue";
 
         const newPlayer: Player = {
             id: userId,
             team: team,
-            health: 100
+            health: 100,
+            position: startPosition,
+            velocity: {x: 0, y: 0, z: 0}
         }
         room.players.push(newPlayer)
         socket.emit('roomAssigned', { room: room, team });
@@ -307,8 +310,10 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         const currentHealth = players[socket.id]?.health ?? 100;
 
         players[socket.id] = {
+            id: "qqweqwe",
             position,
             velocity,
+            team: "red",
             health: currentHealth  // Preserve the current health
         };
 
