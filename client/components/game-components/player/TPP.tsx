@@ -131,7 +131,7 @@ const Player: React.FC<PlayerProps> = ({
     const explosionRadius = 15; // Explosion radius for damage calculation
     const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
 
-    const playerPosition = useRef<THREE.Vector3>(new THREE.Vector3(123, 5, 123));
+    const playerPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
     const playerVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
     const playerSpeed = useRef(10);
     const playerHeight = 3;
