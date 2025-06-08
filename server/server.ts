@@ -8,9 +8,8 @@ import { v4 as uuidv4 } from "uuid"
 import fs from "fs";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import { authorizeSession } from "./routes/authRoutes";
 import path from "path";
-import router from "./routes/authRoutes";
+import router from "./rest-api/routes/authRoutes";
 
 interface AuthenticatedSocket extends Socket {
     user?: any;

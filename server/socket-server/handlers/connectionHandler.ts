@@ -1,0 +1,31 @@
+// /socket-server/handlers/connectionHandler.ts
+
+import { Server } from "socket.io";
+import type { AuthenticatedSocket } from "../../shared/types";
+import { handleJoinRoom, handleUpdatePosition, handleShoot } from "./events";
+import { players } from "../../shared/data";
+
+export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSocket) => {
+  console.log("User connected", socket.id);
+
+  socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
+
+  socket.on("ping-check", (clientTime) => {
+    socket.emit("pong-check", clientTime)
+  })
+
+  socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
+  socket.on("updatePosition", (position, velocity) => handleUpdatePosition(socket, io, position, velocity));
+  socket.on("shoot", (data) => handleShoot(socket, io, data));
+
+  socket.on("sendMessage", ({ roomId, userId, message }) => {
+    console.log(`Message from ${userId} in room ${roomId}: ${message}`);
+    io.to(roomId).emit("receiveMessage", { userId, message });
+  })
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected", socket.id);
+    // cleanup logic
+  });
+};
+
