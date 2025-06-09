@@ -3,7 +3,9 @@
   "module": "server.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch run server.ts"
+    "dev": "concurrently \"bun dev:rest\" \"bun dev:socket\"",
+    "dev:rest": "bun --watch run ./rest-api/index.ts",
+    "dev:socket": "bun --watch run ./socket-server/index.ts"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

@@ -10,37 +10,29 @@ interface GunProps {
     camera: THREE.Camera;
     shootEvent: EventEmitter;
     pingRef: RefObject<number>;
-    otherPlayers: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
     userId: string;
+    obstacles: any;
 }
 
-interface BulletTracer {
-    id: number;
-    position: THREE.Vector3;
-    direction: THREE.Vector3;
-    startPos: THREE.Vector3;
-    maxDistance: number;
-    speed: number;
-    createdAt: number;
-    active: boolean;
-}
-
-const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, ammoRef, otherPlayers }) => {
+const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, ammoRef, obstacles }) => {
     const maxAmmo = 30;
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const muzzleFlash = useRef(false);
     const isReloading = useRef(false);
-    const bulletTracersRef = useRef<BulletTracer[]>([]);
     const scene = useThree().scene;
 
     const muzzleFlashTimeout = useRef<NodeJS.Timeout | null>(null);
     const barrelEndRef = useRef<THREE.Mesh>(null);
     const isRecoiling = useRef(false);
     const recoilProgress = useRef(0);
-    const bulletSpeed = 150; // units per second
-    const maxTracerDistance = 1000;
+    const bulletSpeed = 50; // units per second
+    const maxTracerDistance = 100;
+
+    const raycaster = useRef(new THREE.Raycaster()); // Single raycaster instance
+    const mouse = useRef(new THREE.Vector2(0, 0)); // Center of the screen, reusable
 
     const instancedTracers = useRef<THREE.InstancedMesh | null>(null);
+    const instancedTrails = useRef<THREE.InstancedMesh | null>(null);
     const maxInstances = 100;
     const instanceData = useRef<Array<{
         active: boolean;
@@ -50,54 +42,75 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         createdAt: number;
     }>>([]);
 
-
-    // Initialize bullets instanced mesh
+    // Initialize bullets and trails instanced meshes
     useEffect(() => {
-        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const material = new THREE.MeshStandardMaterial({
+        const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const bulletMaterial = new THREE.MeshStandardMaterial({
             color: "#ffff00",
             emissive: "#ffff00",
-            emissiveIntensity: 0.8
+            emissiveIntensity: 0.8,
         });
 
-        const instancedMesh = new THREE.InstancedMesh(geometry, material, maxInstances);
-        instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        instancedMesh.frustumCulled = false;
+        const instancedBulletMesh = new THREE.InstancedMesh(bulletGeometry, bulletMaterial, maxInstances);
+        instancedBulletMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        instancedBulletMesh.frustumCulled = false;
 
-        // Initialize all instances as inactive (scale to 0)
+        const trailGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+        const trailMaterial = new THREE.MeshStandardMaterial({
+            color: "#ffffff",
+            transparent: true,
+            opacity: 0.7,
+            emissive: "#ffffff",
+            emissiveIntensity: 0.3,
+        });
+
+        const instancedTrailMesh = new THREE.InstancedMesh(trailGeometry, trailMaterial, maxInstances);
+        instancedTrailMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        instancedTrailMesh.frustumCulled = false;
+
+        instancedTrailMesh.instanceColor = new THREE.InstancedBufferAttribute(
+            new Float32Array(maxInstances * 3),
+            3
+        );
+
         const matrix = new THREE.Matrix4();
+        const color = new THREE.Color();
         for (let i = 0; i < maxInstances; i++) {
-            matrix.makeScale(0, 0, 0); // Hidden
-            instancedMesh.setMatrixAt(i, matrix);
+            matrix.makeScale(0, 0, 0);
+            instancedBulletMesh.setMatrixAt(i, matrix);
+            instancedTrailMesh.setMatrixAt(i, matrix);
+            instancedTrailMesh.setColorAt(i, color.set(0, 0, 0));
             instanceData.current.push({
                 active: false,
                 position: new THREE.Vector3(),
                 direction: new THREE.Vector3(),
                 startPos: new THREE.Vector3(),
-                createdAt: 0
+                createdAt: 0,
             });
         }
 
-        instancedMesh.instanceMatrix.needsUpdate = true;
-        instancedTracers.current = instancedMesh;
-        scene.add(instancedMesh);
+        instancedBulletMesh.instanceMatrix.needsUpdate = true;
+        instancedTrailMesh.instanceMatrix.needsUpdate = true;
+        instancedTrailMesh.instanceColor!.needsUpdate = true;
+        instancedTracers.current = instancedBulletMesh;
+        instancedTrails.current = instancedTrailMesh;
+        scene.add(instancedBulletMesh, instancedTrailMesh);
 
         return () => {
-            scene.remove(instancedMesh);
-            geometry.dispose();
-            material.dispose();
+            scene.remove(instancedBulletMesh, instancedTrailMesh);
+            bulletGeometry.dispose();
+            bulletMaterial.dispose();
+            trailGeometry.dispose();
+            trailMaterial.dispose();
         };
-    }, []);
+    }, [scene]);
 
-    // Modified createBulletTracer
     const createBulletTracer = () => {
-        if (!instancedTracers.current) return;
+        if (!instancedTracers.current || !instancedTrails.current) return;
 
-        // Find inactive instance
-        const availableIndex = instanceData.current.findIndex(data => !data.active);
+        const availableIndex = instanceData.current.findIndex((data) => !data.active);
         if (availableIndex === -1) return;
 
-        // Get barrel position
         let barrelWorldPos = new THREE.Vector3();
         if (gunRef.current && barrelEndRef.current) {
             barrelEndRef.current.getWorldPosition(barrelWorldPos);
@@ -105,9 +118,16 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             barrelWorldPos = camera.position.clone();
         }
 
-        const bulletDirection = camera.getWorldDirection(new THREE.Vector3()).normalize();
+        raycaster.current.setFromCamera(mouse.current, camera);
 
-        // Activate instance
+        let bulletDirection = camera.getWorldDirection(new THREE.Vector3()).normalize();
+        const intersects = raycaster.current.intersectObjects(obstacles, false);
+
+        if (intersects.length > 0) {
+            const point = intersects[0].point;
+            bulletDirection = point.clone().sub(barrelWorldPos).normalize();
+        }
+
         const data = instanceData.current[availableIndex];
         data.active = true;
         data.position.copy(barrelWorldPos);
@@ -115,59 +135,91 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         data.startPos.copy(barrelWorldPos);
         data.createdAt = Date.now();
 
-        // Update matrix
-        const matrix = new THREE.Matrix4();
-        matrix.makeTranslation(barrelWorldPos.x, barrelWorldPos.y, barrelWorldPos.z);
-        instancedTracers.current.setMatrixAt(availableIndex, matrix);
+        const bulletMatrix = new THREE.Matrix4();
+        bulletMatrix.makeTranslation(barrelWorldPos.x, barrelWorldPos.y, barrelWorldPos.z);
+        instancedTracers.current.setMatrixAt(availableIndex, bulletMatrix);
+
+        const trailMatrix = new THREE.Matrix4();
+        trailMatrix.makeTranslation(barrelWorldPos.x, barrelWorldPos.y, barrelWorldPos.z);
+        instancedTrails.current.setMatrixAt(availableIndex, trailMatrix);
+        instancedTrails.current.setColorAt(availableIndex, new THREE.Color(1, 1, 1));
+
         instancedTracers.current.instanceMatrix.needsUpdate = true;
+        instancedTrails.current.instanceMatrix.needsUpdate = true;
+        instancedTrails.current.instanceColor!.needsUpdate = true;
     };
 
+    useFrame((state, delta) => {
+        if (!instancedTracers.current || !instancedTrails.current) return;
+
+        const now = Date.now();
+        let needsUpdate = false;
+        const bulletMatrix = new THREE.Matrix4();
+        const trailMatrix = new THREE.Matrix4();
+
+        instanceData.current.forEach((data, index) => {
+            if (!data.active) return;
+
+            const movement = data.direction.clone().multiplyScalar(bulletSpeed * delta);
+            data.position.add(movement);
+
+            const distanceTraveled = data.position.distanceTo(data.startPos);
+            const age = now - data.createdAt;
+
+            if (distanceTraveled >= maxTracerDistance || age > 1000) {
+                data.active = false;
+                bulletMatrix.makeScale(0, 0, 0);
+                trailMatrix.makeScale(0, 0, 0);
+                instancedTrails.current?.setColorAt(index, new THREE.Color(0, 0, 0));
+                needsUpdate = true;
+            } else {
+                bulletMatrix.makeTranslation(data.position.x, data.position.y, data.position.z);
+
+                const trailLength = 5;
+                const trailOffset = data.direction.clone().multiplyScalar(-trailLength * 0.5);
+                const trailPosition = data.position.clone().add(trailOffset);
+                trailMatrix.setPosition(trailPosition);
+
+                const up = new THREE.Vector3(0, 1, 0);
+                const direction = data.direction.clone();
+                if (direction.lengthSq() > 0) {
+                    const quaternion = new THREE.Quaternion().setFromUnitVectors(
+                        up,
+                        direction.normalize()
+                    );
+                    trailMatrix.makeRotationFromQuaternion(quaternion);
+                    trailMatrix.scale(new THREE.Vector3(1, trailLength, 1));
+                    trailMatrix.setPosition(trailPosition);
+                }
+
+                const fade = 1 - age / 1000;
+                instancedTrails.current?.setColorAt(
+                    index,
+                    new THREE.Color(1, 1, 1).multiplyScalar(fade)
+                );
+                needsUpdate = true;
+            }
+
+            instancedTracers.current?.setMatrixAt(index, bulletMatrix);
+            instancedTrails.current?.setMatrixAt(index, trailMatrix);
+        });
+
+        if (needsUpdate) {
+            instancedTracers.current.instanceMatrix.needsUpdate = true;
+            instancedTrails.current.instanceMatrix.needsUpdate = true;
+            if (instancedTrails.current.instanceColor) {
+                instancedTrails.current.instanceColor.needsUpdate = true;
+            }
+        }
+    });
 
     const updateAmmo = (newAmmo: number) => {
         ammoRef.current = newAmmo;
     };
 
-    // Animation loop for bullet tracers
-    useFrame((state, delta) => {
-        if (!instancedTracers.current) return;
-
-        const now = Date.now();
-        let needsUpdate = false;
-        const matrix = new THREE.Matrix4();
-
-        instanceData.current.forEach((data, index) => {
-            if (!data.active) return;
-
-            // Move tracer
-            const movement = data.direction.clone().multiplyScalar(bulletSpeed * delta);
-            data.position.add(movement);
-
-            // Check if should deactivate
-            const distanceTraveled = data.position.distanceTo(data.startPos);
-            const age = now - data.createdAt;
-
-            if (distanceTraveled >= maxTracerDistance || age > 1000) {
-                // Deactivate
-                data.active = false;
-                matrix.makeScale(0, 0, 0); // Hide
-                needsUpdate = true;
-            } else {
-                // Update position
-                matrix.makeTranslation(data.position.x, data.position.y, data.position.z);
-                needsUpdate = true;
-            }
-
-            instancedTracers.current!.setMatrixAt(index, matrix);
-        });
-
-        if (needsUpdate) {
-            instancedTracers.current.instanceMatrix.needsUpdate = true;
-        }
-    });
-
     const reload = () => {
         if (isReloading.current) return;
-        if (ammoRef.current == 30) return;
+        if (ammoRef.current === maxAmmo) return;
 
         const reloadSound = new Howl({
             src: ['/sounds/reload.mp3'],
@@ -175,15 +227,14 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         });
         reloadSound.play();
 
-        isReloading.current = true
+        isReloading.current = true;
 
         setTimeout(() => {
             updateAmmo(maxAmmo);
-            isReloading.current = false
+            isReloading.current = false;
         }, 2000);
     };
 
-    //manual reloading
     useEffect(() => {
         interface KeyboardEventWithKey extends KeyboardEvent {
             key: string;
@@ -191,11 +242,9 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
 
         const handleKeyDown = (e: KeyboardEventWithKey) => {
             if (e.key.toLowerCase() === 'r') {
-
                 if (!isReloading.current) {
-                    console.log("reloading")
+                    console.log("reloading");
                     reload();
-
                 }
             }
         };
@@ -205,7 +254,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [])
+    }, []);
 
     const shootBullet = () => {
         if (isReloading.current) return;
@@ -251,19 +300,17 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             recoilAnimate();
             ammoRef.current -= 1;
             gunShotSound.play();
-            muzzleFlash.current = true
+            muzzleFlash.current = true;
 
             if (muzzleFlashTimeout.current) {
                 clearTimeout(muzzleFlashTimeout.current);
             }
 
             muzzleFlashTimeout.current = setTimeout(() => {
-                muzzleFlash.current = false
+                muzzleFlash.current = false;
             }, 50);
 
-            // Create bullet tracer from barrel position
             createBulletTracer();
-
         };
 
         fireOnce();
@@ -287,12 +334,6 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
             if (muzzleFlashTimeout.current) {
                 clearTimeout(muzzleFlashTimeout.current);
             }
-            bulletTracersRef.current = [];
-            scene.children.forEach(child => {
-                if (child.userData.tracerId) {
-                    scene.remove(child);
-                }
-            });
         };
     }, [shootEvent]);
 
@@ -318,9 +359,8 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
         return () => {
             cancelAnimationFrame(animationFrame);
         };
-    }, [isReloading.current]);
+    }, []);
 
-    // Force update workaround for react-three-fiber
     const [, setDummy] = useState(0);
     useEffect(() => {
         const forceUpdate = () => setDummy(Math.random());
@@ -355,34 +395,6 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, pingRef, userId, 
                     <pointLight position={[0, 0, -0.95]} color="orange" intensity={5} distance={2} />
                 </>
             )}
-            {bulletTracersRef.current.map(tracer => (
-                tracer.active && (
-                    <group key={tracer.id} userData={{ tracerId: tracer.id }}>
-                        <mesh position={[tracer.position.x, tracer.position.y, tracer.position.z]}>
-                            <sphereGeometry args={[0.1, 8, 8]} />
-                            <meshStandardMaterial
-                                color="#ffff00"
-                                emissive="#ffff00"
-                                emissiveIntensity={10.8}
-                            />
-                        </mesh>
-                        <mesh position={[tracer.position.x, tracer.position.y, tracer.position.z]}>
-                            <sphereGeometry args={[0.08, 8, 8]} />
-                            <meshBasicMaterial
-                                color="#ffaa00"
-                                transparent
-                                opacity={0.3}
-                            />
-                        </mesh>
-                        <pointLight
-                            position={[tracer.position.x, tracer.position.y, tracer.position.z]}
-                            color="#ffff00"
-                            intensity={0.5}
-                            distance={30}
-                        />
-                    </group>
-                )
-            ))}
             {isReloading.current && (
                 <mesh position={[0, -0.5 - (Math.sin(Date.now() % 1200 / 1200 * Math.PI) * 0.3), -0.3]}>
                     <boxGeometry args={[0.28, 0.28, 0.13]} />

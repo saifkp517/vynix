@@ -1,7 +1,7 @@
 // /rest-api/index.ts
 import express from "express";
 import cors from "cors";
-import { allowedOrigins } from "../shared/utils";
+import { allowedOrigins } from "../shared/data";
 import cookieParser from "cookie-parser";
 import { PrismaClient } from "@prisma/client";
 import router from "./routes/authRoutes";

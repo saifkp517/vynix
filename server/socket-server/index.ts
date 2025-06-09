@@ -3,7 +3,6 @@ import { Server, Socket } from "socket.io";
 import { allowedOrigins } from "../shared/data";
 import { createServer } from "http";
 import express from "express";
-import cors from "cors";
 import { socketConnectionHandler } from "./handlers/connectionHandler";
 
 const app = express();

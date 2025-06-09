@@ -274,7 +274,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             velocity: {x: 0, y: 0, z: 0}
         }
         room.players.push(newPlayer)
-        socket.emit('roomAssigned', { room: room, team });
+        socket.emit('roomAssigned', { room, team, newPlayer });
         console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
     }));
 
@@ -400,9 +400,10 @@ io.on('connection', (socket: AuthenticatedSocket) => {
                     hitPlayer.health -= 10; // Reduce health by 10
                     if (hitPlayer.health <= 0) {
                         console.log(`Player ${playerId} is dead!`);
+
                         io.to(playerId).emit("youDied", { message: "You are dead!" });
                         // Handle player death logic here
-                        io.to(userId).emit("playerDead", { userId, playerId }); // Notify others
+                        io.to(userId).emit("playerDead", { userId, playerId }); // Notify opponent
                     }
                 }
 

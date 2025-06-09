@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
 import type { AuthenticatedSocket, Position, Vegetation } from "./types";
+import { Vector3 } from "three";
 import { createNoise2D } from 'simplex-noise';
 import { rooms, grid } from "./data";
 
@@ -36,6 +37,35 @@ export function getNearbyPlayers(socket: AuthenticatedSocket, centerKey: string)
 export function getRandomPosition(min = -10, max = 10): Position {
   const rand = () => Math.random() * (max - min) + min;
   return { x: rand(), y: 0, z: rand() };
+}
+
+export function rayIntersectsSphere(
+  rayOrigin: Vector3,
+  rayDirection: Vector3,
+  sphereCenter: Vector3,
+  sphereRadius: number
+): { hit: boolean, distance: number } {
+
+  if (!rayOrigin || !rayDirection || !sphereCenter) {
+    console.error("Invalid argument passed to rayIntersectsSphere:", {
+      rayOrigin,
+      rayDirection,
+      sphereCenter
+    });
+    return { hit: false, distance: Infinity };
+  }
+
+  const toCenter = new Vector3().subVectors(sphereCenter, rayOrigin);
+  const projectionLength = toCenter.dot(rayDirection);
+
+  // Sphere is behind the ray origin
+  if (projectionLength < 0) return { hit: false, distance: Infinity };
+
+  const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
+  const distanceToCenter = closestPoint.distanceTo(sphereCenter);
+
+  const hit = distanceToCenter <= sphereRadius;
+  return { hit, distance: distanceToCenter };
 }
 
 export function findOrCreateRoom(userId: string, socketId: string, socket: AuthenticatedSocket) {

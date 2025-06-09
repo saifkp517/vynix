@@ -446,7 +446,7 @@ const Player: React.FC<PlayerProps> = ({
     const jumpStrength = 15;
 
     const playerSpeed = useRef(10);
-    const playerHeight = 3;
+    const playerHeight = 4.5;
 
 
     const velocity = useRef<THREE.Vector3>(new THREE.Vector3());

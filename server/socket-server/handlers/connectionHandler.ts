@@ -16,7 +16,10 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
   socket.on("updatePosition", (position, velocity) => handleUpdatePosition(socket, io, position, velocity));
-  socket.on("shoot", (data) => handleShoot(socket, io, data));
+  socket.on("shoot", ({userId, shootObject}) => handleShoot(socket, io, userId, shootObject));
+  socket.on("requestForestUpdate", (() => {
+    socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
+  }));
 
   socket.on("sendMessage", ({ roomId, userId, message }) => {
     console.log(`Message from ${userId} in room ${roomId}: ${message}`);

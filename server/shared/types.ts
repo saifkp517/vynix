@@ -21,6 +21,16 @@ export interface PlayerMap {
     };
 }
 
+export interface ShootObject {
+    rayOrigin: { x: number; y: number; z: number };
+    rayDirection: { x: number; y: number; z: number };
+}
+
+export interface RayIntersectionResult {
+    hit: boolean;
+    distance: number;
+}
+
 
 export interface Room {
     id: string;

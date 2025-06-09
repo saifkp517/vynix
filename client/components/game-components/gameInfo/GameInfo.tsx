@@ -1,5 +1,6 @@
 import React, { RefObject, useEffect, useState, useRef } from 'react';
 import { Heart, Target, Users, MessageCircle, X, Skull } from 'lucide-react';
+import { Vector3 } from 'three';
 import socket from '@/lib/socket';
 import { Stats } from '@react-three/drei';
 
@@ -12,7 +13,6 @@ interface GameInfoProps {
   ammoRef: RefObject<number>;
   bulletsAvailable: number;
   explosionTimeout: number | null;
-  health: number;
   kills: number;
   pingRef: RefObject<number>;
   isPlayerDead?: RefObject<boolean>;
@@ -35,14 +35,32 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, ammoRef, bulletsAvailable, health, kills, pingRef, isPlayerDead, controlsRef }) => {
+interface HitEffect {
+  id: string;
+  rayOrigin: Vector3;
+  timestamp: number;
+  duration: number;
+}
 
+interface DamageIndicator {
+  id: string;
+  angle: number;
+  intensity: number;
+  timestamp: number;
+  duration: number;
+}
+
+const GameInfo: React.FC<GameInfoProps> = React.memo(
+  ({ roomId, userid, team, controlsRef, ammoRef, bulletsAvailable, kills, pingRef, isPlayerDead }) => {
+
+    const healthRef = useRef(100);
     const [pingInfo, setPingInfo] = useState(0);
     const [showPlayerList, setShowPlayerList] = useState(false);
     const [showChat, setShowChat] = useState(false);
     const [chatMessage, setChatMessage] = useState('');
     const chatInputRef = useRef<HTMLInputElement>(null);
+    const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
+    const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
 
     // Mock data - replace with real data from your socket
     const [players] = useState<Player[]>([
@@ -55,30 +73,110 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const chatMessages = useRef<ChatMessage[]>([]);
     const [, forceUpdate] = useState({});
 
+    // Calculate angle from rayOrigin to screen center (player position)
+    // Fixed calculateDamageAngle function
+    const calculateDamageAngle = (rayOrigin: Vector3) => {
+      // The rayOrigin represents where the shot came from
+      // We want to show the damage indicator pointing FROM that direction TO the player
+
+      // Use the X and Z coordinates (horizontal plane) to determine direction
+      const deltaX = -rayOrigin.x;
+      const deltaZ = -rayOrigin.z;
+
+      // Calculate angle from player position (0,0,0) to rayOrigin
+      // This gives us the direction the damage came FROM
+      let angle = Math.atan2(deltaX, -deltaZ) * (180 / Math.PI);
+
+      // Convert to our UI coordinate system where:
+      // 0° = North (top of screen)
+      // 90° = East (right of screen)  
+      // 180° = South (bottom of screen)
+      // 270° = West (left of screen)
+
+      // atan2(deltaX, deltaZ) gives us:
+      // 0° when deltaX=0, deltaZ=positive (North)
+      // 90° when deltaX=positive, deltaZ=0 (East)
+      // This matches our desired coordinate system!
+
+      // Normalize to 0-360 range
+
+      // Ensure positive angle
+      if (angle < 0) angle += 360;
+
+      return angle;
+    };
+
+    // Create damage direction indicator
+    const createDamageIndicator = (rayOrigin: Vector3, intensity: number = 0.8) => {
+      const angle = calculateDamageAngle(rayOrigin);
+      console.log(angle)
+
+      const newIndicator: DamageIndicator = {
+        id: Date.now().toString() + Math.random(),
+        angle: -angle,
+        intensity: Math.max(0.4, Math.min(1, intensity)),
+        timestamp: Date.now(),
+        duration: 1500 // 1.5 seconds
+      };
+
+      setDamageIndicators(prev => [...prev, newIndicator]);
+
+      // Remove indicator after duration
+      setTimeout(() => {
+        setDamageIndicators(prev => prev.filter(indicator => indicator.id !== newIndicator.id));
+      }, newIndicator.duration);
+    };
+
+    // Create hit effect (simplified without impact point)
+    const createHitEffect = (rayOrigin: Vector3) => {
+      const newHitEffect: HitEffect = {
+        id: Date.now().toString(),
+        rayOrigin: rayOrigin,
+        timestamp: Date.now(),
+        duration: 1000
+      };
+
+      setHitEffects(prev => [...prev, newHitEffect]);
+
+      // Create damage indicator when hit
+      createDamageIndicator(rayOrigin, 0.8);
+
+      // Remove effect after duration
+      setTimeout(() => {
+        setHitEffects(prev => prev.filter(effect => effect.id !== newHitEffect.id));
+      }, newHitEffect.duration);
+    };
+
     useEffect(() => {
       const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
         console.log('Received message:', userId, message);
         chatMessages.current.push({
           id: `${userId}-${Date.now()}`,
-          playerName: userId, // Replace with actual player name if available
+          playerName: userId,
           message,
           timestamp: new Date(),
         });
-        // Force re-render to show new message in persistent chat log
         forceUpdate({});
       };
 
+      const handleHit = ({ rayOrigin }: { rayOrigin: Vector3 }) => {
+        healthRef.current -= 10;
+        createHitEffect(rayOrigin);
+      };
+
+      socket.on("hit", handleHit);
       socket.on("receiveMessage", handleReceiveMessage);
 
       return () => {
         socket.off('receiveMessage', handleReceiveMessage);
+        socket.off("hit", handleHit);
       };
-    }, [socket]);
+    }, []);
 
     useEffect(() => {
       const interval = setInterval(() => {
         setPingInfo(pingRef.current || 0);
-      }, 1000); // Update every 1 second (adjust as needed)
+      }, 1000);
 
       return () => clearInterval(interval);
     }, []);
@@ -87,7 +185,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const unlockControls = () => {
       if (controlsRef?.current && controlsRef.current.isLocked) {
         controlsRef.current.isLocked = true;
-
       }
     };
 
@@ -104,7 +201,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         socket.emit("sendMessage", { roomId, userId: userid, message: chatMessage.trim() });
         setChatMessage('');
         setShowChat(false);
-        // Re-enable controls immediately after sending message
         setTimeout(lockControls, 50);
       }
     };
@@ -114,27 +210,25 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         if (event.key.toLowerCase() === 'c' && !showChat) {
           event.preventDefault();
           event.stopPropagation();
-          unlockControls(); // Unlock controls before opening chat
+          unlockControls();
           setShowChat(true);
           setChatMessage('');
           setTimeout(() => {
             chatInputRef.current?.focus();
           }, 100);
         }
-        // Handle escape key
         else if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
           if (showChat) {
             setShowChat(false);
             setChatMessage('');
-            setTimeout(lockControls, 50); // Re-enable controls after closing chat
+            setTimeout(lockControls, 50);
           } else if (showPlayerList) {
             setShowPlayerList(false);
             setTimeout(lockControls, 50);
           }
         }
-        // Handle tab key for player list
         else if (event.key === 'Tab') {
           event.preventDefault();
           event.stopPropagation();
@@ -149,22 +243,19 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             return newValue;
           });
         }
-        // Handle Enter key when chat is open
         else if (event.key === 'Enter' && showChat) {
           event.preventDefault();
           event.stopPropagation();
           handleSendMessage();
           unlockControls();
-          return; // Early return to prevent further processing
+          return;
         }
 
-        // When chat is open, prevent ALL other game controls (except Enter which we handled above)
         if (showChat || showPlayerList) {
           event.stopPropagation();
         }
       };
 
-      // Use capture phase to intercept events before pointer lock controls
       document.addEventListener('keydown', handleKeyDown, { capture: true });
 
       return () => {
@@ -196,28 +287,156 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         bars.push(
           <div
             key={i}
-            className={`w-0.5 ${height} rounded-full transition-colors ${isActive ? color : 'bg-gray-600'
-              }`}
+            className={`w-0.5 ${height} rounded-full transition-colors ${isActive ? color : 'bg-gray-600'}`}
           />
         );
       }
       return bars;
     };
 
-    // Get last 2 messages for persistent chat log
     const getRecentMessages = () => {
       return chatMessages.current.slice(-2);
+    };
+
+    // Damage Direction Arc Component
+    const DamageArc = ({ indicator }: { indicator: DamageIndicator }) => {
+      const elapsed = Date.now() - indicator.timestamp;
+      const progress = Math.min(elapsed / indicator.duration, 1);
+
+      const opacity = Math.max(0, 1 - progress) * indicator.intensity;
+      const pulseScale = 1 + (Math.sin(elapsed / 150) * 0.15 * (1 - progress));
+
+      const rotation = indicator.angle;
+      const arcLength = 45;
+      const radius = 100;
+      const thickness = 3;
+
+      const startAngle = -arcLength / 2;
+      const endAngle = arcLength / 2;
+      const startAngleRad = (startAngle * Math.PI) / 180;
+      const endAngleRad = (endAngle * Math.PI) / 180;
+
+      const innerRadius = radius - thickness / 2;
+      const outerRadius = radius + thickness / 2;
+
+      const x1 = Math.sin(startAngleRad) * innerRadius;
+      const y1 = -Math.cos(startAngleRad) * innerRadius;
+      const x2 = Math.sin(startAngleRad) * outerRadius;
+      const y2 = -Math.cos(startAngleRad) * outerRadius;
+      const x3 = Math.sin(endAngleRad) * outerRadius;
+      const y3 = -Math.cos(endAngleRad) * outerRadius;
+      const x4 = Math.sin(endAngleRad) * innerRadius;
+      const y4 = -Math.cos(endAngleRad) * innerRadius;
+
+      const pathData = `
+        M ${x1} ${y1}
+        L ${x2} ${y2}
+        A ${outerRadius} ${outerRadius} 0 0 1 ${x3} ${y3}
+        L ${x4} ${y4}
+        A ${innerRadius} ${innerRadius} 0 0 0 ${x1} ${y1}
+        Z
+      `;
+
+      return (
+        <div
+          className="absolute inset-0 pointer-events-none flex items-center justify-center"
+          style={{
+            transform: `rotate(${rotation}deg) scale(${pulseScale})`,
+            opacity: opacity
+          }}
+        >
+          <svg
+            width="250"
+            height="250"
+            viewBox="-125 -125 250 250"
+            className="absolute"
+          >
+            <defs>
+              <radialGradient id={`damageGradient-${indicator.id}`} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="rgba(255, 50, 50, 0.9)" />
+                <stop offset="70%" stopColor="rgba(255, 100, 100, 0.6)" />
+                <stop offset="100%" stopColor="rgba(255, 0, 0, 0.2)" />
+              </radialGradient>
+              <filter id={`glow-${indicator.id}`}>
+                <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            <path
+              d={pathData}
+              fill={`url(#damageGradient-${indicator.id})`}
+              filter={`url(#glow-${indicator.id})`}
+            />
+
+            <polygon
+              points={`0,-${radius + 12} -6,-${radius + 4} 6,-${radius + 4}`}
+              fill="rgba(255, 255, 255, 0.8)"
+              filter={`url(#glow-${indicator.id})`}
+            />
+          </svg>
+        </div>
+      );
+    };
+
+    // Simplified Hit Animation Component (damage flash overlay)
+    const HitAnimation = ({ effect }: { effect: HitEffect }) => {
+      const elapsed = Date.now() - effect.timestamp;
+      const progress = Math.min(elapsed / effect.duration, 1);
+
+      // Create a red damage flash that fades out
+      const flashOpacity = Math.max(0, 1 - (elapsed / 300)); // Quick 300ms flash
+      const pulseIntensity = Math.max(0, 1 - (elapsed / 500)); // Pulse effect
+
+      return (
+        <>
+          {/* Screen flash overlay */}
+          {flashOpacity > 0 && (
+            <div
+              className="fixed inset-0 pointer-events-none z-45"
+              style={{
+                background: `radial-gradient(circle at center, rgba(255, 0, 0, ${flashOpacity * 0.3}) 0%, rgba(255, 0, 0, ${flashOpacity * 0.1}) 50%, transparent 100%)`,
+              }}
+            />
+          )}
+
+          {/* Edge vignette effect */}
+          {pulseIntensity > 0 && (
+            <div
+              className="fixed inset-0 pointer-events-none z-44"
+              style={{
+                background: `radial-gradient(ellipse at center, transparent 60%, rgba(255, 0, 0, ${pulseIntensity * 0.2}) 100%)`,
+              }}
+            />
+          )}
+        </>
+      );
     };
 
     return (
       <>
         <Stats />
 
+        {/* Damage Direction Indicators */}
+        <div className="fixed inset-0 pointer-events-none z-35">
+          {/* {damageIndicators.map(indicator => (
+            <DamageArc key={indicator.id} indicator={indicator} />
+          ))} */}
+        </div>
+
+        {/* Hit Effects Overlay */}
+        {hitEffects.map(effect => (
+          <HitAnimation key={effect.id} effect={effect} />
+        ))}
+
         {/* Health Text - Top Left */}
         <div className="fixed top-14 left-2 z-30">
           <div className="flex items-center space-x-2 text-white/90">
             <Heart size={14} className="text-red-400" />
-            <span className="text-sm font-medium tabular-nums">{health}</span>
+            <span className="text-sm font-medium tabular-nums">{healthRef.current}</span>
           </div>
         </div>
 
@@ -371,8 +590,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
                   setChatMessage(e.target.value);
                 }}
                 onKeyDown={(e) => {
-                  // Don't use stopPropagation here as we want the event to bubble up
-                  // but prevent default browser behavior for Enter
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     handleSendMessage();
@@ -380,7 +597,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
                 }}
                 onFocus={() => {
                   console.log('Input focused');
-                  unlockControls(); // Ensure controls are unlocked when input is focused
+                  unlockControls();
                 }}
                 onBlur={() => console.log('Input blurred')}
                 placeholder="Say something..."
@@ -395,7 +612,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         {isPlayerDead?.current && (
           <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="text-center">
-              <div className="w-16 h-16 border-4 borcder-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto mb-6" />
+              <div className="w-16 h-16 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto mb-6" />
               <h1 className="text-white text-3xl font-light mb-2">Eliminated</h1>
               <p className="text-white/60 text-sm">Respawning...</p>
             </div>

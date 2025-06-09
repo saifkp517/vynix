@@ -20,9 +20,17 @@ type PlayerData = {
 const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothnessRef, playerDataRef, showKillToast }) => {
     const [playerIds, setPlayerIds] = useState<string[]>([]);
     const getGroundHeight = useGroundHeight();
+    const deadPlayers = useRef<Set<string>>(new Set()); // Track dead players
 
     useEffect(() => {
+        console.log('RemoteOpponents mounted, playerIds:', playerIds);
+
         const handlePlayerMoved = ({ id, position, velocity }: any) => {
+            if (deadPlayers.current.has(id)) {
+                console.log(`Ignoring playerMoved for dead player ${id}`);
+                return;
+            }
+
             playerDataRef.current[id] = {
                 position: new THREE.Vector3(position.x, position.y, position.z),
                 velocity: new THREE.Vector3(velocity.x, velocity.y, velocity.z),
@@ -31,25 +39,33 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
         };
 
         const handlePlayerDisconnected = (id: string) => {
+            console.log(`Player disconnected: ${id}`);
             delete playerDataRef.current[id];
             setPlayerIds((prev) => prev.filter((pid) => pid !== id));
+            deadPlayers.current.delete(id); // Clean up
         };
 
         const handlePlayerDead = ({ userId, playerId }: any) => {
+            console.log(`Player dead: ${playerId}, killed by ${userId}`);
             showKillToast(userId);
-            console.log(`${playerId} was killed by ${userId}`);
-            delete playerDataRef.current[playerId];
-            setPlayerIds((prev) => prev.filter(id => id !== playerId));
+            deadPlayers.current.add(playerId); // Mark as dead
+            delete playerDataRef.current[playerId]; // Remove data
+            setPlayerIds((prev) => {
+                const newIds = prev.filter(id => id !== playerId);
+                console.log('After playerDead, playerIds:', newIds);
+                return newIds;
+            });
 
-            // Optional: Respawn after 3 seconds
+            // Optional: Respawn after 5 seconds
             setTimeout(() => {
+                console.log(`Respawning player ${playerId}`);
+                deadPlayers.current.delete(playerId); // Allow re-adding
+                playerDataRef.current[playerId] = {
+                    position: new THREE.Vector3(0, 0, 0),
+                    velocity: new THREE.Vector3(0, 0, 0),
+                };
+                setPlayerIds((prev) => [...prev, playerId]);
             }, 5000);
-
-                // playerDataRef.current[playerId] = {
-                //     position: new THREE.Vector3(0, 0, 0),
-                //     velocity: new THREE.Vector3(0, 0, 0),
-                // };
-                // setPlayerIds((prev) => [...prev, playerId]);
         };
 
         socket.on("playerMoved", handlePlayerMoved);
@@ -57,18 +73,21 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
         socket.on("playerDead", handlePlayerDead);
 
         return () => {
+            console.log('RemoteOpponents unmounted, cleaning up socket listeners');
             socket.off("playerMoved", handlePlayerMoved);
             socket.off("playerDisconnected", handlePlayerDisconnected);
             socket.off("playerDead", handlePlayerDead);
         };
-    }, []);
-
+    }, [playerDataRef, showKillToast]);
 
     return (
         <>
             {playerIds.map((id) => {
                 const data = playerDataRef.current[id];
-                if (!data) return null;
+                if (!data || deadPlayers.current.has(id)) {
+                    console.log(`Skipping render for ${id}, data:`, data, 'isDead:', deadPlayers.current.has(id));
+                    return null;
+                }
 
                 return (
                     <Opponent

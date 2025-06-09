@@ -118,10 +118,9 @@ const FirstPersonGame: React.FC = () => {
     socket.on("youDied", () => {
       console.log("you died");
       isPlayerDead.current = true;
-
       setTimeout(() => {
         isPlayerDead.current = false;
-      }, 5000);
+      }, 4000);
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -276,7 +275,6 @@ const FirstPersonGame: React.FC = () => {
             ammoRef={ammoRef}
             bulletsAvailable={30}
             explosionTimeout={3000}
-            health={100}
             kills={0}
             pingRef={pingRef}
             isPlayerDead={isPlayerDead}
