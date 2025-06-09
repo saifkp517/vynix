@@ -867,7 +867,7 @@ const Player: React.FC<PlayerProps> = ({
                     shootEvent={shootEvent.current}
                     pingRef={pingRef}
                     userId={userId}
-                    otherPlayers={otherPlayers}
+                    obstacles={obstacles}
                 />
             </group>
         </>
