@@ -136,7 +136,7 @@ const Player: React.FC<PlayerProps> = ({
     const playerSpeed = useRef(10);
     const playerHeight = 3;
     const gravity = -9.8 * 4;
-    const jumpStrength = 20;
+    const jumpStrength = 30;
 
 
     const raycaster = new THREE.Raycaster();
