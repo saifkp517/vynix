@@ -295,12 +295,12 @@ const TallGrass = memo(({
 
         time.current += state.clock.elapsedTime * 0.0002;
 
-        const windTime = state.clock.elapsedTime * windSpeed;
-        const position = new THREE.Vector3();
-        const rotation = new THREE.Euler();
-        const quaternion = new THREE.Quaternion();
-        const scale = new THREE.Vector3();
-        const matrix = new THREE.Matrix4();
+        // const windTime = state.clock.elapsedTime * windSpeed;
+        // const position = new THREE.Vector3();
+        // const rotation = new THREE.Euler();
+        // const quaternion = new THREE.Quaternion();
+        // const scale = new THREE.Vector3();
+        // const matrix = new THREE.Matrix4();
 
         // Only update a subset of blades each frame for even better performance
         // Complete cycle every ~5 frames (more optimized)
@@ -317,14 +317,14 @@ const TallGrass = memo(({
         lastTime.current = now;
 
         // Clamp FPS range between 10 and 60
-        const clampedFPS = Math.max(10, Math.min(currentFPS, 60));
+        // const clampedFPS = Math.max(10, Math.min(currentFPS, 60));
 
         // More aggressive scale: Higher FPS → less movement
-        const grassSmoothnessRate = Math.ceil((clampedFPS - 10) / 10) + 1;
+        // const grassSmoothnessRate = Math.ceil((clampedFPS - 10) / 10) + 1;
 
-        const updateCount = Math.floor(count / grassSmoothnessRate);
-        const startIndex = Math.floor((state.clock.elapsedTime * 2) % grassSmoothnessRate) * updateCount;
-        const endIndex = Math.min(startIndex + updateCount, count);
+        // const updateCount = Math.floor(count / grassSmoothnessRate);
+        // const startIndex = Math.floor((state.clock.elapsedTime * 2) % grassSmoothnessRate) * updateCount;
+        // const endIndex = Math.min(startIndex + updateCount, count);
 
         if (!playerCenterRef.current) return;
 
@@ -334,40 +334,40 @@ const TallGrass = memo(({
         }
 
         // Update subset of blades with wind effect
-        for (let i = startIndex; i < endIndex; i++) {
-            // Get original transforms
-            position.copy(originalPositions[i]);
-            rotation.copy(originalRotations[i]);
-            scale.copy(originalScales[i]);
+        // for (let i = startIndex; i < endIndex; i++) {
+        //     // Get original transforms
+        //     position.copy(originalPositions[i]);
+        //     rotation.copy(originalRotations[i]);
+        //     scale.copy(originalScales[i]);
 
-            if (!position.x && !position.z) continue; // Skip uninitialized blades
+        //     if (!position.x && !position.z) continue; // Skip uninitialized blades
 
-            // Calculate wind effect - use simplified noise sampling
-            // Use the blade's position but with much lower resolution noise
-            const simplifiedX = Math.floor(position.x * 0.05) * 20; // More aggressive simplification
-            const simplifiedZ = Math.floor(position.z * 0.05) * 20;
+        //     // Calculate wind effect - use simplified noise sampling
+        //     // Use the blade's position but with much lower resolution noise
+        //     const simplifiedX = Math.floor(position.x * 0.05) * 20; // More aggressive simplification
+        //     const simplifiedZ = Math.floor(position.z * 0.05) * 20;
 
-            const windX = noise.noise(
-                simplifiedX * 0.01 + windTime * 0.5,
-                simplifiedZ * 0.01 + windTime * 0.5
-            ) * windStrength;
+        //     const windX = noise.noise(
+        //         simplifiedX * 0.01 + windTime * 0.5,
+        //         simplifiedZ * 0.01 + windTime * 0.5
+        //     ) * windStrength;
 
-            const windZ = noise.noise(
-                simplifiedX * 0.01 + windTime * 0.5 + 100,
-                simplifiedZ * 0.01 + windTime * 0.5 + 100
-            ) * windStrength;
+        //     const windZ = noise.noise(
+        //         simplifiedX * 0.01 + windTime * 0.5 + 100,
+        //         simplifiedZ * 0.01 + windTime * 0.5 + 100
+        //     ) * windStrength;
 
-            // Apply minimal wind effect to maintain density
-            // Less wind bending preserves the dense appearance
-            rotation.x = originalRotations[i].x + windX * scale.y * 0.6; // Reduced wind effect
-            rotation.z = originalRotations[i].z + windZ * scale.y * 0.6; // Reduced wind effect
+        //     // Apply minimal wind effect to maintain density
+        //     // Less wind bending preserves the dense appearance
+        //     rotation.x = originalRotations[i].x + windX * scale.y * 0.6; // Reduced wind effect
+        //     rotation.z = originalRotations[i].z + windZ * scale.y * 0.6; // Reduced wind effect
 
-            quaternion.setFromEuler(rotation);
+        //     quaternion.setFromEuler(rotation);
 
-            // Compose and apply matrix
-            matrix.compose(position, quaternion, scale);
-            instancedMeshRef.current.setMatrixAt(i, matrix);
-        }
+        //     // Compose and apply matrix
+        //     matrix.compose(position, quaternion, scale);
+        //     instancedMeshRef.current.setMatrixAt(i, matrix);
+        // }
 
         // Update instance matrices
         instancedMeshRef.current.instanceMatrix.needsUpdate = true;

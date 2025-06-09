@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { generateAccessToken, generateRefreshToken } from '../../utils/jwt';
 
 const prisma = new PrismaClient();
 
@@ -181,9 +181,6 @@ router.post("/oauth/login", async (req: Request, res: Response): Promise<void> =
                 },
             });
         }
-
-        const newAccessToken = generateAccessToken(user.id);
-        const newRefreshToken = generateRefreshToken(user.id);
 
 
 

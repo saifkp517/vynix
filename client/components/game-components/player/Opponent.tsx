@@ -1,10 +1,10 @@
-import { RefObject, useEffect, useRef, useState } from "react";
+import { RefObject, useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import Gun from "./Gun";
 import * as THREE from "three";
 
-const GREEN = new THREE.Color("green");
 const RED = new THREE.Color("red");
-const MAX_SPEED = 18;
+const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
 
 export const Opponent = ({
   positionRef,
@@ -27,7 +27,7 @@ export const Opponent = ({
   const sphereRef = useRef<THREE.Mesh>(null);
   const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
-  const [color, setColor] = useState(GREEN.clone());
+  const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
 
   useEffect(() => {
     if (addObstacleRef) {
@@ -61,25 +61,18 @@ export const Opponent = ({
     if (group.current) {
       group.current.position.copy(currentPosition.current);
 
-      if (vel && vel.lengthSq() > 0.001) {
+      if (vel && vel.lengthSq() > MOVEMENT_THRESHOLD) {
         const angle = Math.atan2(vel.x, vel.z);
         group.current.rotation.y = angle;
       }
     }
-
-    // Color interpolation based on speed
-    let speed = vel ? vel.length() : 0;
-    speed = Math.min(speed, MAX_SPEED);
-    const t = speed / MAX_SPEED;
-    const lerpedColor = GREEN.clone().lerp(RED, t);
-    setColor(lerpedColor);
   });
 
   return (
-    <group ref={group} position={[0, 0, 0]} dispose={null}>
+    <group ref={group} position={[0, 0, 0]}>
       <mesh ref={sphereRef} position={[0, -1.5, 0]}>
         <sphereGeometry args={[0.5]} />
-        <meshStandardMaterial color={color.getStyle()} />
+        <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
     </group>
   );

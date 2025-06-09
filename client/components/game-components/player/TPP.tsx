@@ -148,7 +148,7 @@ const Player: React.FC<PlayerProps> = ({
     const shootEvent = useRef(new EventEmitter());
 
     function handleShoot() {
-
+        console.log("shot")
         // Get direction camera is facing
         camera.getWorldDirection(shootDirection);
 
@@ -178,7 +178,6 @@ const Player: React.FC<PlayerProps> = ({
                 let hit = false;
 
 
-
                 players.forEach((player) => {
                     const playerPosition = player.position.clone().add(new THREE.Vector3(0, -1.5, 0)); // Adjust for sphere offset
                     const playerRadius = 0.5; // Match the sphereGeometry radius
@@ -186,7 +185,10 @@ const Player: React.FC<PlayerProps> = ({
                     const tca = originToCenter.dot(shootDirection);
                     if (tca < 0) return; // Player is behind shooter
                     const d2 = originToCenter.lengthSq() - tca * tca;
-                    if (d2 > playerRadius * playerRadius) return; // Missed
+                    if (d2 > playerRadius * playerRadius) {
+                        console.log(d2, "missed");
+                        return;
+                    }; // Missed
                     // Hit!
                     if (!hit) {
                         hit = true;
@@ -495,12 +497,14 @@ const Player: React.FC<PlayerProps> = ({
 
         const handleMouseDown = () => {
             if (!shootingInterval) {
+                handleShoot(); // Call immediately on click
                 shootingInterval = setInterval(() => {
                     handleShoot();
-                }, 200); // Adjust shooting interval as needed
+                }, 150);
                 shootEvent.current.emit("start");
             }
         };
+
 
         const handleMouseUp = () => {
             if (shootingInterval) {
@@ -574,7 +578,7 @@ const Player: React.FC<PlayerProps> = ({
 
         // Get ground height for the player
         const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
-        const onGround = playerPosition.current.y <= groundY + playerHeight + 0.1;
+        const onGround = playerPosition.current.y <= groundY + playerHeight + 1;
 
         // Calculate movement direction based on camera orientation
         direction.current.z = Number(moveState.backward) - Number(moveState.forward);
@@ -752,7 +756,7 @@ const Player: React.FC<PlayerProps> = ({
                     shootEvent={shootEvent.current}
                     pingRef={pingRef}
                     userId={userId}
-                    otherPlayers={otherPlayers}
+                    obstacles={obstacles}
                 />
             </group>
         </>

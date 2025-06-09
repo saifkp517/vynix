@@ -44,7 +44,7 @@ export const Forest: React.FC<ForestProps> = ({
       }
 
       debounceTimeoutRef.current = setTimeout(() => {
-        const RADIUS = 200;
+        const RADIUS = 150;
         const RADIUS_SQUARED = RADIUS * RADIUS;
 
         const visible = vegetationPositions.filter((veg: Vegetation) => {
@@ -54,6 +54,7 @@ export const Forest: React.FC<ForestProps> = ({
           return (dx * dx + dy * dy + dz * dz) <= RADIUS_SQUARED;
         });
 
+        console.log(visible.length)
         startTransition(() => {
           setVisibleVegetation(prevMap => {
             // Create set of currently visible IDs
@@ -89,7 +90,7 @@ export const Forest: React.FC<ForestProps> = ({
             return updatedMap;
           });
         });
-      }, 64); // ~60fps debounce
+      }, 16); // ~60fps debounce
     };
 
     socket.on("updateForest", handleUpdateForest);
