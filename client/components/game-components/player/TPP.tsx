@@ -136,7 +136,7 @@ const Player: React.FC<PlayerProps> = ({
     const playerSpeed = useRef(10);
     const playerHeight = 3;
     const gravity = -9.8 * 4;
-    const jumpStrength = 30;
+    const jumpStrength = 20;
 
 
     const raycaster = new THREE.Raycaster();
@@ -578,7 +578,7 @@ const Player: React.FC<PlayerProps> = ({
 
         // Get ground height for the player
         const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
-        const onGround = playerPosition.current.y <= groundY + playerHeight + 0.1;
+        const onGround = playerPosition.current.y <= groundY + playerHeight + 1;
 
         // Calculate movement direction based on camera orientation
         direction.current.z = Number(moveState.backward) - Number(moveState.forward);
