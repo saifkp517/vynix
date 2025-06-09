@@ -1,5 +1,6 @@
 import { RefObject, useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import Gun from "./Gun";
 import * as THREE from "three";
 
 const RED = new THREE.Color("red");
@@ -26,6 +27,7 @@ export const Opponent = ({
   const sphereRef = useRef<THREE.Mesh>(null);
   const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
 
   useEffect(() => {
     if (addObstacleRef) {

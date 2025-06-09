@@ -150,6 +150,12 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, ammoRef, obstacle
     };
 
     useFrame((state, delta) => {
+
+        if (gunRef.current && camera) {
+            gunRef.current.lookAt(camera.position.clone());
+        }
+
+
         if (!instancedTracers.current || !instancedTrails.current) return;
 
         const now = Date.now();
