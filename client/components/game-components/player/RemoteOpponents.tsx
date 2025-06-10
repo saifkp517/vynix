@@ -68,7 +68,12 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
             }, 5000);
         };
 
+        const handlePlayerShotBulletAnimation = () => {
+            
+        }
+
         socket.on("playerMoved", handlePlayerMoved);
+        socket.on("playerShot", handlePlayerShotBulletAnimation)
         socket.on("playerDisconnected", handlePlayerDisconnected);
         socket.on("playerDead", handlePlayerDead);
 
