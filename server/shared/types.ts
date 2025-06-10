@@ -10,15 +10,11 @@ export interface Player {
     position: Position;
     velocity: Position;
     health: number;
+    cameraDirection: Vector3
 }
 
 export interface PlayerMap {
-    [socketId: string]: {
-        position: Position;
-        velocity: Position;
-        health?: number;
-        team?: string;
-    };
+    [socketId: string]: Player;
 }
 
 export interface ShootObject {
@@ -48,6 +44,7 @@ export interface Vegetation {
 
 
 import { Socket } from "socket.io";
+import type { Vector3 } from "three";
 export interface AuthenticatedSocket extends Socket {
     user?: any;
 }

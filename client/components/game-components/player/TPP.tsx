@@ -148,8 +148,6 @@ const Player: React.FC<PlayerProps> = ({
     const shootEvent = useRef(new EventEmitter());
 
     function handleShoot() {
-        console.log("shot")
-        // Get direction camera is facing
         camera.getWorldDirection(shootDirection);
 
         const groundY = getGroundHeight(camera.position.x, camera.position.z);
@@ -392,8 +390,8 @@ const Player: React.FC<PlayerProps> = ({
     };
 
 
-    const handlePositionChange = React.useCallback((pos: THREE.Vector3, velocity: THREE.Vector3) => {
-        socket.emit("updatePosition", pos, velocity);
+    const handlePositionAndCameraChange = React.useCallback((pos: THREE.Vector3, velocity: THREE.Vector3, cameraDirection: THREE.Vector3) => {
+        socket.emit("updatePositionAndCamera", pos, velocity, cameraDirection);
     }, []);
 
 
@@ -714,10 +712,16 @@ const Player: React.FC<PlayerProps> = ({
         }
 
         // Update player position for networking
+        const cameraDirection = new THREE.Vector3();
+
         const currentTime = performance.now();
         if (currentTime - lastUpdateTime.current >= 100) {
-            handlePositionChange(playerPosition.current.clone(), playerVelocity.current.clone());
+
+            camera.getWorldDirection(cameraDirection);
+
+            handlePositionAndCameraChange(playerPosition.current.clone(), playerVelocity.current.clone(), cameraDirection);
             onCenterUpdate(playerPosition.current.clone());
+
             lastUpdateTime.current = currentTime;
         }
 

@@ -2,7 +2,7 @@ import { Server } from "socket.io";
 import type { AuthenticatedSocket, Player, ShootObject, RayIntersectionResult } from "../../shared/types";
 import { Vector3 } from "three";
 import { rooms, players, grid } from "../../shared/data";
-import { findOrCreateRoom, getCellKey, getNearbyPlayers, rayIntersectsSphere } from "../../shared/utils";
+import { findOrCreateRoom, getCellKey, broadcastToNearbyPlayers, rayIntersectsSphere } from "../../shared/utils";
 
 export const handleJoinRoom = (socket: AuthenticatedSocket, userId: string) => {
   const room = findOrCreateRoom(userId, socket.id, socket);
@@ -19,7 +19,8 @@ export const handleJoinRoom = (socket: AuthenticatedSocket, userId: string) => {
     team: team,
     health: 100,
     position: startPosition,
-    velocity: { x: 0, y: 0, z: 0 }
+    velocity: { x: 0, y: 0, z: 0 },
+    cameraDirection: new Vector3(0, 0, 0)
   }
   room.players.push(newPlayer)
   socket.emit('roomAssigned', { room: room, team });
@@ -29,7 +30,7 @@ export const handleJoinRoom = (socket: AuthenticatedSocket, userId: string) => {
 let newCenter: Vector3 = new Vector3(0, 0, 0);
 const innerRadius = 100;
 
-export const handleUpdatePosition = (socket: AuthenticatedSocket, io: Server, position: any, velocity: any) => {
+export const handleUpdatePositionAndCamera = (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
   let distance = Math.sqrt(
     Math.pow(position.x - newCenter.x, 2) +
     Math.pow(position.y - newCenter.y, 2) +
@@ -45,10 +46,12 @@ export const handleUpdatePosition = (socket: AuthenticatedSocket, io: Server, po
   const currentHealth = players[socket.id]?.health ?? 100;
 
   players[socket.id] = {
+    id: socket.id,
     position,
     velocity,
     team: "red",
-    health: currentHealth  // Preserve the current health
+    health: currentHealth,  // Preserve the current health
+    cameraDirection
   };
 
   const cellKey = getCellKey(position);
@@ -63,10 +66,15 @@ export const handleUpdatePosition = (socket: AuthenticatedSocket, io: Server, po
   grid.get(cellKey)?.add(socket.id);
 
   //broadcast only to players within my grid
-  const nearbySocketIds = getNearbyPlayers(socket, cellKey);
-  for (const id of nearbySocketIds) {
-    io.to(id).emit('playerMoved', { id: socket.id, position, velocity });
-  }
+  broadcastToNearbyPlayers(socket, cellKey, {
+    event: 'playerMoved',
+    payload: {
+      id: socket.id,
+      position,
+      velocity,
+      cameraDirection,
+    },
+  }, io);
 };
 
 export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: string, shootObject: ShootObject) => {
@@ -90,6 +98,18 @@ export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: str
       player.position.y,
       player.position.z
     );
+
+    const cellKey = getCellKey(rayOrigin);
+
+    broadcastToNearbyPlayers(socket, cellKey, {
+      event: 'playerShot',
+      payload: {
+        id: socket.id,
+        rayOrigin,
+        rayDirection
+      },
+    }, io);
+
     // Try values that are "near" the ray
 
     const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 2);
@@ -98,7 +118,7 @@ export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: str
 
     if (hit) {
       console.log(`--> User-id(${playerId}) is hit!`);
-      io.to(playerId).emit("hit", {rayOrigin})
+      io.to(playerId).emit("hit", { rayOrigin })
       // Handle hit logic here, e.g., reduce health, notify players, etc.
       let hitPlayer = players[playerId];
       if (hitPlayer) {
