@@ -6,7 +6,7 @@ export class ComponentLoadingTracker {
     loadTime?: number;
     error?: string;
   }> = new Map();
-  private listeners: Array<(componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details: { loadTime?: number; error?: string }) => void> = []; // Modified to include component details
+  private listeners: Map<string, (componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details: { loadTime?: number; error?: string }) => void> = new Map(); // Use Map for unique listener IDs
 
   static getInstance(): ComponentLoadingTracker {
     if (!ComponentLoadingTracker.instance) {
@@ -15,14 +15,14 @@ export class ComponentLoadingTracker {
     return ComponentLoadingTracker.instance;
   }
 
-  // Add listener for status changes
-  onStatusChange(callback: (componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details: { loadTime?: number; error?: string }) => void) {
-    this.listeners.push(callback);
+  // Add listener with a unique ID
+  onStatusChange(id: string, callback: (componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details: { loadTime?: number; error?: string }) => void) {
+    this.listeners.set(id, callback);
   }
 
-  // Remove listener
-  offStatusChange(callback: (componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details: { loadTime?: number; error?: string }) => void) {
-    this.listeners = this.listeners.filter((listener) => listener !== callback);
+  // Remove listener by ID
+  offStatusChange(id: string) {
+    this.listeners.delete(id);
   }
 
   // Notify all listeners
@@ -33,6 +33,9 @@ export class ComponentLoadingTracker {
   logStatus(componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', error?: Error) {
     const currentTime = new Date();
     const existingEntry = this.componentStates.get(componentName);
+    
+    // Avoid redundant status updates
+    if (existingEntry?.status === status) return;
 
     let loadTime: number | undefined;
     if (status === 'loaded' && existingEntry?.status === 'loading') {
@@ -47,15 +50,12 @@ export class ComponentLoadingTracker {
     };
 
     this.componentStates.set(componentName, details);
-
-    // Notify listeners of status change
     this.notifyListeners(componentName, status, { loadTime, error: error?.message });
 
-    // Console log with enhanced formatting
     const timeStr = currentTime.toISOString().split('T')[1].slice(0, 8);
     const loadTimeStr = loadTime ? ` (${loadTime}ms)` : '';
     const errorStr = error ? ` - ERROR: ${error.message}` : '';
-
+    
     console.log(`🔄 [${timeStr}] ${componentName}: ${status.toUpperCase()}${loadTimeStr}${errorStr}`);
   }
 

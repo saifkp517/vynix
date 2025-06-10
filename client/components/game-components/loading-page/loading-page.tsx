@@ -5,7 +5,7 @@ import { Trees } from "lucide-react";
 import { redirect } from "next/navigation";
 import { useAuth } from "@/app/utils/AuthContext";
 
-export default function GameLoginPage() {
+export default function GameLoading() {
     const { user } = useAuth();
     const [mounted, setMounted] = useState(false);
     const [arenaData, setArenaData] = useState([

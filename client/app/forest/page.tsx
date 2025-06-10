@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/TPP';
@@ -11,13 +11,8 @@ import socket from '@/lib/socket';
 import RemoteOpponents from '@/components/game-components/player/RemoteOpponents';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
+import GameLoading from '@/components/game-components/loading-page/loading-page';
 import type { Vegetation } from '../types/types';
-
-// Define types for player and obstacle
-interface ObstacleProps {
-  position: [number, number, number];
-  getGroundHeight: (x: number, z: number) => number;
-}
 
 type Player = {
   id: string;
@@ -25,14 +20,6 @@ type Player = {
   position?: THREE.Vector3;
   velocity?: THREE.Vector3;
 }
-
-type Room = {
-  roomId: string;
-  players: Player[];
-  maxPlayers: number;
-  gameStarted: boolean;
-}
-
 
 
 // Main game component
@@ -92,6 +79,7 @@ const FirstPersonGame: React.FC = () => {
 
   const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
 
+
   const handleComponentStatusChange = (
     componentName: string,
     status: 'loading' | 'loaded' | 'failed' | 'unloaded',
@@ -115,7 +103,6 @@ const FirstPersonGame: React.FC = () => {
     console.log('All components loaded! Starting full scene actions...');
     // Perform actions requiring all components (e.g., full game loop)
   };
-
 
   // Player connection handling
   useEffect(() => {
@@ -254,13 +241,15 @@ const FirstPersonGame: React.FC = () => {
     );
   });
 
-  const groundProps = {
+  // Memoize groundProps to prevent unnecessary re-renders
+  const groundProps = useMemo(() => ({
     playerCenterRef,
     addObstacleRef,
     vegetationPositions: vegetationPositions.current,
     onComponentStatusChange: handleComponentStatusChange,
     onAllComponentsLoaded: handleAllComponentsLoaded
-  };
+  }), [addObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded]);
+
 
   const isReady =
     typeof roomId === "string" &&
@@ -282,94 +271,108 @@ const FirstPersonGame: React.FC = () => {
   const canvasHeight = Math.floor(window.innerHeight * resolutionScale);
   const scaleTransform = 1 / resolutionScale;
 
+  const isGroundLoaded = loadedComponents.get('Ground') === 'loaded';
+
   return (
-    <div
-      className="w-full h-screen relative"
-      style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-    >
-
-
-      <KillFeedRenderer subscribe={(cb) => listenersRef.current.push(cb)} />
-
-      {isReady ? (
-        <>
-          <GameInfo
-            roomId={roomId}
-            grenadeCoolDownRef={grenadeCoolDownRef}
-            controlsRef={controlsRef}
-            userid={localPlayerId}
-            team={team}
-            ammoRef={ammoRef}
-            bulletsAvailable={30}
-            explosionTimeout={3000}
-            kills={0}
-            pingRef={pingRef}
-            isPlayerDead={isPlayerDead}
-          />
-          <Crosshair ref={CrosshairRef} />
-
-          {/* Canvas container with scaling */}
-          <div
-            ref={canvasContainerRef}
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
-            }}
-          >
-            <div style={{
-              width: `${canvasWidth}px`,
-              height: `${canvasHeight}px`,
-              transform: `scale(${scaleTransform})`,
-              transformOrigin: 'center center'
-            }}>
-              <Canvas
-                gl={{
-                  antialias: false, // Disable AA for better performance
-                  alpha: false,
-                  powerPreference: "high-performance",
-                  preserveDrawingBuffer: false,
-                  failIfMajorPerformanceCaveat: false,
-                  outputColorSpace: THREE.SRGBColorSpace,
-                }}
-                dpr={1} // Force device pixel ratio to 1
-                style={{
-                  width: `${canvasWidth}px`,
-                  height: `${canvasHeight}px`,
-                  imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
-                }}
-                camera={{ position: [0, 1.6, 0], fov: currentFov, near: 0.1, far: 1000 }}
-              >
-                <ambientLight intensity={0.5} />
-                <pointLight position={[10, 10, 10]} intensity={1} />
-                <Ground {...groundProps}>
-                  <PointerLockControls ref={controlsRef} />
-                  <PlayerWithGroundHeight
-                    addObstacleRef={addObstacleRef}
-                    obstacles={obstacles.current}
-                    otherPlayers={playerDataRef}
-                  />
-                  <RemoteOpponents
-                    hitPlayers={hitPlayers}
-                    addObstacleRef={addObstacleRef}
-                    smoothnessRef={smoothnessRef}
-                    playerDataRef={playerDataRef}
-                    showKillToast={showKillToast}
-                  />
-                </Ground>
-              </Canvas>
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-          Joining room...
+    <>
+      {!isGroundLoaded && (
+        <div className="fixed inset-0 z-50">
+          <GameLoading />
         </div>
       )}
-    </div>
+
+      <div
+        className="w-full h-screen relative"
+        style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+      >
+
+
+        <KillFeedRenderer subscribe={(cb) => listenersRef.current.push(cb)} />
+
+        {!isGroundLoaded && (
+          <GameLoading />
+        )}
+
+        {isReady ? (
+          <>
+            <GameInfo
+              roomId={roomId}
+              grenadeCoolDownRef={grenadeCoolDownRef}
+              controlsRef={controlsRef}
+              userid={localPlayerId}
+              team={team}
+              ammoRef={ammoRef}
+              bulletsAvailable={30}
+              explosionTimeout={3000}
+              kills={0}
+              pingRef={pingRef}
+              isPlayerDead={isPlayerDead}
+            />
+            <Crosshair ref={CrosshairRef} />
+
+            {/* Canvas container with scaling */}
+            <div
+              ref={canvasContainerRef}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
+              }}
+            >
+              <div style={{
+                width: `${canvasWidth}px`,
+                height: `${canvasHeight}px`,
+                transform: `scale(${scaleTransform})`,
+                transformOrigin: 'center center'
+              }}>
+                <Canvas
+                  gl={{
+                    antialias: false, // Disable AA for better performance
+                    alpha: false,
+                    powerPreference: "high-performance",
+                    preserveDrawingBuffer: false,
+                    failIfMajorPerformanceCaveat: false,
+                    outputColorSpace: THREE.SRGBColorSpace,
+                  }}
+                  dpr={1} // Force device pixel ratio to 1
+                  style={{
+                    width: `${canvasWidth}px`,
+                    height: `${canvasHeight}px`,
+                    imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
+                  }}
+                  camera={{ position: [0, 1.6, 0], fov: currentFov, near: 0.1, far: 1000 }}
+                >
+                  <ambientLight intensity={0.5} />
+                  <pointLight position={[10, 10, 10]} intensity={1} />
+                  <Ground {...groundProps}>
+                    <PointerLockControls ref={controlsRef} />
+                    <PlayerWithGroundHeight
+                      addObstacleRef={addObstacleRef}
+                      obstacles={obstacles.current}
+                      otherPlayers={playerDataRef}
+                    />
+                    <RemoteOpponents
+                      hitPlayers={hitPlayers}
+                      addObstacleRef={addObstacleRef}
+                      smoothnessRef={smoothnessRef}
+                      playerDataRef={playerDataRef}
+                      showKillToast={showKillToast}
+                    />
+                  </Ground>
+                </Canvas>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            Joining room...
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 

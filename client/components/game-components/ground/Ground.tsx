@@ -228,7 +228,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   addObstacleRef,
   playerCenterRef,
   onAllComponentsLoaded,
-  onComponentStatusChange // A
+  onComponentStatusChange
 }, ref) => {
 
   const componentsToTrack = [
@@ -248,6 +248,9 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     'TallGrass' // Uncomment if TallGrass is used
   ];
 
+  const statusChangeListenerId = useRef(`status-${Math.random().toString(36).slice(2)}`).current;
+  const allLoadedListenerId = useRef(`all-loaded-${Math.random().toString(36).slice(2)}`).current;
+
   // Notify parent of component status changes
   useEffect(() => {
     if (!onComponentStatusChange) return;
@@ -260,10 +263,10 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       onComponentStatusChange(componentName, status, details);
     };
 
-    logger.onStatusChange(handleStatusChange);
+    logger.onStatusChange(statusChangeListenerId, handleStatusChange);
 
     return () => {
-      logger.offStatusChange(handleStatusChange);
+      logger.offStatusChange(statusChangeListenerId);
     };
   }, [onComponentStatusChange]);
 
@@ -283,12 +286,14 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       }
     };
 
-    logger.onStatusChange(checkAllLoaded);
+    logger.onStatusChange(allLoadedListenerId, checkAllLoaded);
 
     return () => {
-      logger.offStatusChange(checkAllLoaded);
+      logger.offStatusChange(allLoadedListenerId);
     };
   }, [onAllComponentsLoaded]);
+
+
 
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
@@ -297,7 +302,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const initializedRef = useRef(false);
 
   // Main component logging
-  const { markLoaded, markFailed } = useComponentLogger('Ground');
+  const { markLoaded } = useComponentLogger('Ground');
 
   // Texture loading with logging
   const [grassMap, roughnessMap, noiseMap] = useLoader(TextureLoader, [
@@ -308,10 +313,13 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
   // Log texture loading
   useEffect(() => {
-    if (grassMap && roughnessMap && noiseMap) {
-      logger.logStatus('Textures', 'loaded');
+    if (grassMap && roughnessMap && noiseMap && geometryRef.current) {
+      const groundStatus = logger.getComponentStatus('Ground');
+      if (groundStatus?.status !== 'loaded') {
+        markLoaded();
+      }
     }
-  }, [grassMap, roughnessMap, noiseMap]);
+  }, [grassMap, roughnessMap, noiseMap, markLoaded]);
 
   // Socket setup with logging
   useEffect(() => {
