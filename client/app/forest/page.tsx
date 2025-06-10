@@ -90,7 +90,32 @@ const FirstPersonGame: React.FC = () => {
   const currentFov = 105;
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
-  console.log("FirstPersonGame component rendered")
+  const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
+
+  const handleComponentStatusChange = (
+    componentName: string,
+    status: 'loading' | 'loaded' | 'failed' | 'unloaded',
+    details?: { loadTime?: number; error?: string }
+  ) => {
+    console.log(`Component ${componentName} is ${status}`, details);
+    setLoadedComponents((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(componentName, status);
+      return newMap;
+    });
+
+    // Act when Ground is loaded
+    if (componentName === 'Ground' && status === 'loaded') {
+      console.log('Ground is loaded! Starting minimal scene actions...');
+      // Perform actions assuming Ground is enough for basic functionality
+    }
+  };
+
+  const handleAllComponentsLoaded = () => {
+    console.log('All components loaded! Starting full scene actions...');
+    // Perform actions requiring all components (e.g., full game loop)
+  };
+
 
   // Player connection handling
   useEffect(() => {
@@ -233,6 +258,8 @@ const FirstPersonGame: React.FC = () => {
     playerCenterRef,
     addObstacleRef,
     vegetationPositions: vegetationPositions.current,
+    onComponentStatusChange: handleComponentStatusChange,
+    onAllComponentsLoaded: handleAllComponentsLoaded
   };
 
   const isReady =
@@ -280,9 +307,9 @@ const FirstPersonGame: React.FC = () => {
             isPlayerDead={isPlayerDead}
           />
           <Crosshair ref={CrosshairRef} />
-          
+
           {/* Canvas container with scaling */}
-          <div 
+          <div
             ref={canvasContainerRef}
             style={{
               width: '100%',
@@ -309,8 +336,8 @@ const FirstPersonGame: React.FC = () => {
                   outputColorSpace: THREE.SRGBColorSpace,
                 }}
                 dpr={1} // Force device pixel ratio to 1
-                style={{ 
-                  width: `${canvasWidth}px`, 
+                style={{
+                  width: `${canvasWidth}px`,
                   height: `${canvasHeight}px`,
                   imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
                 }}

@@ -2,19 +2,19 @@ import React, { RefObject, useEffect, useRef, useState } from 'react';
 import { Opponent } from './Opponent';
 import { useGroundHeight } from '../ground/Ground';
 import socket from '@/lib/socket';
-import * as THREE from 'three';
+import { Vector3, Mesh } from 'three';
 
 interface Props {
     hitPlayers: Record<string, boolean>;
-    addObstacleRef: (ref: THREE.Mesh | null) => void;
+    addObstacleRef: (ref: Mesh | null) => void;
     smoothnessRef: RefObject<number>;
     playerDataRef: RefObject<Record<string, PlayerData>>;
     showKillToast: (name: string) => void;
 }
 
 type PlayerData = {
-    position: THREE.Vector3;
-    velocity: THREE.Vector3;
+    position: Vector3;
+    velocity: Vector3;
 };
 
 const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothnessRef, playerDataRef, showKillToast }) => {
@@ -25,15 +25,15 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
     useEffect(() => {
         console.log('RemoteOpponents mounted, playerIds:', playerIds);
 
-        const handlePlayerMoved = ({ id, position, velocity }: any) => {
+        const handlePlayerMoved = ({ id, position, velocity }: {id: string, position: Vector3, velocity: Vector3}) => {
             if (deadPlayers.current.has(id)) {
                 console.log(`Ignoring playerMoved for dead player ${id}`);
                 return;
             }
 
             playerDataRef.current[id] = {
-                position: new THREE.Vector3(position.x, position.y, position.z),
-                velocity: new THREE.Vector3(velocity.x, velocity.y, velocity.z),
+                position: new Vector3(position.x, position.y, position.z),
+                velocity: new Vector3(velocity.x, velocity.y, velocity.z),
             };
             setPlayerIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
         };
@@ -61,19 +61,19 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
                 console.log(`Respawning player ${playerId}`);
                 deadPlayers.current.delete(playerId); // Allow re-adding
                 playerDataRef.current[playerId] = {
-                    position: new THREE.Vector3(0, 0, 0),
-                    velocity: new THREE.Vector3(0, 0, 0),
+                    position: new Vector3(0, 0, 0),
+                    velocity: new Vector3(0, 0, 0),
                 };
                 setPlayerIds((prev) => [...prev, playerId]);
             }, 5000);
         };
 
-        const handlePlayerShotBulletAnimation = () => {
+        const handlePlayerShot = ({id, rayOrigin, rayDirection}: {id: string, rayOrigin: Vector3, rayDirection: Vector3}) => {
             
         }
 
         socket.on("playerMoved", handlePlayerMoved);
-        socket.on("playerShot", handlePlayerShotBulletAnimation)
+        socket.on("playerShot", handlePlayerShot)
         socket.on("playerDisconnected", handlePlayerDisconnected);
         socket.on("playerDead", handlePlayerDead);
 

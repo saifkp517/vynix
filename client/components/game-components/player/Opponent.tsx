@@ -1,6 +1,6 @@
 import { RefObject, useEffect, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import Gun from "./Gun";
+import { useFrame, useThree } from "@react-three/fiber";
+import Gun from "./OpGun";
 import * as THREE from "three";
 
 const RED = new THREE.Color("red");
@@ -24,6 +24,7 @@ export const Opponent = ({
   isHit?: boolean;
 }) => {
   const group = useRef<THREE.Group>(null);
+  const { camera } = useThree();
   const sphereRef = useRef<THREE.Mesh>(null);
   const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -48,6 +49,7 @@ export const Opponent = ({
     }
   }, [positionRef]);
 
+
   useFrame((_, delta) => {
     const pos = positionRef();
     const vel = velocityRef();
@@ -70,10 +72,20 @@ export const Opponent = ({
 
   return (
     <group ref={group} position={[0, 0, 0]}>
-      <mesh ref={sphereRef} position={[0, -1.5, 0]}>
+      <mesh ref={sphereRef} position={[0, -1, 0]}>
         <sphereGeometry args={[0.5]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
+
+      <Gun
+        gunRef={gunRef}
+        camera={camera}
+        ammoRef={ammoRef}
+        shootEvent={shootEvent.current}
+        pingRef={pingRef}
+        userId={userId}
+        obstacles={obstacles}
+      />
     </group>
   );
 };
