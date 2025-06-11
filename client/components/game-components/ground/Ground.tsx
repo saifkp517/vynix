@@ -105,7 +105,7 @@ type GroundProps = {
 };
 
 // Enhanced ForestWrapper with logging
-const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef, vegetationPositions }: any) => {
+const ForestWrapper = memo(({ playerCenterRef, radius, density, getGroundHeight, addObstacleRef, vegetationPositions }: any) => {
   const { markLoaded, markFailed } = useComponentLogger('ForestWrapper');
 
   useEffect(() => {
@@ -120,6 +120,7 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
   return (
     <ComponentErrorBoundary componentName="Forest">
       <Forest
+        playerCenterRef={playerCenterRef}
         vegetationPositions={vegetationPositions}
         addObstacleRef={addObstacleRef}
         getGroundHeight={getGroundHeight}
@@ -511,13 +512,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
   // Forest props
   const forestProps = useMemo(() => ({
-    center: [0, 0, 0],
+    playerCenterRef,
     radius: 100,
     vegetationPositions: vegetationPositions,
     density: 0.01,
     types: ["banyan"],
     getGroundHeight,
-    playerCenterRef,
     addObstacleRef
   }), [getGroundHeight, addObstacleRef]);
 
@@ -564,14 +564,6 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         />
       </mesh>
 
-      {/* Enhanced Tall Grass */}
-      {/* <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
-        <EnhancedTallGrass
-          getGroundHeight={getGroundHeight}
-          playerCenterRef={playerCenterRef}
-        />
-      </Suspense> */}
-
       {/* Lighting */}
       <directionalLight
         position={sunPosition}
@@ -607,14 +599,23 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         pickupDistance={2}
       />
 
+      
+      {/* Enhanced Tall Grass */}
+      <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
+        <EnhancedTallGrass
+          getGroundHeight={getGroundHeight}
+          playerCenterRef={playerCenterRef}
+        />
+      </Suspense>
+
       {/* Enhanced Forest */}
-      {/* {vegetationPositions ? (
+      {vegetationPositions ? (
         <Suspense fallback={<LoadingFallback componentName="Forest" />}>
           <ForestWrapper {...forestProps} />
         </Suspense>
       ) : (
         <LoadingFallback componentName="Forest (No Vegetation)" />
-      )} */}
+      )}
 
       {children}
     </GroundHeightContext.Provider>
