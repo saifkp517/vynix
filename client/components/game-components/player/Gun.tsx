@@ -5,7 +5,6 @@ import { EventEmitter } from 'events';
 import { useFrame, useThree } from '@react-three/fiber';
 
 interface GunProps {
-    gunRef: React.RefObject<THREE.Group>;
     ammoRef: RefObject<number>;
     camera: THREE.Camera;
     shootEvent: EventEmitter;
@@ -14,8 +13,9 @@ interface GunProps {
     obstacles: any;
 }
 
-const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, ammoRef, obstacles }) => {
+const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => {
     const maxAmmo = 30;
+    const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
     const muzzleFlash = useRef(false);
     const isReloading = useRef(false);
@@ -25,7 +25,7 @@ const Gun: React.FC<GunProps> = ({ gunRef, camera, shootEvent, ammoRef, obstacle
     const barrelEndRef = useRef<THREE.Mesh>(null);
     const isRecoiling = useRef(false);
     const recoilProgress = useRef(0);
-    const bulletSpeed = 50; // units per second
+    const bulletSpeed = 150; // units per second
     const maxTracerDistance = 100;
 
     const raycaster = useRef(new THREE.Raycaster()); // Single raycaster instance

@@ -6,36 +6,36 @@ import socket from '@/lib/socket';
 import { Howl } from 'howler';
 import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
-import * as THREE from 'three';
+import { Vector3, Box3, Mesh, Camera, Raycaster, Sphere, SphereGeometry, CylinderGeometry, Matrix4 } from 'three';
 import { EventEmitter } from 'events';
 
 
 
 interface PlayerProps {
     obstacles: any;
-    onCenterUpdate: (center: THREE.Vector3) => void;
-    playerCenterRef: RefObject<THREE.Vector3>;
+    onCenterUpdate: (center: Vector3) => void;
+    playerCenterRef: RefObject<Vector3>;
     pingRef: RefObject<number>;
     crosshairRef: RefObject<{ triggerHit: () => void }>;
     grenadeCoolDownRef: RefObject<boolean>;
     getGroundHeight: (x: number, z: number) => number;
     ammoRef: RefObject<number>;
-    otherPlayers: RefObject<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>;
+    otherPlayers: RefObject<{ [playerId: string]: { position: Vector3; velocity: Vector3 } }>;
     controlsRef: RefObject<any>;
     userId: string;
 }
 
 type FireballProps = {
-    position: THREE.Vector3;
+    position: Vector3;
     getGroundHeight: (x: number, z: number) => number;
-    direction: THREE.Vector3;
+    direction: Vector3;
     speed?: number;
-    obstacles?: THREE.Mesh[];
-    onExplode: (position: THREE.Vector3) => void;
+    obstacles?: Mesh[];
+    onExplode: (position: Vector3) => void;
 };
 
 type GunProps = {
-    camera: THREE.Camera
+    camera: Camera
 }
 
 
@@ -43,7 +43,7 @@ type GunProps = {
 
 
 const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, direction, speed = 20, obstacles, onExplode }) => {
-    const fireballRef = useRef<THREE.Mesh>(null);
+    const fireballRef = useRef<Mesh>(null);
     const startTime = useRef<number>(Date.now());
 
     const gravity = 9.8; // Gravity constant (adjust for desired arc height)
@@ -78,11 +78,11 @@ const Fireball: React.FC<FireballProps> = ({ position, getGroundHeight, directio
 
         for (const obstacle of obstacles!) {
 
-            const fireballBox = new THREE.Box3().setFromObject(fireballRef.current);
-            const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+            const fireballBox = new Box3().setFromObject(fireballRef.current);
+            const obstacleBox = new Box3().setFromObject(obstacle);
 
 
-            const obstacleCenter = new THREE.Vector3();
+            const obstacleCenter = new Vector3();
             obstacleBox.getCenter(obstacleCenter);
 
 
@@ -119,38 +119,35 @@ const Player: React.FC<PlayerProps> = ({
 
     const { camera } = useThree();
     const [colliding, setColliding] = useState(false);
-    const [collisionNormal, setCollisionNormal] = useState<THREE.Vector3 | null>(null);
+    const [collisionNormal, setCollisionNormal] = useState<Vector3 | null>(null);
     const jumpRequested = useRef(false);
-    const playerRef = useRef<THREE.Mesh>(null);
-    const jumpDirection = useRef(new THREE.Vector3());
+    const playerRef = useRef<Mesh>(null);
+    const jumpDirection = useRef(new Vector3());
     const isJumpingRef = useRef(false);
-    const [fireballs, setFireballs] = useState<{ id: number; position: THREE.Vector3; direction: THREE.Vector3 }[]>([]);
+    const [fireballs, setFireballs] = useState<{ id: number; position: Vector3; direction: Vector3 }[]>([]);
     const [collisionType, setCollisionType] = useState("");
-    const [explosions, setExplosions] = useState<{ id: number; position: THREE.Vector3 }[]>([]);
+    const [explosions, setExplosions] = useState<{ id: number; position: Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
     const explosionRadius = 15; // Explosion radius for damage calculation
     const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
 
-    const playerPosition = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
-    const playerVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
+    const playerPosition = useRef<Vector3>(new Vector3(0, 0, 0));
+    const playerVelocity = useRef<Vector3>(new Vector3());
     const playerSpeed = useRef(10);
     const playerHeight = 3;
     const gravity = -9.8 * 4;
     const jumpStrength = 20;
 
 
-    const raycaster = new THREE.Raycaster();
-    const shootDirection = new THREE.Vector3();
+    const raycaster = new Raycaster();
+    let shootDirection = new Vector3();
     const recoilProgress = useRef(0);
     const isRecoiling = useRef(false);
-    const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
 
     const shootEvent = useRef(new EventEmitter());
 
     function handleShoot() {
         camera.getWorldDirection(shootDirection);
-
-        const groundY = getGroundHeight(camera.position.x, camera.position.z);
 
         // Set ray origin and direction
         raycaster.set(camera.position, shootDirection);
@@ -158,8 +155,11 @@ const Player: React.FC<PlayerProps> = ({
         // Raycast against all mesh objects in the scene
         const intersects = raycaster.intersectObjects(obstacles, true); // true = recursive
 
+
+
         if (intersects.length > 0) {
             const firstHit = intersects[0];
+            shootDirection = new Vector3().subVectors(firstHit.point, playerCenterRef.current).normalize();
 
             const hitX = firstHit.point.x;
             const hitZ = firstHit.point.z;
@@ -175,10 +175,9 @@ const Player: React.FC<PlayerProps> = ({
                 const players = Object.values(otherPlayers.current);
                 let hit = false;
 
-
                 players.forEach((player) => {
-                    const playerPosition = player.position.clone().add(new THREE.Vector3(0, -1.5, 0)); // Adjust for sphere offset
-                    const playerRadius = 0.5; // Match the sphereGeometry radius
+                    const playerPosition = player.position.clone().add(new Vector3(0, -1, 0)); // Adjust for sphere offset
+                    const playerRadius = 40; // Match the sphereGeometry radius
                     const originToCenter = playerPosition.clone().sub(camera.position);
                     const tca = originToCenter.dot(shootDirection);
                     if (tca < 0) return; // Player is behind shooter
@@ -192,13 +191,7 @@ const Player: React.FC<PlayerProps> = ({
                         hit = true;
                         console.log("hit!");
                         crosshairRef?.current?.triggerHit();
-                        const shootObject = {
-                            rayOrigin: camera.position,
-                            rayDirection: shootDirection,
-                            timestamp: Date.now(),
-                            ping: pingRef.current
-                        };
-                        socket.emit("shoot", { userId, shootObject });
+
                     }
                 });
 
@@ -210,24 +203,32 @@ const Player: React.FC<PlayerProps> = ({
             console.log("missed: ", intersects.length);
         }
 
+        const shootObject = {
+            rayOrigin: playerCenterRef.current,
+            rayDirection: shootDirection,
+            timestamp: Date.now(),
+            ping: pingRef.current
+        };
+        socket.emit("shoot", { userId, shootObject });
+
     }
 
-    const checkCollisions = (playerPosition: THREE.Vector3) => {
+    const checkCollisions = (playerPosition: Vector3) => {
 
         // Create player hitbox - keeping box for player
-        const playerBox = new THREE.Box3().setFromCenterAndSize(
+        const playerBox = new Box3().setFromCenterAndSize(
             playerPosition,
-            new THREE.Vector3(1, 2, 1) // Player size
+            new Vector3(1, 2, 1) // Player size
         );
 
         // Player sphere representation (for sphere-to-sphere collision)
-        const playerSphere = new THREE.Sphere(
+        const playerSphere = new Sphere(
             playerPosition.clone(),
             1 // Player radius (adjust based on your player size)
         );
 
         // Get player center for calculations
-        const playerCenter = new THREE.Vector3();
+        const playerCenter = new Vector3();
         playerBox.getCenter(playerCenter);
 
         // Check collision with each obstacle
@@ -236,8 +237,8 @@ const Player: React.FC<PlayerProps> = ({
             if (!obstacle) continue;
 
             // Determine if obstacle is spherical by checking its geometry
-            const isObstacleSphere = obstacle.geometry instanceof THREE.SphereGeometry;
-            const isObstacleCylinder = obstacle.geometry instanceof THREE.CylinderGeometry;
+            const isObstacleSphere = obstacle.geometry instanceof SphereGeometry;
+            const isObstacleCylinder = obstacle.geometry instanceof CylinderGeometry;
 
             if (isObstacleSphere) {
                 // Handle sphere collision
@@ -254,7 +255,7 @@ const Player: React.FC<PlayerProps> = ({
                 if (distance < minDistance) {
                     setCollisionType("sphere")
                     // Calculate collision normal (direction from obstacle to player)
-                    const collisionNormal = new THREE.Vector3()
+                    const collisionNormal = new Vector3()
                         .subVectors(playerCenter, obstaclePosition)
                         .normalize();
 
@@ -264,10 +265,10 @@ const Player: React.FC<PlayerProps> = ({
                 }
             } else if (isObstacleCylinder) {
                 // Handle cylinder collision with any orientation
-                const obstaclePosition = new THREE.Vector3();
+                const obstaclePosition = new Vector3();
                 obstacle.getWorldPosition(obstaclePosition);
 
-                const obstacleScale = new THREE.Vector3();
+                const obstacleScale = new Vector3();
                 obstacle.getWorldScale(obstacleScale);
 
                 // Get cylinder properties
@@ -281,8 +282,8 @@ const Player: React.FC<PlayerProps> = ({
                 // Get cylinder's axis vector (assuming Y is the height axis in cylinder geometry)
                 // We need to extract the Y axis of the cylinder from its world matrix
                 const cylinderMatrix = obstacle.matrixWorld.clone();
-                const cylinderUpVector = new THREE.Vector3(0, 1, 0).applyMatrix4(
-                    new THREE.Matrix4().extractRotation(cylinderMatrix)
+                const cylinderUpVector = new Vector3(0, 1, 0).applyMatrix4(
+                    new Matrix4().extractRotation(cylinderMatrix)
                 ).normalize();
 
                 // Get cylinder endpoints
@@ -291,14 +292,14 @@ const Player: React.FC<PlayerProps> = ({
                 const cylinderEnd2 = cylinderCenter.clone().addScaledVector(cylinderUpVector, -height / 2);
 
                 // Project player center onto cylinder axis
-                const toPlayer = new THREE.Vector3().subVectors(playerCenter, cylinderEnd1);
-                const axisLine = new THREE.Vector3().subVectors(cylinderEnd2, cylinderEnd1);
+                const toPlayer = new Vector3().subVectors(playerCenter, cylinderEnd1);
+                const axisLine = new Vector3().subVectors(cylinderEnd2, cylinderEnd1);
                 const axisLength = axisLine.length();
                 const axisNormalized = axisLine.clone().normalize();
 
                 // Projection calculation
                 const projectionLength = toPlayer.dot(axisNormalized);
-                const projectionPoint = new THREE.Vector3().copy(cylinderEnd1).addScaledVector(axisNormalized, projectionLength);
+                const projectionPoint = new Vector3().copy(cylinderEnd1).addScaledVector(axisNormalized, projectionLength);
 
                 // Check if projection is within cylinder length
                 const withinCylinderLength = projectionLength >= 0 && projectionLength <= axisLength;
@@ -311,11 +312,11 @@ const Player: React.FC<PlayerProps> = ({
                 if (withinCylinderLength) {
                     // Player is alongside the cylinder body
                     // Get distance from player to axis
-                    distanceToAxis = new THREE.Vector3().subVectors(playerCenter, projectionPoint).length();
+                    distanceToAxis = new Vector3().subVectors(playerCenter, projectionPoint).length();
 
                     if (distanceToAxis < radius + playerSphere.radius) {
                         // Collision with cylinder side
-                        collisionNormal = new THREE.Vector3().subVectors(playerCenter, projectionPoint).normalize();
+                        collisionNormal = new Vector3().subVectors(playerCenter, projectionPoint).normalize();
                         collisionPoint = projectionPoint.clone().addScaledVector(collisionNormal, radius);
                         setCollisionNormal(collisionNormal);
                         setCollisionType("cylinder-side");
@@ -328,11 +329,11 @@ const Player: React.FC<PlayerProps> = ({
                     const endPoint = projectionLength < 0 ? cylinderEnd1 : cylinderEnd2;
 
                     // Check distance to end point (to see if we hit the cap)
-                    const distanceToEnd = new THREE.Vector3().subVectors(playerCenter, endPoint).length();
+                    const distanceToEnd = new Vector3().subVectors(playerCenter, endPoint).length();
 
                     if (distanceToEnd < radius + playerSphere.radius) {
                         // End cap collision
-                        collisionNormal = new THREE.Vector3().subVectors(playerCenter, endPoint).normalize();
+                        collisionNormal = new Vector3().subVectors(playerCenter, endPoint).normalize();
                         collisionPoint = endPoint.clone().addScaledVector(collisionNormal, radius);
 
                         // Determine if it's top or bottom
@@ -346,13 +347,13 @@ const Player: React.FC<PlayerProps> = ({
             }
             else {
                 // Handle box collision (your existing code)
-                const obstacleBox = new THREE.Box3().setFromObject(obstacle);
+                const obstacleBox = new Box3().setFromObject(obstacle);
 
                 if (playerBox.intersectsBox(obstacleBox)) {
                     setCollisionType("box")
-                    let collisionNormal = new THREE.Vector3(0, 0, 0);
+                    let collisionNormal = new Vector3(0, 0, 0);
 
-                    let obstacleCenter = new THREE.Vector3();
+                    let obstacleCenter = new Vector3();
                     obstacleBox.getCenter(obstacleCenter);
 
                     // Calculate overlap on each axis
@@ -390,7 +391,7 @@ const Player: React.FC<PlayerProps> = ({
     };
 
 
-    const handlePositionAndCameraChange = React.useCallback((pos: THREE.Vector3, velocity: THREE.Vector3, cameraDirection: THREE.Vector3) => {
+    const handlePositionAndCameraChange = React.useCallback((pos: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
         socket.emit("updatePositionAndCamera", pos, velocity, cameraDirection);
     }, []);
 
@@ -401,7 +402,7 @@ const Player: React.FC<PlayerProps> = ({
 
         const startPosition = playerRef.current.position.clone();
 
-        const cameraDirection = new THREE.Vector3();
+        const cameraDirection = new Vector3();
         camera.getWorldDirection(cameraDirection);
         const newFireball = {
             id: Date.now(),
@@ -413,7 +414,7 @@ const Player: React.FC<PlayerProps> = ({
     };
 
 
-    const handleExplosion = (position: THREE.Vector3) => {
+    const handleExplosion = (position: Vector3) => {
 
         const id = Date.now();
         setFireballs((prev) => prev.slice(1)); // Remove the first fireball
@@ -432,8 +433,8 @@ const Player: React.FC<PlayerProps> = ({
         }, 1000);
     };
 
-    const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
-    const direction = useRef<THREE.Vector3>(new THREE.Vector3());
+    const velocity = useRef<Vector3>(new Vector3());
+    const direction = useRef<Vector3>(new Vector3());
     const [moveState, setMoveState] = useState({
         forward: false,
         backward: false,
@@ -457,7 +458,7 @@ const Player: React.FC<PlayerProps> = ({
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 13;
+                    playerSpeed.current = 18;
                     break;
                 case 'KeyG': {
                     if (!grenadeCoolDownRef.current) {
@@ -589,14 +590,14 @@ const Player: React.FC<PlayerProps> = ({
         const smoothingFactor = 0.5; // Camera smoothing
 
         // Get player head position
-        const playerHeadPosition = playerPosition.current.clone().add(new THREE.Vector3(0, playerHeight, 0));
+        const playerHeadPosition = playerPosition.current.clone().add(new Vector3(0, playerHeight, 0));
 
         // Calculate camera position using spherical coordinates from mouse angles
         const horizontalAngle = cameraAngles.current.horizontal;
         const verticalAngle = cameraAngles.current.vertical;
 
         // Convert spherical coordinates to cartesian for camera offset
-        const cameraOffset = new THREE.Vector3(
+        const cameraOffset = new Vector3(
             Math.sin(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance,
             Math.sin(verticalAngle) * cameraDistance + cameraHeight,
             Math.cos(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance
@@ -608,7 +609,7 @@ const Player: React.FC<PlayerProps> = ({
         camera.position.lerp(idealCameraPosition, smoothingFactor);
 
         // Handle camera collision with obstacles
-        const raycaster = new THREE.Raycaster();
+        const raycaster = new Raycaster();
         const rayDirection = cameraOffset.clone().normalize();
         raycaster.set(playerHeadPosition, rayDirection);
 
@@ -628,19 +629,19 @@ const Player: React.FC<PlayerProps> = ({
         // Replace your existing movement calculation with this:
 
         // Get movement direction from camera horizontal angle
-        const forwardDirection = new THREE.Vector3(
+        const forwardDirection = new Vector3(
             Math.sin(cameraAngles.current.horizontal),
             0,
             Math.cos(cameraAngles.current.horizontal)
         );
-        const rightDirection = new THREE.Vector3(
+        const rightDirection = new Vector3(
             Math.cos(cameraAngles.current.horizontal),
             0,
             -Math.sin(cameraAngles.current.horizontal)
         );
 
         // Calculate movement vector
-        const moveVector = new THREE.Vector3();
+        const moveVector = new Vector3();
         moveVector.addScaledVector(forwardDirection, direction.current.z); // forward/backward
         moveVector.addScaledVector(rightDirection, direction.current.x); // left/right
         moveVector.normalize();
@@ -712,7 +713,7 @@ const Player: React.FC<PlayerProps> = ({
         }
 
         // Update player position for networking
-        const cameraDirection = new THREE.Vector3();
+        const cameraDirection = new Vector3();
 
         const currentTime = performance.now();
         if (currentTime - lastUpdateTime.current >= 100) {
@@ -747,14 +748,13 @@ const Player: React.FC<PlayerProps> = ({
             ))}
             <group ref={playerRef} position={playerPosition.current}>
                 {/* Player body */}
-                <mesh position={[0, -1.5, 0]}>
+                <mesh position={[0, -1, 0]}>
                     <sphereGeometry args={[0.5]} />
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
 
                 {/* Gun (attached to player's right hand) */}
                 <Gun
-                    gunRef={gunRef}
                     camera={camera}
                     ammoRef={ammoRef}
                     shootEvent={shootEvent.current}
