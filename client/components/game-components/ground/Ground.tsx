@@ -11,86 +11,9 @@ import { Mountains } from "../elements/Mountains";
 import { RainEffect } from "../elements/Rain";
 import TallGrass from "../elements/Grass";
 import Loot from "../player/Loot";
-
+import { ComponentLoadingTracker } from "@/components/class/ComponentLoadingTracker";
 import type { Vegetation } from "@/app/types/types";
 
-// Enhanced Component Loading Tracker
-class ComponentLoadingTracker {
-  private static instance: ComponentLoadingTracker;
-  private componentStates: Map<string, {
-    status: 'loading' | 'loaded' | 'failed' | 'unloaded';
-    timestamp: Date;
-    loadTime?: number;
-    error?: string;
-  }> = new Map();
-
-  static getInstance(): ComponentLoadingTracker {
-    if (!ComponentLoadingTracker.instance) {
-      ComponentLoadingTracker.instance = new ComponentLoadingTracker();
-    }
-    return ComponentLoadingTracker.instance;
-  }
-
-  logStatus(componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', error?: Error) {
-    const currentTime = new Date();
-    const existingEntry = this.componentStates.get(componentName);
-    
-    let loadTime: number | undefined;
-    if (status === 'loaded' && existingEntry?.status === 'loading') {
-      loadTime = currentTime.getTime() - existingEntry.timestamp.getTime();
-    }
-
-    this.componentStates.set(componentName, {
-      status,
-      timestamp: currentTime,
-      loadTime,
-      error: error?.message
-    });
-
-    // Console log with enhanced formatting
-    const timeStr = currentTime.toISOString().split('T')[1].slice(0, 8);
-    const loadTimeStr = loadTime ? ` (${loadTime}ms)` : '';
-    const errorStr = error ? ` - ERROR: ${error.message}` : '';
-    
-    console.log(`🔄 [${timeStr}] ${componentName}: ${status.toUpperCase()}${loadTimeStr}${errorStr}`);
-
-  }
-
-  logSummary() {
-    const stats = {
-      loading: 0,
-      loaded: 0,
-      failed: 0,
-      unloaded: 0
-    };
-
-    console.group('📊 Component Loading Summary');
-    this.componentStates.forEach((state, name) => {
-      stats[state.status]++;
-      const statusIcon = {
-        loading: '⏳',
-        loaded: '✅',
-        failed: '❌',
-        unloaded: '📤'
-      }[state.status];
-      
-      const timeInfo = state.loadTime ? ` (${state.loadTime}ms)` : '';
-      const errorInfo = state.error ? ` - ${state.error}` : '';
-      console.log(`${statusIcon} ${name}: ${state.status}${timeInfo}${errorInfo}`);
-    });
-    
-    console.log(`\nTotals: ✅${stats.loaded} ⏳${stats.loading} ❌${stats.failed} 📤${stats.unloaded}`);
-    console.groupEnd();
-  }
-
-  getComponentStatus(componentName: string) {
-    return this.componentStates.get(componentName);
-  }
-
-  getAllStatuses() {
-    return Array.from(this.componentStates.entries());
-  }
-}
 
 // Global logger instance
 const logger = ComponentLoadingTracker.getInstance();
@@ -99,7 +22,7 @@ const logger = ComponentLoadingTracker.getInstance();
 const useComponentLogger = (componentName: string) => {
   useEffect(() => {
     logger.logStatus(componentName, 'loading');
-    
+
     return () => {
       logger.logStatus(componentName, 'unloaded');
     };
@@ -107,7 +30,7 @@ const useComponentLogger = (componentName: string) => {
 
   const markLoaded = () => logger.logStatus(componentName, 'loaded');
   const markFailed = (error?: Error) => logger.logStatus(componentName, 'failed', error);
-  
+
   return { markLoaded, markFailed };
 };
 
@@ -177,12 +100,14 @@ type GroundProps = {
   vegetationPositions?: Vegetation[];
   fogColor?: string;
   addObstacleRef: (ref: THREE.Mesh | null) => void;
+  onAllComponentsLoaded?: () => void;
+  onComponentStatusChange?: (componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details?: { loadTime?: number; error?: string }) => void;
 };
 
 // Enhanced ForestWrapper with logging
 const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObstacleRef, vegetationPositions }: any) => {
   const { markLoaded, markFailed } = useComponentLogger('ForestWrapper');
-  
+
   useEffect(() => {
     try {
       // Simulate component initialization
@@ -206,7 +131,7 @@ const ForestWrapper = memo(({ center, radius, density, getGroundHeight, addObsta
 // Enhanced component wrappers
 const EnhancedTallGrass = memo((props: any) => {
   const { markLoaded, markFailed } = useComponentLogger('TallGrass');
-  
+
   useEffect(() => {
     try {
       setTimeout(() => markLoaded(), 50);
@@ -224,7 +149,7 @@ const EnhancedTallGrass = memo((props: any) => {
 
 const EnhancedMountains = memo(() => {
   const { markLoaded, markFailed } = useComponentLogger('Mountains');
-  
+
   useEffect(() => {
     try {
       setTimeout(() => markLoaded(), 30);
@@ -242,7 +167,7 @@ const EnhancedMountains = memo(() => {
 
 const EnhancedSky = memo((props: any) => {
   const { markLoaded, markFailed } = useComponentLogger('Sky');
-  
+
   useEffect(() => {
     try {
       setTimeout(() => markLoaded(), 20);
@@ -260,7 +185,7 @@ const EnhancedSky = memo((props: any) => {
 
 const EnhancedRainEffect = memo((props: any) => {
   const { markLoaded, markFailed } = useComponentLogger('RainEffect');
-  
+
   useEffect(() => {
     try {
       setTimeout(() => markLoaded(), 40);
@@ -278,7 +203,7 @@ const EnhancedRainEffect = memo((props: any) => {
 
 const EnhancedLoot = memo((props: any) => {
   const { markLoaded, markFailed } = useComponentLogger('Loot');
-  
+
   useEffect(() => {
     try {
       setTimeout(() => markLoaded(), 10);
@@ -301,16 +226,83 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   vegetationPositions,
   fogColor = "#A8B8D0",
   addObstacleRef,
-  playerCenterRef
+  playerCenterRef,
+  onAllComponentsLoaded,
+  onComponentStatusChange
 }, ref) => {
+
+  const componentsToTrack = [
+    'Ground',
+    'Textures',
+    'Socket Connection',
+    'Roughness Texture Generation',
+    'Ground Height Function',
+    'Scene Fog',
+    'Texture Processing',
+    'Terrain Deformation',
+    'Sky',
+    'Mountains',
+    'RainEffect',
+    'Loot',
+    'Forest', // Uncomment if ForestWrapper is used
+    'TallGrass' // Uncomment if TallGrass is used
+  ];
+
+  const statusChangeListenerId = useRef(`status-${Math.random().toString(36).slice(2)}`).current;
+  const allLoadedListenerId = useRef(`all-loaded-${Math.random().toString(36).slice(2)}`).current;
+
+  // Notify parent of component status changes
+  useEffect(() => {
+    if (!onComponentStatusChange) return;
+
+    const handleStatusChange = (
+      componentName: string,
+      status: 'loading' | 'loaded' | 'failed' | 'unloaded',
+      details: { loadTime?: number; error?: string }
+    ) => {
+      onComponentStatusChange(componentName, status, details);
+    };
+
+    logger.onStatusChange(statusChangeListenerId, handleStatusChange);
+
+    return () => {
+      logger.offStatusChange(statusChangeListenerId);
+    };
+  }, [onComponentStatusChange]);
+
+  // Notify parent when all components are loaded
+  useEffect(() => {
+    if (!onAllComponentsLoaded) return;
+
+    const checkAllLoaded = () => {
+      const allLoaded = componentsToTrack.every((componentName) => {
+        const status = logger.getComponentStatus(componentName);
+        return status?.status === 'loaded';
+      });
+
+      if (allLoaded) {
+        logger.logStatus('Ground Components', 'loaded');
+        onAllComponentsLoaded();
+      }
+    };
+
+    logger.onStatusChange(allLoadedListenerId, checkAllLoaded);
+
+    return () => {
+      logger.offStatusChange(allLoadedListenerId);
+    };
+  }, [onAllComponentsLoaded]);
+
+
+
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const initializedRef = useRef(false);
-  
+
   // Main component logging
-  const { markLoaded, markFailed } = useComponentLogger('Ground');
+  const { markLoaded } = useComponentLogger('Ground');
 
   // Texture loading with logging
   const [grassMap, roughnessMap, noiseMap] = useLoader(TextureLoader, [
@@ -321,15 +313,18 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
   // Log texture loading
   useEffect(() => {
-    if (grassMap && roughnessMap && noiseMap) {
-      logger.logStatus('Textures', 'loaded');
+    if (grassMap && roughnessMap && noiseMap && geometryRef.current) {
+      const groundStatus = logger.getComponentStatus('Ground');
+      if (groundStatus?.status !== 'loaded') {
+        markLoaded();
+      }
     }
-  }, [grassMap, roughnessMap, noiseMap]);
+  }, [grassMap, roughnessMap, noiseMap, markLoaded]);
 
   // Socket setup with logging
   useEffect(() => {
     logger.logStatus('Socket Connection', 'loading');
-    
+
     socket.on('updateForest', ({ id, position }) => {
       setTargetPosition([position.x, position.y, position.z]);
       logger.logStatus('Socket Connection', 'loaded');
@@ -346,7 +341,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Roughness variation with logging
   const roughnessVariation = useMemo(() => {
     logger.logStatus('Roughness Texture Generation', 'loading');
-    
+
     try {
       const noise2D = createNoise2D();
       const size = 1024;
@@ -381,7 +376,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const SEED = 12345;
   const getGroundHeight = useMemo(() => {
     logger.logStatus('Ground Height Function', 'loading');
-    
+
     try {
       const noise2D = createNoise2D(() => SEED);
 
@@ -412,7 +407,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Fog setup with logging
   useEffect(() => {
     logger.logStatus('Scene Fog', 'loading');
-    
+
     try {
       scene.fog = new THREE.FogExp2(fogColor, 1 / (fogDistance * 1.5));
       scene.background = new THREE.Color(fogColor);
@@ -433,7 +428,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     if (initializedRef.current) return;
 
     logger.logStatus('Texture Processing', 'loading');
-    
+
     try {
       grassMap.wrapS = grassMap.wrapT = THREE.RepeatWrapping;
       grassMap.repeat.set(100, 100);
@@ -462,7 +457,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Terrain deformation with logging
   useEffect(() => {
     logger.logStatus('Terrain Deformation', 'loading');
-    
+
     const geom = geometryRef.current;
     if (!geom) {
       logger.logStatus('Terrain Deformation', 'failed', new Error('No geometry ref'));
@@ -482,14 +477,14 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
       for (let i = 0; i < posAttr.count; i++) {
         vertex.fromBufferAttribute(posAttr, i);
-        
+
         const worldX = vertex.x;
         const worldZ = -vertex.y;
         const height = getGroundHeight(worldX, worldZ);
-        
+
         minHeight = Math.min(minHeight, height);
         maxHeight = Math.max(maxHeight, height);
-        
+
         posAttr.setXYZ(i, vertex.x, vertex.y, height);
       }
 
@@ -497,7 +492,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       geom.computeVertexNormals();
       geom.computeBoundingBox();
       geom.userData.deformed = true;
-      
+
       logger.logStatus('Terrain Deformation', 'loaded');
       console.log(`Terrain deformed with height range: ${minHeight} to ${maxHeight}`);
     } catch (error) {
@@ -570,12 +565,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       </mesh>
 
       {/* Enhanced Tall Grass */}
-      <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
+      {/* <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
         <EnhancedTallGrass
           getGroundHeight={getGroundHeight}
           playerCenterRef={playerCenterRef}
         />
-      </Suspense>
+      </Suspense> */}
 
       {/* Lighting */}
       <directionalLight
@@ -613,13 +608,13 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       />
 
       {/* Enhanced Forest */}
-      {vegetationPositions ? (
+      {/* {vegetationPositions ? (
         <Suspense fallback={<LoadingFallback componentName="Forest" />}>
           <ForestWrapper {...forestProps} />
         </Suspense>
       ) : (
         <LoadingFallback componentName="Forest (No Vegetation)" />
-      )}
+      )} */}
 
       {children}
     </GroundHeightContext.Provider>

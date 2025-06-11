@@ -3,6 +3,7 @@ import type { AuthenticatedSocket, Position, Vegetation } from "./types";
 import { Vector3 } from "three";
 import { createNoise2D } from 'simplex-noise';
 import { rooms, grid } from "./data";
+import { Server } from "socket.io";
 
 export function getCellKey(position: Position): string {
   const cellX = Math.floor(position.x / 100);
@@ -171,4 +172,12 @@ export function findOrCreateRoom(userId: string, socketId: string, socket: Authe
   }
 
   return room;
+}
+
+
+export function broadcastToNearbyPlayers(socket: AuthenticatedSocket, cellKey: string, data: {event: string, payload: any}, io: Server) {
+  const nearbySocketIds = getNearbyPlayers(socket, cellKey);
+  for (const id of nearbySocketIds) {
+    io.to(id).emit(data.event, data.payload);
+  }
 }

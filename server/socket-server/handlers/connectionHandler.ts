@@ -2,7 +2,7 @@
 
 import { Server } from "socket.io";
 import type { AuthenticatedSocket } from "../../shared/types";
-import { handleJoinRoom, handleUpdatePosition, handleShoot } from "./events";
+import { handleJoinRoom, handleUpdatePositionAndCamera, handleShoot } from "./events";
 import { players } from "../../shared/data";
 
 export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSocket) => {
@@ -15,7 +15,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   })
 
   socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
-  socket.on("updatePosition", (position, velocity) => handleUpdatePosition(socket, io, position, velocity));
+  socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCamera(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({userId, shootObject}) => handleShoot(socket, io, userId, shootObject));
   socket.on("requestForestUpdate", (() => {
     socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
