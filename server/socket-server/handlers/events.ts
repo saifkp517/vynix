@@ -110,8 +110,8 @@ export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: str
       },
     }, io);
 
-
-    const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 1.5);
+    
+    const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 2);
 
     console.log(`[Check] playerId: ${playerId}, hit: ${hit}, distance: ${distance.toFixed(3)} units`);
 
