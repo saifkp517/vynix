@@ -27,21 +27,8 @@ export const handleJoinRoom = (socket: AuthenticatedSocket, userId: string) => {
   console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
 };
 
-let newCenter: Vector3 = new Vector3(0, 0, 0);
-const innerRadius = 100;
-
 export const handleUpdatePositionAndCamera = (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
-  let distance = Math.sqrt(
-    Math.pow(position.x - newCenter.x, 2) +
-    Math.pow(position.y - newCenter.y, 2) +
-    Math.pow(position.z - newCenter.z, 2)
-  );
-  if (distance > innerRadius) {
-    console.log(position);
-    console.log("Player is outside the inner radius, updating position...");
-    socket.emit('updateForest', { id: socket.id, position: position });
-    newCenter = position;
-  }
+
 
   const currentHealth = players[socket.id]?.health ?? 100;
 
@@ -110,7 +97,8 @@ export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: str
       },
     }, io);
 
-    
+    // Try values that are "near" the ray
+
     const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 2);
 
     console.log(`[Check] playerId: ${playerId}, hit: ${hit}, distance: ${distance.toFixed(3)} units`);
