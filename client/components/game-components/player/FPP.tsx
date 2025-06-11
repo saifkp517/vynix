@@ -136,7 +136,6 @@ const Player: React.FC<PlayerProps> = ({
     const shootDirection = new THREE.Vector3();
     const recoilProgress = useRef(0);
     const isRecoiling = useRef(false);
-    const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
 
     const shootEvent = useRef(new EventEmitter());
 
@@ -861,7 +860,6 @@ const Player: React.FC<PlayerProps> = ({
 
                 {/* Gun (attached to player's right hand) */}
                 <Gun
-                    gunRef={gunRef}
                     camera={camera}
                     ammoRef={ammoRef}
                     shootEvent={shootEvent.current}
