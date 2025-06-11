@@ -173,31 +173,50 @@ const Player: React.FC<PlayerProps> = ({
                 console.log("🚫 Shot blocked by terrain at", { x: hitX, y: groundY, z: hitZ });
             } else {
                 const players = Object.values(otherPlayers.current);
-                let hit = false;
+
+                function rayIntersectsSphere(
+                    rayOrigin: Vector3,
+                    rayDirection: Vector3,
+                    sphereCenter: Vector3,
+                    sphereRadius: number
+                ): { hit: boolean, distance: number } {
+
+                    if (!rayOrigin || !rayDirection || !sphereCenter) {
+                        console.error("Invalid argument passed to rayIntersectsSphere:", {
+                            rayOrigin,
+                            rayDirection,
+                            sphereCenter
+                        });
+                        return { hit: false, distance: Infinity };
+                    }
+
+                    const toCenter = new Vector3().subVectors(sphereCenter, rayOrigin);
+                    const projectionLength = toCenter.dot(rayDirection);
+
+                    // Sphere is behind the ray origin
+                    if (projectionLength < 0) return { hit: false, distance: Infinity };
+
+                    const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
+                    const distanceToCenter = closestPoint.distanceTo(sphereCenter);
+
+                    const hit = distanceToCenter <= sphereRadius;
+                    return { hit, distance: distanceToCenter };
+                } 
 
                 players.forEach((player) => {
                     const playerPosition = player.position.clone().add(new Vector3(0, -1, 0)); // Adjust for sphere offset
-                    const playerRadius = 40; // Match the sphereGeometry radius
-                    const originToCenter = playerPosition.clone().sub(camera.position);
-                    const tca = originToCenter.dot(shootDirection);
-                    if (tca < 0) return; // Player is behind shooter
-                    const d2 = originToCenter.lengthSq() - tca * tca;
-                    if (d2 > playerRadius * playerRadius) {
-                        console.log(d2, "missed");
-                        return;
-                    }; // Missed
-                    // Hit!
-                    if (!hit) {
-                        hit = true;
+                    const playerRadius = 2; // Match the sphereGeometry radius
+                    
+
+                    const { hit, distance } = rayIntersectsSphere(playerCenterRef.current, shootDirection , playerPosition, playerRadius)
+                    if (hit) {
                         console.log("hit!");
                         crosshairRef?.current?.triggerHit();
-
+                    } else {
+                        console.log("missed by distance: ", distance)
                     }
                 });
 
-
-
-                // Apply logic to the object (damage, highlight, etc.)
             }
         } else {
             console.log("missed: ", intersects.length);

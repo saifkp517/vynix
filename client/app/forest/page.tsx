@@ -205,7 +205,7 @@ const FirstPersonGame: React.FC = () => {
   useEffect(() => {
     const sound = new Howl({
       src: ['/sounds/breeze.mp3'],
-      volume: 1,
+      volume: 0.1,
       preload: true,
       loop: true,
     });
