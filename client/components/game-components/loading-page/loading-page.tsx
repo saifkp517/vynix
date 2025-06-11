@@ -8,11 +8,6 @@ import { useAuth } from "@/app/utils/AuthContext";
 export default function GameLoading() {
     const { user } = useAuth();
     const [mounted, setMounted] = useState(false);
-    const [arenaData, setArenaData] = useState([
-        { name: "StormBlade", victories: 143, rank: 1 },
-        { name: "IronDefender", victories: 137, rank: 2 },
-        { name: "ShadowStriker", victories: 129, rank: 3 },
-    ]);
     const [loadingProgress, setLoadingProgress] = useState(0);
 
     useEffect(() => {

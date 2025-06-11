@@ -143,7 +143,6 @@ const Player: React.FC<PlayerProps> = ({
     const shootDirection = new THREE.Vector3();
     const recoilProgress = useRef(0);
     const isRecoiling = useRef(false);
-    const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
 
     const shootEvent = useRef(new EventEmitter());
 
@@ -457,7 +456,7 @@ const Player: React.FC<PlayerProps> = ({
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
-                    playerSpeed.current = 13;
+                    playerSpeed.current = 18;
                     break;
                 case 'KeyG': {
                     if (!grenadeCoolDownRef.current) {
@@ -754,7 +753,6 @@ const Player: React.FC<PlayerProps> = ({
 
                 {/* Gun (attached to player's right hand) */}
                 <Gun
-                    gunRef={gunRef}
                     camera={camera}
                     ammoRef={ammoRef}
                     shootEvent={shootEvent.current}

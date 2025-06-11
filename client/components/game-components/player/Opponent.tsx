@@ -1,7 +1,8 @@
 import { RefObject, useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import Gun from "./OpGun";
 import * as THREE from "three";
+import { EventEmitter } from "events";
+import Gun from "./OpGun"
 
 const RED = new THREE.Color("red");
 const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
@@ -9,7 +10,10 @@ const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
 export const Opponent = ({
   positionRef,
   velocityRef,
+  cameraDirectionRef,
   smoothnessRef,
+  shootEvent,
+  userId,
   isRemote = false,
   getGroundHeight,
   addObstacleRef,
@@ -17,18 +21,19 @@ export const Opponent = ({
 }: {
   positionRef: () => THREE.Vector3 | null;
   velocityRef: () => THREE.Vector3 | null;
+  cameraDirectionRef: () => THREE.Vector3 | null;
   smoothnessRef: RefObject<number>;
+  shootEvent: EventEmitter;
+  userId: string;
   isRemote?: boolean;
   getGroundHeight: (x: number, z: number) => number;
   addObstacleRef?: (ref: THREE.Mesh | null) => void;
   isHit?: boolean;
 }) => {
   const group = useRef<THREE.Group>(null);
-  const { camera } = useThree();
   const sphereRef = useRef<THREE.Mesh>(null);
   const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
-  const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
 
   useEffect(() => {
     if (addObstacleRef) {
@@ -48,7 +53,6 @@ export const Opponent = ({
       currentPosition.current.copy(pos);
     }
   }, [positionRef]);
-
 
   useFrame((_, delta) => {
     const pos = positionRef();
@@ -76,15 +80,10 @@ export const Opponent = ({
         <sphereGeometry args={[0.5]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
-
       <Gun
-        gunRef={gunRef}
-        camera={camera}
-        ammoRef={ammoRef}
-        shootEvent={shootEvent.current}
-        pingRef={pingRef}
+        cameraDirection={cameraDirectionRef() || new THREE.Vector3(0, 0, -1)}
+        shootEvent={shootEvent}
         userId={userId}
-        obstacles={obstacles}
       />
     </group>
   );

@@ -3,7 +3,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Canvas, useThree } from '@react-three/fiber';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/TPP';
-import * as THREE from 'three';
+import { Vector3, Mesh, SRGBColorSpace } from 'three';
 import { PointerLockControls } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
@@ -17,8 +17,8 @@ import type { Vegetation } from '../types/types';
 type Player = {
   id: string;
   team?: string;
-  position?: THREE.Vector3;
-  velocity?: THREE.Vector3;
+  position?: Vector3;
+  velocity?: Vector3;
 }
 
 
@@ -49,17 +49,17 @@ const FirstPersonGame: React.FC = () => {
     });
   }
 
-  const obstacles = useRef<THREE.Mesh[]>([]);
+  const obstacles = useRef<Mesh[]>([]);
   const isPlayerDead = useRef(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
   const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
-  const playerDataRef = useRef<{ [playerId: string]: { position: THREE.Vector3; velocity: THREE.Vector3 } }>({});
+  const playerDataRef = useRef<{ [playerId: string]: { position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   const controlsRef = useRef<any>(null);
 
-  const playerCenterRef = useRef<THREE.Vector3>(new THREE.Vector3())
+  const playerCenterRef = useRef<Vector3>(new Vector3())
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
 
@@ -91,7 +91,6 @@ const FirstPersonGame: React.FC = () => {
       newMap.set(componentName, status);
       return newMap;
     });
-
     // Act when Ground is loaded
     if (componentName === 'Ground' && status === 'loaded') {
       console.log('Ground is loaded! Starting minimal scene actions...');
@@ -176,7 +175,7 @@ const FirstPersonGame: React.FC = () => {
 
   let toastId = 0;
 
-  function handlePlayerCenterUpdate(center: THREE.Vector3) {
+  function handlePlayerCenterUpdate(center: Vector3) {
     playerCenterRef.current = center.clone();
   }
 
@@ -216,7 +215,7 @@ const FirstPersonGame: React.FC = () => {
     };
   }, []);
 
-  const addObstacleRef = useCallback((ref: THREE.Mesh | null) => {
+  const addObstacleRef = useCallback((ref: Mesh | null) => {
     if (ref && !obstacles.current.includes(ref)) {
       obstacles.current.push(ref);
     }
@@ -289,10 +288,6 @@ const FirstPersonGame: React.FC = () => {
 
         <KillFeedRenderer subscribe={(cb) => listenersRef.current.push(cb)} />
 
-        {!isGroundLoaded && (
-          <GameLoading />
-        )}
-
         {isReady ? (
           <>
             <GameInfo
@@ -335,7 +330,7 @@ const FirstPersonGame: React.FC = () => {
                     powerPreference: "high-performance",
                     preserveDrawingBuffer: false,
                     failIfMajorPerformanceCaveat: false,
-                    outputColorSpace: THREE.SRGBColorSpace,
+                    outputColorSpace: SRGBColorSpace,
                   }}
                   dpr={1} // Force device pixel ratio to 1
                   style={{
