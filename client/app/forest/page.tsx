@@ -1,6 +1,7 @@
 'use client'
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas} from '@react-three/fiber';
+import { useWhyDidYouUpdate } from '@/lib/utils';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/TPP';
 import { Vector3, Mesh, SRGBColorSpace } from 'three';
@@ -25,29 +26,7 @@ type Player = {
 // Main game component
 const FirstPersonGame: React.FC = () => {
 
-  function useWhyDidYouUpdate(componentName: string, props: any) {
-    const previousProps = useRef<any>({});
 
-    useEffect(() => {
-      const allKeys = Object.keys({ ...previousProps.current, ...props });
-      const changesObj: any = {};
-
-      allKeys.forEach(key => {
-        if (previousProps.current[key] !== props[key]) {
-          changesObj[key] = {
-            from: previousProps.current[key],
-            to: props[key],
-          };
-        }
-      });
-
-      if (Object.keys(changesObj).length) {
-        console.log(`[why-did-you-update] ${componentName}`, changesObj);
-      }
-
-      previousProps.current = props;
-    });
-  }
 
   const obstacles = useRef<Mesh[]>([]);
   const isPlayerDead = useRef(false);

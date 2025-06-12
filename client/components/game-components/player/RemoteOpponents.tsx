@@ -1,4 +1,5 @@
 import React, { RefObject, useEffect, useRef, useState } from 'react';
+import { useWhyDidYouUpdate } from '@/lib/utils';
 import { Opponent } from './Opponent';
 import { useGroundHeight } from '../ground/Ground';
 import socket from '@/lib/socket';
@@ -25,29 +26,7 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
     const deadPlayers = useRef<Set<string>>(new Set()); // Track dead players
     const shootEventEmitter = useRef(new EventEmitter()); // EventEmitter for playerShot events
 
-    function useWhyDidYouUpdate(componentName: string, props: any) {
-        const previousProps = useRef<any>({});
 
-        useEffect(() => {
-            const allKeys = Object.keys({ ...previousProps.current, ...props });
-            const changesObj: any = {};
-
-            allKeys.forEach(key => {
-                if (previousProps.current[key] !== props[key]) {
-                    changesObj[key] = {
-                        from: previousProps.current[key],
-                        to: props[key],
-                    };
-                }
-            });
-
-            if (Object.keys(changesObj).length) {
-                console.log(`[why-did-you-update] ${componentName}`, changesObj);
-            }
-
-            previousProps.current = props;
-        });
-    }
 
     useWhyDidYouUpdate("remoteOpponents", {
         playerIds

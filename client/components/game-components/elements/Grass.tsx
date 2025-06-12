@@ -14,12 +14,12 @@ type TallGrassProps = {
 };
 
 const TallGrass = memo(({
-    count = 80000, // Maximum count for performance constraints
-    radius = 50, // 
+    count = 80000,
+    radius = 50,
     playerCenterRef,
     windStrength = 0.15,
     windSpeed = 0.3,
-    hidePlayerRadius = 0, // Player radius
+    hidePlayerRadius = 0,
     getGroundHeight
 }: TallGrassProps) => {
 
@@ -33,127 +33,122 @@ const TallGrass = memo(({
     const lastTime = useRef(performance.now());
     const fpsLastTime = useRef(performance.now());
     const framesSinceLast = useRef(0);
-    const measuredFPS = useRef(60); // default to 60 initially
+    const measuredFPS = useRef(60);
     const isGrassInitialized = useRef(false);
     const placedCountRef = useRef({ value: 0 });
     const lastCenterRef = useRef<THREE.Vector3>(centerRef.current.clone());
-    const lastRedistributionTime = useRef(0);
-    // Create noise for natural grass distribution
+    
+    // Add state to control when redistribution should happen
+    const [isRedistributing, setIsRedistributing] = useState(false);
+    const redistributionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Create a MUCH WIDER grass blade geometry for maximum coverage
+    // Create grass geometry
     const grassGeometry = useMemo(() => {
-        // Create a custom 3D blade shape that's EXTRA wide for extreme coverage
         const geo = new THREE.BufferGeometry();
-
-        // Balance detail and performance
         const heightSegments = 4;
-        const widthSegments = 4; // Increased for better blade shape
+        const widthSegments = 4;
 
-        // Calculate vertices
         const vertices = [];
         const indices = [];
         const colors = [];
 
-        // Create vertex colors for gradient effect with super dark base for better coverage
         const colorSets = [
             {
-                top: new THREE.Color(0x91e160),      // Lighter green for top
-                bottom: new THREE.Color(0x0a2000),   // DARKER green for bottom (better coverage)
-                tip: new THREE.Color(0xc4e17f)       // Light tip color
+                top: new THREE.Color(0x91e160),
+                bottom: new THREE.Color(0x0a2000),
+                tip: new THREE.Color(0xc4e17f)
             },
             {
-                top: new THREE.Color(0x7bc44c),      // Slightly darker green
-                bottom: new THREE.Color(0x0a2000),   // DARKER base (better coverage)
-                tip: new THREE.Color(0xb5d279)       // Slightly darker tip
+                top: new THREE.Color(0x7bc44c),
+                bottom: new THREE.Color(0x0a2000),
+                tip: new THREE.Color(0xb5d279)
             },
             {
-                top: new THREE.Color(0xa5ea6e),      // Brighter green
-                bottom: new THREE.Color(0x0a2000),   // DARKER base (better coverage)
-                tip: new THREE.Color(0xd3eaa0)       // Very light tip
+                top: new THREE.Color(0xa5ea6e),
+                bottom: new THREE.Color(0x0a2000),
+                tip: new THREE.Color(0xd3eaa0)
             }
         ];
 
-        // Choose a random color set for this blade
         const colorSet = colorSets[Math.floor(Math.random() * colorSets.length)];
 
-        // Create blade vertices - WIDER blade for better coverage
         for (let h = 0; h <= heightSegments; h++) {
-            const y = h / heightSegments; // Normalized height (0 to 1)
-
-            // Calculate blade width - MUCH wider at base, still tapers but not as much
-            const widthScale = 1 - Math.pow(y, 2); // LESS tapering
-
-            // Add natural curve
+            const y = h / heightSegments;
+            const widthScale = 1 - Math.pow(y, 2);
             const bendFactor = Math.pow(y, 2) * 0.3;
             const xCurve = Math.sin(y * Math.PI) * bendFactor;
-
-            // Add slight twist around y-axis as it goes up
             const zTwist = y * y * 0.07 * Math.sin(y * Math.PI * 2);
 
-            // For each width segment - WIDER blade
             for (let w = 0; w <= widthSegments; w++) {
-                const x = (w / widthSegments - 0.5) * 0.65 * widthScale + xCurve; // MUCH WIDER blade (0.65)
+                const x = (w / widthSegments - 0.5) * 0.65 * widthScale + xCurve;
                 const z = zTwist * (w / widthSegments - 0.5);
 
-                // Add vertex
                 vertices.push(x, y, z);
 
-                // Add color gradient from bottom to top with selected color set
                 if (y > 0.8) {
-                    // Tip of blade is lightest
                     const color = new THREE.Color().lerpColors(colorSet.top, colorSet.tip, (y - 0.8) / 0.2);
                     colors.push(color.r, color.g, color.b);
                 } else {
-                    // Main blade gradient
                     const color = new THREE.Color().lerpColors(colorSet.bottom, colorSet.top, y);
                     colors.push(color.r, color.g, color.b);
                 }
             }
         }
 
-        // Create faces (triangles)
         for (let h = 0; h < heightSegments; h++) {
             for (let w = 0; w < widthSegments; w++) {
                 const first = h * (widthSegments + 1) + w;
                 const second = first + (widthSegments + 1);
 
-                // First triangle
                 indices.push(first, second, first + 1);
-
-                // Second triangle
                 indices.push(second, second + 1, first + 1);
             }
         }
 
-        // Set attributes
         geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
         geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         geo.setIndex(indices);
-
-        // Compute normals for proper lighting
         geo.computeVertexNormals();
 
         return geo;
     }, []);
 
-    // Create material that uses vertex colors
     const grassMaterial = useMemo(() => {
         return new THREE.MeshStandardMaterial({
             vertexColors: true,
             side: THREE.DoubleSide,
             roughness: 0.8,
             metalness: 0.1,
-            // Add subsurface scattering-like effect for realism
             emissive: new THREE.Color(0x0a3302),
             emissiveIntensity: 0.05,
         });
     }, []);
 
-    // Store matrices for animation
     const matrices = useMemo(() => Array.from({ length: count }, () => new THREE.Matrix4()), [count]);
     const originalPositions = useMemo(() => Array.from({ length: count }, () => new THREE.Vector3()), [count]);
     const originalRotations = useMemo(() => Array.from({ length: count }, () => new THREE.Euler()), [count]);
     const originalScales = useMemo(() => Array.from({ length: count }, () => new THREE.Vector3()), [count]);
+
+    // Debounced redistribution function
+    const scheduleRedistribution = () => {
+        if (redistributionTimeoutRef.current) {
+            clearTimeout(redistributionTimeoutRef.current);
+        }
+
+        setIsRedistributing(true);
+        
+        redistributionTimeoutRef.current = setTimeout(() => {
+            const placedCount = { value: 0 };
+            distributeDenseGrass(placedCount, count);
+            
+            if (instancedMeshRef.current) {
+                instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+            }
+            
+            lastCenterRef.current.copy(centerRef.current);
+            setIsRedistributing(false);
+        }, 100); // 100ms delay to prevent frequent updates
+    };
 
     const distributeDenseGrass = (placedCount: { value: number }, maxCount: number) => {
         const matrix = new THREE.Matrix4();
@@ -226,13 +221,22 @@ const TallGrass = memo(({
             matrix.compose(position, quaternion, scale);
             matrices[placedCount.value].copy(matrix);
 
-            instancedMeshRef.current!.setMatrixAt(placedCount.value, matrix);
+            if (instancedMeshRef.current) {
+                instancedMeshRef.current.setMatrixAt(placedCount.value, matrix);
+            }
             placedCount.value++;
         }
     };
 
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (redistributionTimeoutRef.current) {
+                clearTimeout(redistributionTimeoutRef.current);
+            }
+        };
+    }, []);
 
-    // Optimized animation - less computation per blade
     useFrame((state) => {
         if (!instancedMeshRef.current || !playerCenterRef.current) return;
 
@@ -253,23 +257,28 @@ const TallGrass = memo(({
             centerRef.current.copy(playerCenterRef.current);
         }
 
-        // Initialize or redistribute grass if needed
+        // Check if redistribution is needed (but don't do it immediately)
         if (
             !isGrassInitialized.current ||
-            lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15
+            (!isRedistributing && lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15)
         ) {
-            const placedCount = { value: 0 };
-            const targetCount = count;
-            distributeDenseGrass(placedCount, targetCount);
-            instancedMeshRef.current.instanceMatrix.needsUpdate = true;
-            isGrassInitialized.current = true;
-            lastCenterRef.current.copy(centerRef.current);
+            if (!isGrassInitialized.current) {
+                // Initial distribution - do it immediately
+                const placedCount = { value: 0 };
+                distributeDenseGrass(placedCount, count);
+                instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+                isGrassInitialized.current = true;
+                lastCenterRef.current.copy(centerRef.current);
+            } else {
+                // Subsequent redistributions - use debounced approach
+                scheduleRedistribution();
+            }
         }
 
-        // Animation logic (uncomment and update if needed)
-        // ...
-
-        instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+        // Only update instance matrix if not currently redistributing
+        if (!isRedistributing) {
+            instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+        }
     });
 
     return (

@@ -9,6 +9,15 @@ export default function GameLoading() {
     const { user } = useAuth();
     const [mounted, setMounted] = useState(false);
     const [loadingProgress, setLoadingProgress] = useState(0);
+    const [loadingText, setLoadingText] = useState("Initializing");
+
+    const loadingStates = [
+        "Initializing...",
+        "Loading assets...",
+        "Connecting to servers...",
+        "Preparing arena...",
+        "Almost ready..."
+    ];
 
     useEffect(() => {
         if (user) {
@@ -28,11 +37,23 @@ export default function GameLoading() {
                 return prev + 1;
             });
         }, 50);
-        return () => clearInterval(interval);
+
+        // Update loading text based on progress
+        const textInterval = setInterval(() => {
+            setLoadingProgress((current) => {
+                const stateIndex = Math.floor((current / 100) * (loadingStates.length - 1));
+                setLoadingText(loadingStates[stateIndex] || loadingStates[0]);
+                return current;
+            });
+        }, 1000);
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(textInterval);
+        };
     }, []);
 
     if (!mounted) return null;
-
 
     return (
         <div className="flex min-h-screen bg-background text-foreground transition-colors overflow-hidden relative">
@@ -51,21 +72,68 @@ export default function GameLoading() {
                         <h2 className="text-2xl font-semibold">Epic Combat Arena</h2>
                     </div>
                 </div>
-                <div className="absolute bottom-12 right-0 left-0 px-8 z-10">
-                    <div className="w-full bg-white/20 rounded-full h-1.5">
-                        <div
-                            className="bg-white h-1.5 animate-pulse rounded-full transition-all duration-300"
-                            style={{ width: '60%' }} // Static for demo; can be dynamic with state
-                        ></div>
+
+                {/* Option 1: Pulsing Dots Loader */}
+                <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 z-10">
+                    <div className="flex space-x-2">
+                        <div className="w-3 h-3 bg-white rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-3 h-3 bg-white rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-3 h-3 bg-white rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                        <div className="w-3 h-3 bg-white rounded-full animate-pulse" style={{ animationDelay: '450ms' }}></div>
+                    </div>
+                    <p className="text-white/80 text-sm mt-4 font-medium">{loadingText}</p>
+                </div>
+
+                {/* Option 2: Spinning Ring (uncomment to use instead) */}
+                {/*
+                <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 z-10">
+                    <div className="relative">
+                        <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                        <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-r-white/60 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+                    </div>
+                    <p className="text-white/80 text-sm mt-4 font-medium text-center">{loadingText}</p>
+                </div>
+                */}
+
+                {/* Option 3: Bouncing Balls (uncomment to use instead) */}
+                {/*
+                <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 z-10">
+                    <div className="flex space-x-1">
+                        <div className="w-4 h-4 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-4 h-4 bg-white rounded-full animate-bounce" style={{ animationDelay: '100ms' }}></div>
+                        <div className="w-4 h-4 bg-white rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></div>
+                    </div>
+                    <p className="text-white/80 text-sm mt-4 font-medium text-center">{loadingText}</p>
+                </div>
+                */}
+
+                {/* Option 4: Morphing Squares (uncomment to use instead) */}
+                {/*
+                <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 z-10">
+                    <div className="grid grid-cols-2 gap-1 w-8 h-8">
+                        <div className="bg-white animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                        <div className="bg-white animate-pulse" style={{ animationDelay: '200ms' }}></div>
+                        <div className="bg-white animate-pulse" style={{ animationDelay: '400ms' }}></div>
+                        <div className="bg-white animate-pulse" style={{ animationDelay: '600ms' }}></div>
+                    </div>
+                    <p className="text-white/80 text-sm mt-4 font-medium text-center">{loadingText}</p>
+                </div>
+                */}
+
+                {/* Option 5: Typewriter Effect (uncomment to use instead) */}
+                {/*
+                <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 z-10">
+                    <div className="text-white text-lg font-mono">
+                        {loadingText}
+                        <span className="animate-pulse">|</span>
                     </div>
                 </div>
+                */}
 
                 <div className="absolute bottom-4 right-4 font-mono text-xs text-muted-foreground">
                     Build: v2.4.3
                 </div>
             </div>
-
-
         </div>
     );
 }

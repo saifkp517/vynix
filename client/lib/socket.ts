@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 // });
 
 
-const socket = io("https://michelle-basin-serbia-opens.trycloudflare.com", {
+const socket = io("https://seats-dictionary-brochures-donna.trycloudflare.com", {
   withCredentials: true,
 });
 
