@@ -25,17 +25,20 @@ const TallGrass = memo(({
 
     if (!playerCenterRef?.current) return null;
 
-    const [center, setCenter] = useState<THREE.Vector3>(playerCenterRef.current?.clone() ?? new THREE.Vector3());
+    console.log("grass test rendered")
+
+    const centerRef = useRef<THREE.Vector3>(playerCenterRef.current.clone() ?? new THREE.Vector3());
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
     const time = useRef(0);
     const lastTime = useRef(performance.now());
     const fpsLastTime = useRef(performance.now());
     const framesSinceLast = useRef(0);
     const measuredFPS = useRef(60); // default to 60 initially
-
-
+    const isGrassInitialized = useRef(false);
+    const placedCountRef = useRef({ value: 0 });
+    const lastCenterRef = useRef<THREE.Vector3>(centerRef.current.clone());
+    const lastRedistributionTime = useRef(0);
     // Create noise for natural grass distribution
-    const noise = useMemo(() => new SimplexNoise(), []);
 
     // Create a MUCH WIDER grass blade geometry for maximum coverage
     const grassGeometry = useMemo(() => {
@@ -152,108 +155,59 @@ const TallGrass = memo(({
     const originalRotations = useMemo(() => Array.from({ length: count }, () => new THREE.Euler()), [count]);
     const originalScales = useMemo(() => Array.from({ length: count }, () => new THREE.Vector3()), [count]);
 
-    // Even grass distribution - removed strategic patches in favor of uniform coverage
-    useEffect(() => {
-        if (!instancedMeshRef.current || !playerCenterRef.current) return;
-
+    const distributeDenseGrass = (placedCount: { value: number }, maxCount: number) => {
         const matrix = new THREE.Matrix4();
         const position = new THREE.Vector3();
         const rotation = new THREE.Euler();
         const quaternion = new THREE.Quaternion();
         const scale = new THREE.Vector3();
 
-        // For tracking placed count
-        const placedCount = { value: 0 };
-        const targetCount = count;
+        const cellSize = Math.sqrt((Math.PI * radius * radius) / (count * 1));
+        const gridSize = Math.ceil((radius * 2) / cellSize);
+        const halfGrid = gridSize / 2;
+        const grid: boolean[][] = Array(gridSize).fill(0).map(() => Array(gridSize).fill(false));
 
-        // ULTRA EVEN DISTRIBUTION - no patches, just pure density
-        distributeDenseGrass(placedCount, targetCount);
+        // First pass - systematic grid placement
+        for (let gx = 0; gx < gridSize && placedCount.value < maxCount; gx++) {
+            for (let gz = 0; gz < gridSize && placedCount.value < maxCount; gz++) {
+                const worldX = centerRef.current.x + (gx - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
+                const worldZ = centerRef.current.z + (gz - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
 
-        // Update the instance matrix buffer
-        instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+                const distSq = Math.pow(worldX - centerRef.current.x, 2) + Math.pow(worldZ - centerRef.current.z, 2);
+                if (distSq > radius * radius) continue;
 
-        // Function to place grass with extreme density and evenness
-        function distributeDenseGrass(placedCount: { value: number }, maxCount: number) {
-            // Use a cellular-like grid approach for ultra-even distribution
-            // Calculate cell size based on radius and blade count for maximum density
-            const cellSize = Math.sqrt((Math.PI * radius * radius) / (maxCount * 1));
-
-            // Create a grid-based distribution with jitter
-            // This ensures even coverage while maintaining natural randomness
-            const gridSize = Math.ceil((radius * 2) / cellSize);
-            const halfGrid = gridSize / 2;
-
-            // Create a grid with cell assignments to track filled positions
-            const grid: boolean[][] = Array(gridSize).fill(0).map(() => Array(gridSize).fill(false));
-
-            // First pass - systematic grid placement
-            for (let gx = 0; gx < gridSize && placedCount.value < maxCount; gx++) {
-                for (let gz = 0; gz < gridSize && placedCount.value < maxCount; gz++) {
-                    // Convert grid position to world position
-                    const worldX = center.x + (gx - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
-                    const worldZ = center.z + (gz - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
-
-                    // Check if in radius
-                    const distSq = Math.pow(worldX - center.x, 2) + Math.pow(worldZ - center.z, 2);
-                    if (distSq > radius * radius) continue;
-
-                    // Place grass blade
-                    position.set(worldX, 0, worldZ);
-
-                    // Noise-based density factor - avoid gaps by using high acceptance threshold
-                    // const densityNoise = noise.noise(position.x * 0.05, position.z * 0.05);
-                    // if (densityNoise < -0.1) continue; // Very high threshold for maximum density
-
-                    // Place the grass blade and mark cell as filled
-                    placeGrassBlade(position, placedCount);
-                    grid[gx][gz] = true;
-                }
-            }
-
-            // Second pass - fill any remaining blades in empty spaces
-            // Focus on filling gaps in the cellular pattern
-            if (placedCount.value < maxCount) {
-                // Try many positions to ensure we use all available count
-                const maxAttempts = maxCount * 5;
-
-                for (let i = 0; i < maxAttempts && placedCount.value < maxCount; i++) {
-                    // Random position within circle
-                    const theta = Math.random() * Math.PI * 2;
-                    // Square root for uniform density across the circle
-                    const dist = Math.sqrt(Math.random()) * radius;
-
-                    const worldX = center.x + dist * Math.cos(theta);
-                    const worldZ = center.z + dist * Math.sin(theta);
-
-                    // Convert to grid cell
-                    const gx = Math.floor((worldX - center.x) / cellSize + halfGrid);
-                    const gz = Math.floor((worldZ - center.z) / cellSize + halfGrid);
-
-                    // Check if cell is valid
-                    if (gx < 0 || gx >= gridSize || gz < 0 || gz >= gridSize) continue;
-
-                    // Prioritize filling empty cells
-                    if (grid[gx][gz]) {
-                        // Skip already filled cells most of the time
-                        if (Math.random() > 0.1) continue;
-                    }
-
-                    // Place the grass blade
-                    position.set(worldX, 0, worldZ);
-                    placeGrassBlade(position, placedCount);
-                    grid[gx][gz] = true;
-                }
+                position.set(worldX, 0, worldZ);
+                placeGrassBlade(position, placedCount);
+                grid[gx][gz] = true;
             }
         }
 
-        // Helper function to place a single grass blade with extreme density settings
+        // Second pass - fill remaining blades
+        if (placedCount.value < maxCount) {
+            const maxAttempts = maxCount * 5;
+            for (let i = 0; i < maxAttempts && placedCount.value < maxCount; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const dist = Math.sqrt(Math.random()) * radius;
+
+                const worldX = centerRef.current.x + dist * Math.cos(theta);
+                const worldZ = centerRef.current.z + dist * Math.sin(theta);
+
+                const gx = Math.floor((worldX - centerRef.current.x) / cellSize + halfGrid);
+                const gz = Math.floor((worldZ - centerRef.current.z) / cellSize + halfGrid);
+
+                if (gx < 0 || gx >= gridSize || gz < 0 || gz >= gridSize) continue;
+                if (grid[gx][gz] && Math.random() > 0.1) continue;
+
+                position.set(worldX, 0, worldZ);
+                placeGrassBlade(position, placedCount);
+                grid[gx][gz] = true;
+            }
+        }
+
         function placeGrassBlade(position: THREE.Vector3, placedCount: { value: number }) {
             if (placedCount.value >= count) return;
 
-            // Get height at this position
             position.y = getGroundHeight(position.x, position.z);
-
-            // Random rotation around Y axis with slight tilt
             rotation.set(
                 (Math.random() * 0.2 - 0.1),
                 Math.random() * Math.PI * 2,
@@ -261,115 +215,60 @@ const TallGrass = memo(({
             );
             quaternion.setFromEuler(rotation);
 
-            // WIDER, SHORTER blades for better ground coverage
-            // Using shorter but wider blades creates more density per blade
-            const grassHeight = 2.8 + Math.random() * 1.4; // Shorter (avg 2.9 vs 3.7)
-
-            // MUCH wider blades for ultimate coverage
-            const grassWidth = 0.2 + Math.random() * 0.3; // WAY wider (0.4-0.7 vs 0.25-0.35)
-
+            const grassHeight = 2.8 + Math.random() * 1.4;
+            const grassWidth = 0.2 + Math.random() * 0.3;
             scale.set(grassWidth, grassHeight, 1);
 
-            // Store original transforms for animation
             originalPositions[placedCount.value].copy(position);
             originalRotations[placedCount.value].copy(rotation);
             originalScales[placedCount.value].copy(scale);
 
-            // Combine transforms
             matrix.compose(position, quaternion, scale);
             matrices[placedCount.value].copy(matrix);
 
-            // Apply to instance
             instancedMeshRef.current!.setMatrixAt(placedCount.value, matrix);
-
-            // Increment count
             placedCount.value++;
         }
+    };
 
-    }, [count, radius, center, hidePlayerRadius, getGroundHeight, matrices, originalPositions, originalRotations, originalScales, noise]);
 
     // Optimized animation - less computation per blade
     useFrame((state) => {
-        if (!instancedMeshRef.current) return;
-
+        if (!instancedMeshRef.current || !playerCenterRef.current) return;
 
         time.current += state.clock.elapsedTime * 0.0002;
 
-        // const windTime = state.clock.elapsedTime * windSpeed;
-        // const position = new THREE.Vector3();
-        // const rotation = new THREE.Euler();
-        // const quaternion = new THREE.Quaternion();
-        // const scale = new THREE.Vector3();
-        // const matrix = new THREE.Matrix4();
-
-        // Only update a subset of blades each frame for even better performance
-        // Complete cycle every ~5 frames (more optimized)
         const now = performance.now();
         framesSinceLast.current++;
-
         if (now - fpsLastTime.current >= 1000) {
             measuredFPS.current = (framesSinceLast.current * 1000) / (now - fpsLastTime.current);
             fpsLastTime.current = now;
             framesSinceLast.current = 0;
         }
-
-        const currentFPS = measuredFPS.current;
         lastTime.current = now;
 
-        // Clamp FPS range between 10 and 60
-        // const clampedFPS = Math.max(10, Math.min(currentFPS, 60));
-
-        // More aggressive scale: Higher FPS → less movement
-        // const grassSmoothnessRate = Math.ceil((clampedFPS - 10) / 10) + 1;
-
-        // const updateCount = Math.floor(count / grassSmoothnessRate);
-        // const startIndex = Math.floor((state.clock.elapsedTime * 2) % grassSmoothnessRate) * updateCount;
-        // const endIndex = Math.min(startIndex + updateCount, count);
-
-        if (!playerCenterRef.current) return;
-
-        // Only update if the movement is significant enough (avoid noisy updates)
-        if (center.distanceToSquared(playerCenterRef.current) > 15 * 15) {
-            setCenter(playerCenterRef.current.clone());
+        // Update centerRef if player moves significantly
+        const distanceMoved = centerRef.current.distanceToSquared(playerCenterRef.current);
+        if (distanceMoved > 15 * 15) {
+            centerRef.current.copy(playerCenterRef.current);
         }
 
-        // Update subset of blades with wind effect
-        // for (let i = startIndex; i < endIndex; i++) {
-        //     // Get original transforms
-        //     position.copy(originalPositions[i]);
-        //     rotation.copy(originalRotations[i]);
-        //     scale.copy(originalScales[i]);
+        // Initialize or redistribute grass if needed
+        if (
+            !isGrassInitialized.current ||
+            lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15
+        ) {
+            const placedCount = { value: 0 };
+            const targetCount = count;
+            distributeDenseGrass(placedCount, targetCount);
+            instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+            isGrassInitialized.current = true;
+            lastCenterRef.current.copy(centerRef.current);
+        }
 
-        //     if (!position.x && !position.z) continue; // Skip uninitialized blades
+        // Animation logic (uncomment and update if needed)
+        // ...
 
-        //     // Calculate wind effect - use simplified noise sampling
-        //     // Use the blade's position but with much lower resolution noise
-        //     const simplifiedX = Math.floor(position.x * 0.05) * 20; // More aggressive simplification
-        //     const simplifiedZ = Math.floor(position.z * 0.05) * 20;
-
-        //     const windX = noise.noise(
-        //         simplifiedX * 0.01 + windTime * 0.5,
-        //         simplifiedZ * 0.01 + windTime * 0.5
-        //     ) * windStrength;
-
-        //     const windZ = noise.noise(
-        //         simplifiedX * 0.01 + windTime * 0.5 + 100,
-        //         simplifiedZ * 0.01 + windTime * 0.5 + 100
-        //     ) * windStrength;
-
-        //     // Apply minimal wind effect to maintain density
-        //     // Less wind bending preserves the dense appearance
-        //     rotation.x = originalRotations[i].x + windX * scale.y * 0.6; // Reduced wind effect
-        //     rotation.z = originalRotations[i].z + windZ * scale.y * 0.6; // Reduced wind effect
-
-        //     quaternion.setFromEuler(rotation);
-
-        //     // Compose and apply matrix
-        //     matrix.compose(position, quaternion, scale);
-        //     instancedMeshRef.current.setMatrixAt(i, matrix);
-        // }
-
-        // Update instance matrices
         instancedMeshRef.current.instanceMatrix.needsUpdate = true;
     });
 
