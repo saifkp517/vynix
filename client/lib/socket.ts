@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 // });
 
 
-const socket = io("https://durable-compliance-operational-restricted.trycloudflare.com", {
+const socket = io("https://synopsis-grant-impressed-children.trycloudflare.com", {
   withCredentials: true,
 });
 
