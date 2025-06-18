@@ -37,10 +37,16 @@ const TallGrass = memo(({
     const isGrassInitialized = useRef(false);
     const placedCountRef = useRef({ value: 0 });
     const lastCenterRef = useRef<THREE.Vector3>(centerRef.current.clone());
-    
+
     // Add state to control when redistribution should happen
     const [isRedistributing, setIsRedistributing] = useState(false);
     const redistributionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Chunk management
+    const numChunks = 64;
+    const chunkSize = Math.ceil(count / numChunks);
+    const currentChunkIndex = useRef(0);
+    const chunksToUpdatePerFrame = 2; // Update 2 chunks per frame for ~30k updates/sec at 60 FPS
 
     // Create grass geometry
     const grassGeometry = useMemo(() => {
@@ -129,28 +135,13 @@ const TallGrass = memo(({
     const originalRotations = useMemo(() => Array.from({ length: count }, () => new THREE.Euler()), [count]);
     const originalScales = useMemo(() => Array.from({ length: count }, () => new THREE.Vector3()), [count]);
 
-    // Debounced redistribution function
-    const scheduleRedistribution = () => {
-        if (redistributionTimeoutRef.current) {
-            clearTimeout(redistributionTimeoutRef.current);
-        }
+    // Simplex noise for wind animation
+    const noise = useMemo(() => new SimplexNoise(), []);
 
-        setIsRedistributing(true);
-        
-        redistributionTimeoutRef.current = setTimeout(() => {
-            const placedCount = { value: 0 };
-            distributeDenseGrass(placedCount, count);
-            
-            if (instancedMeshRef.current) {
-                instancedMeshRef.current.instanceMatrix.needsUpdate = true;
-            }
-            
-            lastCenterRef.current.copy(centerRef.current);
-            setIsRedistributing(false);
-        }, 100); // 100ms delay to prevent frequent updates
-    };
-
-    const distributeDenseGrass = (placedCount: { value: number }, maxCount: number) => {
+    // Modified distributeDenseGrass to support chunked initialization
+    const distributeDenseGrass = (placedCount: { value: number }, maxCount: number, chunkIndex: number) => {
+        const startIndex = chunkIndex * chunkSize;
+        const endIndex = Math.min((chunkIndex + 1) * chunkSize, maxCount);
         const matrix = new THREE.Matrix4();
         const position = new THREE.Vector3();
         const rotation = new THREE.Euler();
@@ -162,51 +153,25 @@ const TallGrass = memo(({
         const halfGrid = gridSize / 2;
         const grid: boolean[][] = Array(gridSize).fill(0).map(() => Array(gridSize).fill(false));
 
-        // First pass - systematic grid placement
-        for (let gx = 0; gx < gridSize && placedCount.value < maxCount; gx++) {
-            for (let gz = 0; gz < gridSize && placedCount.value < maxCount; gz++) {
-                const worldX = centerRef.current.x + (gx - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
-                const worldZ = centerRef.current.z + (gz - halfGrid) * cellSize + (Math.random() * 0.6 - 0.3) * cellSize;
+        // Distribute grass blades for the specified chunk
+        for (let i = startIndex; i < endIndex && placedCount.value < maxCount; i++) {
+            const theta = Math.random() * Math.PI * 2;
+            const dist = Math.sqrt(Math.random()) * radius;
 
-                const distSq = Math.pow(worldX - centerRef.current.x, 2) + Math.pow(worldZ - centerRef.current.z, 2);
-                if (distSq > radius * radius) continue;
+            const worldX = centerRef.current.x + dist * Math.cos(theta);
+            const worldZ = centerRef.current.z + dist * Math.sin(theta);
 
-                position.set(worldX, 0, worldZ);
-                placeGrassBlade(position, placedCount);
-                grid[gx][gz] = true;
-            }
-        }
+            const gx = Math.floor((worldX - centerRef.current.x) / cellSize + halfGrid);
+            const gz = Math.floor((worldZ - centerRef.current.z) / cellSize + halfGrid);
 
-        // Second pass - fill remaining blades
-        if (placedCount.value < maxCount) {
-            const maxAttempts = maxCount * 5;
-            for (let i = 0; i < maxAttempts && placedCount.value < maxCount; i++) {
-                const theta = Math.random() * Math.PI * 2;
-                const dist = Math.sqrt(Math.random()) * radius;
+            if (gx < 0 || gx >= gridSize || gz < 0 || gz >= gridSize) continue;
+            if (grid[gx][gz] && Math.random() > 0.1) continue;
 
-                const worldX = centerRef.current.x + dist * Math.cos(theta);
-                const worldZ = centerRef.current.z + dist * Math.sin(theta);
-
-                const gx = Math.floor((worldX - centerRef.current.x) / cellSize + halfGrid);
-                const gz = Math.floor((worldZ - centerRef.current.z) / cellSize + halfGrid);
-
-                if (gx < 0 || gx >= gridSize || gz < 0 || gz >= gridSize) continue;
-                if (grid[gx][gz] && Math.random() > 0.1) continue;
-
-                position.set(worldX, 0, worldZ);
-                placeGrassBlade(position, placedCount);
-                grid[gx][gz] = true;
-            }
-        }
-
-        function placeGrassBlade(position: THREE.Vector3, placedCount: { value: number }) {
-            if (placedCount.value >= count) return;
-
-            position.y = getGroundHeight(position.x, position.z);
+            position.set(worldX, getGroundHeight(worldX, worldZ), worldZ);
             rotation.set(
-                (Math.random() * 0.2 - 0.1),
+                Math.random() * 0.2 - 0.1,
                 Math.random() * Math.PI * 2,
-                (Math.random() * 0.2 - 0.1)
+                Math.random() * 0.2 - 0.1
             );
             quaternion.setFromEuler(rotation);
 
@@ -214,18 +179,85 @@ const TallGrass = memo(({
             const grassWidth = 0.2 + Math.random() * 0.3;
             scale.set(grassWidth, grassHeight, 1);
 
-            originalPositions[placedCount.value].copy(position);
-            originalRotations[placedCount.value].copy(rotation);
-            originalScales[placedCount.value].copy(scale);
+            originalPositions[i].copy(position);
+            originalRotations[i].copy(rotation);
+            originalScales[i].copy(scale);
 
             matrix.compose(position, quaternion, scale);
-            matrices[placedCount.value].copy(matrix);
+            matrices[i].copy(matrix);
 
             if (instancedMeshRef.current) {
-                instancedMeshRef.current.setMatrixAt(placedCount.value, matrix);
+                instancedMeshRef.current.setMatrixAt(i, matrix);
             }
+            grid[gx][gz] = true;
             placedCount.value++;
         }
+    };
+
+    // Update chunk with wind animation and player hiding
+    const updateChunk = (chunkIndex: number) => {
+        const startIndex = chunkIndex * chunkSize;
+        const endIndex = Math.min((chunkIndex + 1) * chunkSize, count);
+        const matrix = new THREE.Matrix4();
+        const quaternion = new THREE.Quaternion();
+
+        for (let i = startIndex; i < endIndex; i++) {
+            const position = originalPositions[i].clone();
+            const rotation = originalRotations[i].clone();
+            const scale = originalScales[i].clone();
+
+            // Apply wind animation using 2D noise
+            const windOffset = noise.noise(
+                position.x * 0.1 + time.current * windSpeed,
+                position.z * 0.1 + time.current * windSpeed
+            ) * windStrength;
+            rotation.x += windOffset;
+            rotation.z += windOffset * 0.5;
+
+            // Apply player hiding radius
+            if (hidePlayerRadius > 0 && playerCenterRef.current) {
+                const distToPlayer = position.distanceTo(playerCenterRef.current);
+                if (distToPlayer < hidePlayerRadius) {
+                    const scaleFactor = Math.max(0.1, 1 - distToPlayer / hidePlayerRadius);
+                    scale.y *= scaleFactor;
+                }
+            }
+
+            quaternion.setFromEuler(rotation);
+            matrix.compose(position, quaternion, scale);
+            matrices[i].copy(matrix);
+
+            if (instancedMeshRef.current) {
+                instancedMeshRef.current.setMatrixAt(i, matrix);
+            }
+        }
+    };
+
+    // Modified scheduleRedistribution for chunked updates
+    const scheduleRedistribution = () => {
+        if (redistributionTimeoutRef.current) {
+            clearTimeout(redistributionTimeoutRef.current);
+        }
+
+        setIsRedistributing(true);
+        currentChunkIndex.current = 0; // Reset chunk index for redistribution
+
+        const redistributeNextChunk = () => {
+            if (currentChunkIndex.current < numChunks) {
+                const placedCount = { value: currentChunkIndex.current * chunkSize };
+                distributeDenseGrass(placedCount, count, currentChunkIndex.current);
+                currentChunkIndex.current++;
+                if (instancedMeshRef.current) {
+                    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+                }
+                redistributionTimeoutRef.current = setTimeout(redistributeNextChunk, 0);
+            } else {
+                lastCenterRef.current.copy(centerRef.current);
+                setIsRedistributing(false);
+            }
+        };
+
+        redistributeNextChunk();
     };
 
     // Cleanup timeout on unmount
@@ -242,6 +274,7 @@ const TallGrass = memo(({
 
         time.current += state.clock.elapsedTime * 0.0002;
 
+        // FPS calculation
         const now = performance.now();
         framesSinceLast.current++;
         if (now - fpsLastTime.current >= 1000) {
@@ -257,26 +290,27 @@ const TallGrass = memo(({
             centerRef.current.copy(playerCenterRef.current);
         }
 
-        // Check if redistribution is needed (but don't do it immediately)
-        if (
-            !isGrassInitialized.current ||
-            (!isRedistributing && lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15)
-        ) {
-            if (!isGrassInitialized.current) {
-                // Initial distribution - do it immediately
-                const placedCount = { value: 0 };
-                distributeDenseGrass(placedCount, count);
-                instancedMeshRef.current.instanceMatrix.needsUpdate = true;
-                isGrassInitialized.current = true;
-                lastCenterRef.current.copy(centerRef.current);
-            } else {
-                // Subsequent redistributions - use debounced approach
-                scheduleRedistribution();
-            }
+        // Initial distribution
+        if (!isGrassInitialized.current) {
+            const placedCount = { value: 0 };
+            distributeDenseGrass(placedCount, count, 0); // Initialize first chunk
+            currentChunkIndex.current = 1;
+            isGrassInitialized.current = true;
+            lastCenterRef.current.copy(centerRef.current);
+            instancedMeshRef.current.instanceMatrix.needsUpdate = true;
         }
 
-        // Only update instance matrix if not currently redistributing
+        // Check if redistribution is needed
+        if (!isRedistributing && lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15) {
+            scheduleRedistribution();
+        }
+
+        // Update chunks for wind and player hiding
         if (!isRedistributing) {
+            for (let i = 0; i < chunksToUpdatePerFrame; i++) {
+                updateChunk(currentChunkIndex.current);
+                currentChunkIndex.current = (currentChunkIndex.current + 1) % numChunks;
+            }
             instancedMeshRef.current.instanceMatrix.needsUpdate = true;
         }
     });
