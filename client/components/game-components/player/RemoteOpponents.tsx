@@ -26,12 +26,6 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
     const deadPlayers = useRef<Set<string>>(new Set()); // Track dead players
     const shootEventEmitter = useRef(new EventEmitter()); // EventEmitter for playerShot events
 
-
-
-    useWhyDidYouUpdate("remoteOpponents", {
-        playerIds
-    });
-
     useEffect(() => {
         console.log('RemoteOpponents mounted, playerIds:', playerIds);
 

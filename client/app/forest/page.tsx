@@ -24,9 +24,7 @@ type Player = {
 
 
 // Main game component
-const FirstPersonGame: React.FC = () => {
-
-
+const Game: React.FC = () => {
 
   const obstacles = useRef<Mesh[]>([]);
   const isPlayerDead = useRef(false);
@@ -234,7 +232,7 @@ const FirstPersonGame: React.FC = () => {
     Array.isArray(vegetationPositions.current) &&
     vegetationPositions.current.length > 0;
 
-  useWhyDidYouUpdate("FirstPersonGame", {
+  useWhyDidYouUpdate("Game", {
     roomId,
     team,
     hitPlayers,
@@ -350,4 +348,4 @@ const FirstPersonGame: React.FC = () => {
   );
 };
 
-export default FirstPersonGame;
+export default Game;
