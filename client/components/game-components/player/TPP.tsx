@@ -22,6 +22,7 @@ interface PlayerProps {
     ammoRef: RefObject<number>;
     otherPlayers: RefObject<{ [playerId: string]: { position: Vector3; velocity: Vector3 } }>;
     controlsRef: RefObject<any>;
+    playerDeadRef: RefObject<boolean>;
     userId: string;
 }
 
@@ -107,7 +108,7 @@ const Player: React.FC<PlayerProps> = ({
     obstacles,
     onCenterUpdate,
     playerCenterRef,
-    controlsRef,
+    playerDeadRef, controlsRef,
     crosshairRef,
     getGroundHeight,
     grenadeCoolDownRef,
@@ -122,14 +123,13 @@ const Player: React.FC<PlayerProps> = ({
     const [collisionNormal, setCollisionNormal] = useState<Vector3 | null>(null);
     const jumpRequested = useRef(false);
     const playerRef = useRef<Mesh>(null);
-    const jumpDirection = useRef(new Vector3());
     const isJumpingRef = useRef(false);
     const [fireballs, setFireballs] = useState<{ id: number; position: Vector3; direction: Vector3 }[]>([]);
     const [collisionType, setCollisionType] = useState("");
     const [explosions, setExplosions] = useState<{ id: number; position: Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
-    const explosionRadius = 15; // Explosion radius for damage calculation
-    const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
+    const walkSoundRef = useRef<Howl | null>(null);
+    const wasWalkingRef = useRef(false); // to track last frame walking state
 
     const playerPosition = useRef<Vector3>(new Vector3(0, 0, 0));
     const playerVelocity = useRef<Vector3>(new Vector3());
@@ -138,11 +138,18 @@ const Player: React.FC<PlayerProps> = ({
     const gravity = -9.8 * 4;
     const jumpStrength = 25;
 
+    const keysPressedRef = useRef<{ [key: string]: boolean }>({
+        KeyW: false,
+        KeyA: false,
+        KeyS: false,
+        KeyD: false,
+        ShiftLeft: false,
+        ShiftRight: false,
+    });
+
 
     const raycaster = new Raycaster();
     let shootDirection = new Vector3();
-    const recoilProgress = useRef(0);
-    const isRecoiling = useRef(false);
 
     const shootEvent = useRef(new EventEmitter());
 
@@ -201,14 +208,14 @@ const Player: React.FC<PlayerProps> = ({
 
                     const hit = distanceToCenter <= sphereRadius;
                     return { hit, distance: distanceToCenter };
-                } 
+                }
 
                 players.forEach((player) => {
                     const playerPosition = player.position.clone().add(new Vector3(0, -1, 0)); // Adjust for sphere offset
                     const playerRadius = 2; // Match the sphereGeometry radius
-                    
 
-                    const { hit, distance } = rayIntersectsSphere(playerCenterRef.current, shootDirection , playerPosition, playerRadius)
+
+                    const { hit, distance } = rayIntersectsSphere(playerCenterRef.current, shootDirection, playerPosition, playerRadius)
                     if (hit) {
                         console.log("hit!");
                         crosshairRef?.current?.triggerHit();
@@ -465,9 +472,13 @@ const Player: React.FC<PlayerProps> = ({
 
 
 
+
+
     // Handle keyboard input
     useEffect(() => {
         let shootingInterval: NodeJS.Timeout | null = null;
+
+
 
         const handleKeyDown = (e: KeyboardEvent) => {
             switch (e.code) {
@@ -476,7 +487,7 @@ const Player: React.FC<PlayerProps> = ({
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: true })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: true })); break;
                 case 'ShiftLeft':
-                case 'ShiftRight':
+                    keysPressedRef.current.ShiftLeft = true;
                     playerSpeed.current = 18;
                     break;
                 case 'KeyG': {
@@ -504,7 +515,7 @@ const Player: React.FC<PlayerProps> = ({
                 case 'KeyA': setMoveState(prev => ({ ...prev, left: false })); break;
                 case 'KeyD': setMoveState(prev => ({ ...prev, right: false })); break;
                 case 'ShiftLeft':
-                case 'ShiftRight':
+                    keysPressedRef.current.ShiftLeft = false;
                     playerSpeed.current = 6;
                     break;
                 case 'Space':
@@ -589,8 +600,73 @@ const Player: React.FC<PlayerProps> = ({
         };
     }, []);
 
+
+    //respawn logic
+    useEffect(() => {
+        let lastState = playerDeadRef.current;
+
+        const interval = setInterval(() => {
+            if (lastState && !playerDeadRef.current) {
+                // Player just respawned
+                const otherPlayerList = Object.values(otherPlayers.current);
+                console.log("Respawning player, other players:", otherPlayerList);
+                const MIN_DISTANCE = 20;
+                const MAX_DISTANCE = 50;
+                const MAX_ATTEMPTS = 30;
+
+                const getValidSpawn = () => {
+                    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                        const base = otherPlayerList[Math.floor(Math.random() * otherPlayerList.length)]?.position;
+                        if (!base) continue;
+
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = MIN_DISTANCE + Math.random() * (MAX_DISTANCE - MIN_DISTANCE);
+                        const offsetX = Math.cos(angle) * distance;
+                        const offsetZ = Math.sin(angle) * distance;
+                        const newX = base.x + offsetX;
+                        const newZ = base.z + offsetZ;
+                        const newY = getGroundHeight(newX, newZ) + playerHeight;
+
+                        const candidate = new Vector3(newX, newY, newZ);
+
+                        const safe = otherPlayerList.every(p => p.position.distanceTo(candidate) >= MIN_DISTANCE);
+                        if (safe) return candidate;
+                    }
+                    return new Vector3(100, getGroundHeight(100, 100) + playerHeight, 100); // fallback
+                };
+
+                const spawnPos = getValidSpawn();
+                playerPosition.current.copy(spawnPos);
+                if (playerRef.current) playerRef.current.position.copy(spawnPos);
+                playerVelocity.current.set(0, 0, 0);
+            }
+
+            lastState = playerDeadRef.current;
+        }, 100);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    //walk sound initialization
+    useEffect(() => {
+        walkSoundRef.current = new Howl({
+            src: ['/sounds/walk.mp3'],
+            volume: 0.5,
+            loop: true,
+            rate: 1
+        });
+
+        return () => {
+            walkSoundRef.current?.stop();
+        };
+    }, []);
+
+
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
+
+        if (playerDeadRef.current) return; // Skip if player is dead
+
         // Removed the controlsRef check since PointerLockControls is disabled
         // if (!controlsRef?.current?.isLocked) return;
 
@@ -745,7 +821,30 @@ const Player: React.FC<PlayerProps> = ({
             lastUpdateTime.current = currentTime;
         }
 
+        //walk sound logic
+        const isMovingHorizontally = horizontalMove.lengthSq() > 0.01;
 
+        const isWalkingNow = isMovingHorizontally && onGround && !playerDeadRef.current;
+
+        const walkSound = walkSoundRef.current;
+
+        if (walkSound) {
+            const isShift = keysPressedRef.current.ShiftLeft;
+
+            if (isWalkingNow && !wasWalkingRef.current) {
+                walkSound.volume(isShift ? 0.8 : 0.5);
+                walkSound.rate(isShift ? 2 : 1);
+                walkSound.play();
+            } else if (!isWalkingNow && wasWalkingRef.current) {
+                walkSound.stop();
+            } else if (isWalkingNow && walkSound.playing()) {
+                // Update rate and volume dynamically if needed while walking
+                walkSound.volume(isShift ? 0.8 : 0.5);
+                walkSound.rate(isShift ? 2 : 1);
+            }
+
+            wasWalkingRef.current = isWalkingNow;
+        }
     });
 
     return (

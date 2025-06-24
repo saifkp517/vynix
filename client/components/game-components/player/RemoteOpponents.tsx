@@ -26,12 +26,6 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
     const deadPlayers = useRef<Set<string>>(new Set()); // Track dead players
     const shootEventEmitter = useRef(new EventEmitter()); // EventEmitter for playerShot events
 
-
-
-    useWhyDidYouUpdate("remoteOpponents", {
-        playerIds
-    });
-
     useEffect(() => {
         console.log('RemoteOpponents mounted, playerIds:', playerIds);
 
@@ -87,7 +81,7 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
                     cameraDirection: new Vector3(0, 0, -1), // Default direction
                 };
                 setPlayerIds((prev) => [...prev, playerId]);
-            }, 6000);
+            }, 5000);
         };
 
         const handleShoot = ({ id, rayOrigin, rayDirection }: { id: string; rayOrigin: Vector3; rayDirection: Vector3 }) => {

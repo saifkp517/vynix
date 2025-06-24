@@ -15,6 +15,7 @@ interface GameInfoProps {
   explosionTimeout: number | null;
   kills: number;
   pingRef: RefObject<number>;
+  otherPlayers: RefObject<{ [playerId: string]: { position: Vector3; velocity: Vector3 } }>;
   isPlayerDead?: RefObject<boolean>;
 }
 
@@ -51,7 +52,7 @@ interface DamageIndicator {
 }
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, controlsRef, ammoRef, bulletsAvailable, kills, pingRef, isPlayerDead }) => {
+  ({ roomId, userid, team, controlsRef, ammoRef, bulletsAvailable, kills, pingRef, isPlayerDead, otherPlayers }) => {
 
     const healthRef = useRef(100);
     const [pingInfo, setPingInfo] = useState(0);
@@ -63,12 +64,27 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
 
     // Mock data - replace with real data from your socket
-    const [players] = useState<Player[]>([
-      { id: '1', name: 'Player1', kills: 12, deaths: 3, health: 85, team: 'red', isAlive: true },
-      { id: '2', name: 'Player2', kills: 8, deaths: 5, health: 0, team: 'blue', isAlive: false },
-      { id: '3', name: 'Player3', kills: 15, deaths: 2, health: 100, team: 'red', isAlive: true },
-      { id: '4', name: 'Player4', kills: 6, deaths: 7, health: 45, team: 'blue', isAlive: true },
-    ]);
+    const [players, setPlayers] = useState<Player[]>([]);
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        if (!otherPlayers.current) return;
+
+        const updatedPlayers: Player[] = Object.entries(otherPlayers.current).map(([id, data]) => ({
+          id,
+          name: `Player_${id}`, // Or pull from another source if you have real names
+          kills: 0,              // Default/fake data unless you have real values
+          deaths: 0,
+          health: 100,
+          team: Math.random() > 0.5 ? 'red' : 'blue', // Assign team randomly (or however you like)
+          isAlive: true,
+        }));
+
+        setPlayers(updatedPlayers);
+      }, 500); // Poll every 500ms
+
+      return () => clearInterval(interval);
+    }, [otherPlayers]);
 
     const chatMessages = useRef<ChatMessage[]>([]);
     const [, forceUpdate] = useState({});
@@ -418,7 +434,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
     return (
       <>
-        <Stats />
+        {/* <Stats /> */}
 
         {/* Damage Direction Indicators */}
         <div className="fixed inset-0 pointer-events-none z-35">
@@ -610,14 +626,14 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
         {/* Death Screen */}
         {isPlayerDead?.current && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="text-center">
-              <div className="w-16 h-16 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto mb-6" />
-              <h1 className="text-white text-3xl font-light mb-2">Eliminated</h1>
-              <p className="text-white/60 text-sm">Respawning...</p>
+              <div className="w-6 h-6 border-2 border-red-400/30 border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
+              <h1 className="text-white text-xl font-light">Eliminated</h1>
             </div>
           </div>
         )}
+
 
         {/* Room Info - Subtle Bottom Left */}
         <div className="fixed bottom-2 left-2 z-30">
