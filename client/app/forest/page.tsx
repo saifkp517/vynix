@@ -104,11 +104,10 @@ const Game: React.FC = () => {
     });
 
     socket.on("youDied", () => {
-      console.log("you died");
       isPlayerDead.current = true;
       setTimeout(() => {
         isPlayerDead.current = false;
-      }, 4000);
+      }, 5000);
     });
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -182,7 +181,7 @@ const Game: React.FC = () => {
   useEffect(() => {
     const sound = new Howl({
       src: ['/sounds/breeze.mp3'],
-      volume: 0.1,
+      volume: 0.3,
       preload: true,
       loop: true,
     });
@@ -205,6 +204,7 @@ const Game: React.FC = () => {
       <Player
         {...props}
         onCenterUpdate={handlePlayerCenterUpdate}
+        playerDeadRef={isPlayerDead}
         playerCenterRef={playerCenterRef}
         controlsRef={controlsRef}
         crosshairRef={CrosshairRef}
@@ -279,6 +279,7 @@ const Game: React.FC = () => {
               kills={0}
               pingRef={pingRef}
               isPlayerDead={isPlayerDead}
+              otherPlayers={playerDataRef}
             />
             <Crosshair ref={CrosshairRef} />
 
