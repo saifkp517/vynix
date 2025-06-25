@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 //});
 
 
-  const socket = io("https://legislation-affiliated-fitness-habitat.trycloudflare.com", {
+  const socket = io("https://sp-strap-may-prescription.trycloudflare.com", {
     withCredentials: true,
   });
 
