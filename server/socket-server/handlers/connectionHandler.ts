@@ -16,7 +16,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
   socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCamera(socket, io, position, velocity, cameraDirection));
-  socket.on("shoot", ({userId, shootObject}) => handleShoot(socket, io, userId, shootObject));
+  socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
   socket.on("requestForestUpdate", (() => {
     socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
   }));
@@ -29,6 +29,15 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   socket.on("disconnect", () => {
     console.log("User disconnected", socket.id);
     // cleanup logic
+  });
+
+  socket.on('playerWalking', (data) => {
+    console.log(`Player walking: ${data.userId}`);
+    socket.broadcast.emit('playerWalking', data);
+  });
+  socket.on('playerStopped', (data) => {
+    console.log(`Player stopped: ${data.userId}`);
+    socket.broadcast.emit('playerStopped', data);
   });
 };
 
