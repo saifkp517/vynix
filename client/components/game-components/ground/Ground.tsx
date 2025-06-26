@@ -599,24 +599,25 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         pickupDistance={2}
       />
 
-      
+
       {/* Enhanced Tall Grass */}
-      <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
+      {/* <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
         <EnhancedTallGrass
           getGroundHeight={getGroundHeight}
           playerCenterRef={playerCenterRef}
         />
-      </Suspense>
+      </Suspense> */}
 
       {/* Enhanced Forest */}
-      {vegetationPositions ? (
+      {/* {vegetationPositions ? (
         <Suspense fallback={<LoadingFallback componentName="Forest" />}>
           <ForestWrapper {...forestProps} />
         </Suspense>
       ) : (
         <LoadingFallback componentName="Forest (No Vegetation)" />
-      )}
+      )} */}
 
+      
       {children}
     </GroundHeightContext.Provider>
   );

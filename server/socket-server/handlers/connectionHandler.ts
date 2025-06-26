@@ -28,16 +28,16 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   socket.on("disconnect", () => {
     console.log("User disconnected", socket.id);
-    // cleanup logic
+    //TODO: cleanup logic 
   });
 
-  socket.on('playerWalking', (data) => {
-    console.log(`Player walking: ${data.userId}`);
-    socket.broadcast.emit('playerWalking', data);
+  socket.on('playerWalking', ({ userId }) => {
+    console.log(`Player walking: ${userId}`);
+    socket.broadcast.emit('playerWalking', { userId });
   });
-  socket.on('playerStopped', (data) => {
-    console.log(`Player stopped: ${data.userId}`);
-    socket.broadcast.emit('playerStopped', data);
+  socket.on('playerStopped', ({ userId }) => {
+    console.log(`Player stopped: ${userId}`);
+    socket.broadcast.emit('playerStopped', { userId });
   });
 };
 

@@ -6,10 +6,8 @@ import socket from '@/lib/socket';
 import { Howl } from 'howler';
 import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
-import { Vector3, Box3, Mesh, Camera, Raycaster, Sphere, SphereGeometry, CylinderGeometry, Matrix4 } from 'three';
+import { Vector3, Box3, Mesh, Camera, Raycaster, Sphere, SphereGeometry, CylinderGeometry, Matrix4, PositionalAudio, AudioListener } from 'three';
 import { EventEmitter } from 'events';
-
-
 
 interface PlayerProps {
     obstacles: any;
@@ -24,6 +22,7 @@ interface PlayerProps {
     controlsRef: RefObject<any>;
     playerDeadRef: RefObject<boolean>;
     userId: string;
+    listenerRef: RefObject<AudioListener | null>;
 }
 
 type FireballProps = {
@@ -115,7 +114,8 @@ const Player: React.FC<PlayerProps> = ({
     otherPlayers,
     ammoRef,
     pingRef,
-    userId
+    userId,
+    listenerRef
 }) => {
 
     const { camera } = useThree();
@@ -146,6 +146,19 @@ const Player: React.FC<PlayerProps> = ({
         ShiftLeft: false,
         ShiftRight: false,
     });
+
+
+    useEffect(() => {
+        const listener = new AudioListener();
+        camera.add(listener);
+        listenerRef.current = listener;
+
+        return () => {
+            camera.remove(listener);
+            listenerRef.current = null;
+        };
+    }, []);
+
 
 
     const raycaster = new Raycaster();
@@ -650,7 +663,7 @@ const Player: React.FC<PlayerProps> = ({
     //walk sound initialization
     useEffect(() => {
         walkSoundRef.current = new Howl({
-            src: ['/sounds/walk.mp3'],
+            src: ['/sounds/walks.mp3'],
             volume: 0.5,
             loop: true,
             rate: 1
@@ -835,8 +848,10 @@ const Player: React.FC<PlayerProps> = ({
                 walkSound.volume(isShift ? 0.8 : 0.5);
                 walkSound.rate(isShift ? 2 : 1);
                 walkSound.play();
+                socket.emit("playerWalking", { userId });
             } else if (!isWalkingNow && wasWalkingRef.current) {
                 walkSound.stop();
+                socket.emit("playerStopped", { userId });
             } else if (isWalkingNow && walkSound.playing()) {
                 // Update rate and volume dynamically if needed while walking
                 walkSound.volume(isShift ? 0.8 : 0.5);
@@ -870,6 +885,7 @@ const Player: React.FC<PlayerProps> = ({
                     <sphereGeometry args={[0.5]} />
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
+
 
                 {/* Gun (attached to player's right hand) */}
                 <Gun

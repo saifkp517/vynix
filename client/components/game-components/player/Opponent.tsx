@@ -1,10 +1,10 @@
 import { RefObject, useEffect, useRef } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
-import * as THREE from "three";
+import { useFrame, useThree, useLoader } from "@react-three/fiber";
+import { PositionalAudio, AudioListener, AudioLoader, Group, Mesh, Vector3, Color } from 'three';
 import { EventEmitter } from "events";
 import Gun from "./OpGun"
 
-const RED = new THREE.Color("red");
+const RED = new Color("red");
 const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
 
 export const Opponent = ({
@@ -17,23 +17,51 @@ export const Opponent = ({
   isRemote = false,
   getGroundHeight,
   addObstacleRef,
+  listener,
   isHit = false,
+  setAudioRef
 }: {
-  positionRef: () => THREE.Vector3 | null;
-  velocityRef: () => THREE.Vector3 | null;
-  cameraDirectionRef: () => THREE.Vector3 | null;
+  positionRef: () => Vector3 | null;
+  velocityRef: () => Vector3 | null;
+  cameraDirectionRef: () => Vector3 | null;
   smoothnessRef: RefObject<number>;
   shootEvent: EventEmitter;
   userId: string;
   isRemote?: boolean;
   getGroundHeight: (x: number, z: number) => number;
-  addObstacleRef?: (ref: THREE.Mesh | null) => void;
+  addObstacleRef?: (ref: Mesh | null) => void;
   isHit?: boolean;
+  listener: AudioListener | undefined;
+  setAudioRef?: (userId: string, audio: PositionalAudio) => void;
 }) => {
-  const group = useRef<THREE.Group>(null);
-  const sphereRef = useRef<THREE.Mesh>(null);
-  const targetPosition = useRef<THREE.Vector3>(new THREE.Vector3());
-  const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const group = useRef<Group>(null);
+  const sphereRef = useRef<Mesh>(null);
+  const buffer = useLoader(AudioLoader, "/sounds/walk.mp3");
+  const targetPosition = useRef<Vector3>(new Vector3());
+  const currentPosition = useRef<Vector3>(new Vector3());
+  const soundRef = useRef<PositionalAudio | null>(null);
+
+  useEffect(() => {
+    if (!listener || !sphereRef.current) return;
+
+    const sound = new PositionalAudio(listener);
+    const loader = new AudioLoader();
+
+    loader.load('/sounds/walk.mp3', (buffer) => {
+      sound.setBuffer(buffer);
+      sound.setPlaybackRate(2)
+      sound.setLoop(true);
+      sound.setVolume(1);
+      sound.setRefDistance(30);
+      sphereRef.current!.add(sound);
+      soundRef.current = sound;
+
+      if (setAudioRef) {
+        setAudioRef(userId, sound);
+      }
+    });
+  }, [listener]);
+
 
   useEffect(() => {
     if (addObstacleRef) {
@@ -76,12 +104,12 @@ export const Opponent = ({
 
   return (
     <group ref={group} position={[0, 0, 0]}>
-      <mesh ref={sphereRef} position={[0, -1, 0]}>
+      <mesh ref={sphereRef} position={[0, -1.5, 0]}>
         <sphereGeometry args={[0.5]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
       <Gun
-        cameraDirection={cameraDirectionRef() || new THREE.Vector3(0, 0, -1)}
+        cameraDirection={cameraDirectionRef() || new Vector3(0, 0, -1)}
         shootEvent={shootEvent}
         userId={userId}
       />

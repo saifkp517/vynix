@@ -3,7 +3,7 @@ import { useWhyDidYouUpdate } from '@/lib/utils';
 import { Opponent } from './Opponent';
 import { useGroundHeight } from '../ground/Ground';
 import socket from '@/lib/socket';
-import { Vector3, Mesh } from 'three';
+import { Vector3, Mesh, PositionalAudio, AudioListener } from 'three';
 import { EventEmitter } from 'events';
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
     smoothnessRef: RefObject<number>;
     playerDataRef: RefObject<Record<string, PlayerData>>;
     showKillToast: (name: string) => void;
+    listenerRef?: RefObject<AudioListener>;
 }
 
 type PlayerData = {
@@ -20,11 +21,12 @@ type PlayerData = {
     cameraDirection: Vector3;
 };
 
-const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothnessRef, playerDataRef, showKillToast }) => {
+const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothnessRef, playerDataRef, showKillToast, listenerRef }) => {
     const [playerIds, setPlayerIds] = useState<string[]>([]);
     const getGroundHeight = useGroundHeight();
     const deadPlayers = useRef<Set<string>>(new Set()); // Track dead players
     const shootEventEmitter = useRef(new EventEmitter()); // EventEmitter for playerShot events
+    const walkingAudioRefs = useRef<Record<string, PositionalAudio>>({});
 
     useEffect(() => {
         console.log('RemoteOpponents mounted, playerIds:', playerIds);
@@ -97,17 +99,38 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
             });
         };
 
+        const handlePlayerWalking = ({ userId }: { userId: string }) => {
+            const audio = walkingAudioRefs.current[userId];
+            if (audio && !audio.isPlaying) {
+                audio.setRefDistance(2);
+                audio.setLoop(true);
+                audio.setVolume(0.5);
+                audio.play();
+            }
+        };
+
+        const handlePlayerStopped = ({ userId }: { userId: string }) => {
+            const audio = walkingAudioRefs.current[userId];
+            if (audio && audio.isPlaying) {
+                audio.stop();
+            }
+        };
+
         socket.on('playerMoved', handlePlayerMoved);
-        socket.on('playerDisconnected', handlePlayerDisconnected);
+        socket.on('disconnect', handlePlayerDisconnected);
         socket.on('playerDead', handlePlayerDead);
         socket.on('playerShot', handleShoot);
+        socket.on('playerWalking', handlePlayerWalking);
+        socket.on('playerStopped', handlePlayerStopped);
 
         return () => {
             console.log('RemoteOpponents unmounted, cleaning up socket listeners');
             socket.off('playerMoved', handlePlayerMoved);
-            socket.off('playerDisconnected', handlePlayerDisconnected);
+            socket.off('disconnect', handlePlayerDisconnected);
             socket.off('playerDead', handlePlayerDead);
             socket.off('playerShot', handleShoot);
+            socket.off('playerWalking', handlePlayerWalking);
+            socket.off('playerStopped', handlePlayerStopped);
         };
     }, [playerDataRef, showKillToast]);
 
@@ -133,6 +156,10 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
                         addObstacleRef={addObstacleRef}
                         getGroundHeight={getGroundHeight}
                         smoothnessRef={smoothnessRef}
+                        listener={listenerRef?.current}
+                        setAudioRef={(userId, audio) => {
+                            walkingAudioRefs.current[userId] = audio;
+                        }}
                     />
                 );
             })}
