@@ -4,7 +4,7 @@ import { Canvas} from '@react-three/fiber';
 import { useWhyDidYouUpdate } from '@/lib/utils';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/TPP';
-import { Vector3, Mesh, SRGBColorSpace } from 'three';
+import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
@@ -55,6 +55,9 @@ const Game: React.FC = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
+
+  //local player audio listener
+  const listenerRef = useRef<AudioListener>(null as unknown as AudioListener);
 
 
   const handleComponentStatusChange = (
@@ -181,7 +184,7 @@ const Game: React.FC = () => {
   useEffect(() => {
     const sound = new Howl({
       src: ['/sounds/breeze.mp3'],
-      volume: 0.3,
+      volume: 0.1,
       preload: true,
       loop: true,
     });
@@ -326,6 +329,7 @@ const Game: React.FC = () => {
                       addObstacleRef={addObstacleRef}
                       obstacles={obstacles.current}
                       otherPlayers={playerDataRef}
+                      listenerRef={listenerRef}
                     />
                     <RemoteOpponents
                       hitPlayers={hitPlayers}
@@ -333,6 +337,7 @@ const Game: React.FC = () => {
                       smoothnessRef={smoothnessRef}
                       playerDataRef={playerDataRef}
                       showKillToast={showKillToast}
+                      listenerRef={listenerRef}
                     />
                   </Ground>
                 </Canvas>
