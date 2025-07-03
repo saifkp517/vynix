@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 //});
 
 
- const socket = io("https://jack-turtle-alt-chamber.trycloudflare.com", {
+ const socket = io("https://url-blogs-src-rim.trycloudflare.com", {
    withCredentials: true,
  });
 
