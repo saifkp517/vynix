@@ -133,6 +133,7 @@ export const TreeVisual: React.FC<{
             roughness: 0.8,
             metalness: 0.0,
             flatShading: false,
+            side: THREE.DoubleSide
         });
 
         const canopyMidMaterial = new THREE.MeshStandardMaterial({
@@ -155,6 +156,7 @@ export const TreeVisual: React.FC<{
             roughness: 0.8,
             metalness: 0.0,
             flatShading: false, // Changed to false to match other canopies
+            side: THREE.DoubleSide
         });
 
         return {

@@ -305,22 +305,6 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   // Main component logging
   const { markLoaded } = useComponentLogger('Ground');
 
-  // Texture loading with logging
-  const [grassMap, roughnessMap, noiseMap] = useLoader(TextureLoader, [
-    "/textures/grass.jpg",
-    "/textures/grass_rough.jpg",
-    "/textures/grass_normal.jpg"
-  ]);
-
-  // Log texture loading
-  useEffect(() => {
-    if (grassMap && roughnessMap && noiseMap && geometryRef.current) {
-      const groundStatus = logger.getComponentStatus('Ground');
-      if (groundStatus?.status !== 'loaded') {
-        markLoaded();
-      }
-    }
-  }, [grassMap, roughnessMap, noiseMap, markLoaded]);
 
   // Socket setup with logging
   useEffect(() => {
@@ -430,28 +414,8 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
     logger.logStatus('Texture Processing', 'loading');
 
-    try {
-      grassMap.wrapS = grassMap.wrapT = THREE.RepeatWrapping;
-      grassMap.repeat.set(100, 100);
-      grassMap.anisotropy = 16;
-      grassMap.minFilter = THREE.LinearMipmapLinearFilter;
-
-      if (roughnessMap) {
-        roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
-        roughnessMap.repeat.set(50, 50);
-      }
-
-      if (noiseMap) {
-        noiseMap.wrapS = noiseMap.wrapT = THREE.RepeatWrapping;
-        noiseMap.repeat.set(30, 30);
-      }
-
-      initializedRef.current = true;
-      logger.logStatus('Texture Processing', 'loaded');
-    } catch (error) {
-      logger.logStatus('Texture Processing', 'failed', error as Error);
-    }
-  }, [grassMap, roughnessMap, noiseMap]);
+   
+  }, []);
 
   const sunPosition = useMemo(() => new THREE.Vector3(100, 1000, 100), []);
 
@@ -523,10 +487,10 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
   // Mark ground component as loaded when everything is ready
   useEffect(() => {
-    if (grassMap && roughnessMap && noiseMap && geometryRef.current) {
+    if (geometryRef.current) {
       markLoaded();
     }
-  }, [grassMap, roughnessMap, noiseMap, markLoaded]);
+  }, [markLoaded]);
 
   return (
     <GroundHeightContext.Provider value={groundHeightContextValue}>
@@ -554,14 +518,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         <planeGeometry ref={geometryRef} args={[2048, 2048, 512, 512]} />
         <meshStandardMaterial
           ref={materialRef}
-          map={grassMap}
-          roughnessMap={roughnessVariation || roughnessMap}
-          metalnessMap={noiseMap}
-          metalness={0}
-          displacementMap={noiseMap}
-          normalScale={new THREE.Vector2(100, 100)}
-          color={new THREE.Color(0xffffff).lerp(new THREE.Color(fogColor), 0.5)}
+          color="#3E2723" // Deep rich muddy brown
+          roughness={0} // Wet look (0 is glossy, 1 is dry)
+          metalness={0.1} // Slight reflectiveness
+          flatShading={false}
         />
+
       </mesh>
 
       {/* Lighting */}
@@ -617,7 +579,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         <LoadingFallback componentName="Forest (No Vegetation)" />
       )}
 
-      
+
       {children}
     </GroundHeightContext.Provider>
   );

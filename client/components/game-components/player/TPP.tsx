@@ -845,7 +845,7 @@ const Player: React.FC<PlayerProps> = ({
             const isShift = keysPressedRef.current.ShiftLeft;
 
             if (isWalkingNow && !wasWalkingRef.current) {
-                walkSound.volume(isShift ? 0.8 : 0.5);
+                walkSound.volume(isShift ? 0.8 : 0.2);
                 walkSound.rate(isShift ? 2 : 1);
                 walkSound.play();
                 socket.emit("playerWalking", { userId });
@@ -854,7 +854,7 @@ const Player: React.FC<PlayerProps> = ({
                 socket.emit("playerStopped", { userId });
             } else if (isWalkingNow && walkSound.playing()) {
                 // Update rate and volume dynamically if needed while walking
-                walkSound.volume(isShift ? 0.8 : 0.5);
+                walkSound.volume(isShift ? 0.8 : 0.2);
                 walkSound.rate(isShift ? 2 : 1);
             }
 
@@ -881,7 +881,7 @@ const Player: React.FC<PlayerProps> = ({
             ))}
             <group ref={playerRef} position={playerPosition.current}>
                 {/* Player body */}
-                <mesh position={[0, -1, 0]}>
+                <mesh position={[0, -1.5, 0]}>
                     <sphereGeometry args={[0.5]} />
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
