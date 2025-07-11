@@ -276,6 +276,7 @@ const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => 
         const gunShotSound = new Howl({
             src: ['/sounds/gunshot.mp3'],
             volume: 0.5,
+            rate: 2.0,
         });
 
         if (shootingInterval.current) return;
