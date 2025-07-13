@@ -1,6 +1,7 @@
 // /socket-server/handlers/connectionHandler.ts
 
 import { Server } from "socket.io";
+import cookie from "cookie";
 import type { AuthenticatedSocket } from "../../shared/types";
 import { handleJoinRoom, handleUpdatePositionAndCamera, handleShoot } from "./events";
 import { players } from "../../shared/data";
@@ -8,7 +9,24 @@ import { rooms } from "../../shared/data";
 
 
 export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSocket) => {
+
+
   console.log("User connected", socket.id);
+
+    const rawCookie = socket.handshake.headers.cookie;
+
+  if (!rawCookie) {
+    console.log("🚫 No cookies sent with socket handshake.");
+    socket.disconnect();
+    return;
+  }
+
+
+  const cookies = cookie.parse(rawCookie);
+  console.log("cookies: ", cookies);
+  const sessionId = cookies["session_id"];
+  console.log(sessionId)
+
 
   socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 

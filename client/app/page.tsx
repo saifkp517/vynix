@@ -1,405 +1,266 @@
-'use client'
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Trophy, Users, Timer, Eye, CheckCircle, XCircle, Zap } from 'lucide-react';
-import Navbar from '@/components/custom/navbar/Navbar';
-import { redirect, useRouter } from 'next/navigation';
-import { useAuth } from './utils/AuthContext';
-import { useThemeConfig } from './theme-provider';
+"use client";
 
-const CodeBattlePlatform = () => {
-  const { user, loading, loggedIn } = useAuth();
-  const { theme } = useThemeConfig();
-  const [username, setUsername] = useState("");
-  const [activeTab, setActiveTab] = useState('battles');
-  const [roomCode, setRoomCode] = useState('');
-  const router = useRouter();
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { Eye, EyeOff, Mail, Lock, Swords, Shield, Crown, Zap as Lightning, Trees, Shield as Knight } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { useThemeConfig } from "./theme-provider";
+import { getRadiusClass } from "@/lib/theme-config";
+import { redirect } from "next/navigation";
+import { useAuth } from "./utils/AuthContext";
+import axios from "axios";
+
+export default function GameLoginPage() {
+
+  const { user, loginUser, registerUser } = useAuth();
+  const [playerName, setPlayerName] = useState("")
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
+  const { theme: configTheme } = useThemeConfig();
+  const [mounted, setMounted] = useState(false);
+  const [arenaData, setArenaData] = useState([
+    { name: "StormBlade", victories: 143, rank: 1 },
+    { name: "IronDefender", victories: 137, rank: 2 },
+    { name: "ShadowStriker", victories: 129, rank: 3 },
+  ]);
 
   useEffect(() => {
-    console.log(loading, loggedIn)
-    if (loading == false && loggedIn == false) {
-      redirect("/login")
+    if (user) {
+      redirect("/forest");
     }
-    setUsername(user?.username)
   }, [user]);
 
-  // Demo data
-  const upcomingBattles = [
-    { id: 1, name: 'Algorithm Showdown', numberOfPlayers: 2 },
-    { id: 2, name: 'Data Structure Duel', numberOfPlayers: 2 },
-    { id: 3, name: 'Frontend Challenge', numberOfPlayers: 2 }
-  ];
 
-  const tournaments = [
-    {
-      id: 101,
-      name: 'Weekly Algorithm Tournament',
-      participants: 16,
-      rounds: 4,
-      prize: '$500',
-      status: 'Registering',
-      startDate: 'March 5, 2025'
-    },
-    {
-      id: 102,
-      name: 'React Masters',
-      participants: 32,
-      rounds: 5,
-      prize: '$1,000',
-      status: 'Registering',
-      startDate: 'March 10, 2025'
-    },
-    {
-      id: 103,
-      name: 'Backend Battle Royale',
-      participants: 8,
-      rounds: 3,
-      prize: '$300',
-      status: 'In Progress',
-      startDate: 'March 3, 2025'
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (isLogin) {
+      const result = await loginUser(email, password);
+      if (result.success) {
+        setSuccess("Entering the battlefield...");
+        redirect("/forest")
+      } else {
+        setError(result.message || "Unexpected Error");
+      }
+    } else {
+      const result = await registerUser(playerName!, email, password);
+      if (result.success) {
+        setSuccess(result.message);
+        setIsLogin(true);
+      } else {
+        setError(result.message);
+      }
     }
-  ];
+  };
 
-  const activeBattles = [
-    {
-      id: 201,
-      name: 'Dynamic Programming Challenge',
-      players: [
-        { username: 'codemaster99', avatar: '/api/placeholder/30/30', rating: 1850 },
-        { username: 'algorithmQueen', avatar: '/api/placeholder/30/30', rating: 1920 }
-      ],
-      viewers: 24,
-      timeLeft: '14:22'
-    },
-    {
-      id: 202,
-      name: 'CSS Battle',
-      players: [
-        { username: 'frontendWizard', avatar: '/api/placeholder/30/30', rating: 1720 },
-        { username: 'designDragon', avatar: '/api/placeholder/30/30', rating: 1690 }
-      ],
-      viewers: 13,
-      timeLeft: '08:45'
-    }
-  ];
 
-  const leaderboard = [
-    { rank: 1, username: 'algorithmQueen', avatar: '/api/placeholder/30/30', rating: 1920, wins: 42, losses: 7 },
-    { rank: 2, username: 'codemaster99', avatar: '/api/placeholder/30/30', rating: 1850, wins: 38, losses: 10 },
-    { rank: 3, username: 'byteBaron', avatar: '/api/placeholder/30/30', rating: 1810, wins: 35, losses: 12 },
-    { rank: 4, username: 'syntaxSage', avatar: '/api/placeholder/30/30', rating: 1790, wins: 31, losses: 14 },
-    { rank: 5, username: 'frontendWizard', avatar: '/api/placeholder/30/30', rating: 1720, wins: 29, losses: 15 },
-  ];
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null; // Ensure consistent hook calls
+
+
+  const radiusClass = getRadiusClass(configTheme.borderRadius);
 
   return (
-    <div className={`flex flex-col w-full mx-auto p-4 space-y-6 ${
-      theme.name === 'dark' 
-        ? 'bg-gray-900 text-white' 
-        : 'bg-gray-50 text-gray-900'
-    }`}>
-      {/* Header */}
-      <Navbar username={"test"} icon={"asd"} eloscore={123} />
+    <div className="flex min-h-screen bg-background text-foreground transition-colors overflow-hidden relative">
 
-      {/* Main content */}
-      <Tabs defaultValue="battles" onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid grid-cols-3 mb-6 ${
-          theme.name === 'dark' ? 'bg-gray-800' : 'bg-white shadow-sm'
-        }`}>
-          <TabsTrigger value="battles" aria-label="Battles" className="flex items-center gap-2">
-            <Zap className="w-5 h-5" />
-            <span className="hidden sm:inline">Battles</span>
-          </TabsTrigger>
-          <TabsTrigger value="tournaments" aria-label="Tournaments" className="flex items-center gap-2">
-            <Trophy className="w-5 h-5" />
-            <span className="hidden sm:inline">Tournaments</span>
-          </TabsTrigger>
-            <TabsTrigger value="leaderboard" aria-label="Leaderboard" className="flex items-center gap-2">
-            <Eye className="w-5 h-5" />
-            <span className="hidden sm:inline">Store</span>
-            </TabsTrigger>
-        </TabsList>
+      {/* Background Image + Blur + Overlay */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        {/* Image container with blur */}
+        <div className="absolute inset-0 bg-cover bg-center blur-md" style={{ backgroundImage: "url('/images/background.png')" }} />
 
-        {/* Battles Tab */}
-        <TabsContent value="battles" className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <Card className={
-                theme.name === 'dark' 
-                  ? 'bg-gray-800 border-gray-700' 
-                  : 'bg-white border-gray-200 shadow-sm'
-              }>
-                <CardHeader>
-                  <CardTitle>Join a Battle</CardTitle>
-                  <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Join an existing battle or create your own</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      value={roomCode}
-                      onChange={e => {
-                        setRoomCode(e.target.value)
-                      }}
-                      placeholder="Enter room code"
-                      className={`flex-1 ${
-                        theme.name === 'dark' 
-                          ? 'bg-gray-700 border-gray-600 text-white' 
-                          : 'bg-gray-50 border-gray-200'
-                      }`}
-                    />
-                    <Button
-                      onClick={(e) => {
-                        window.location.href = `/landing`
-                      }}
-                      className={
-                        theme.name === 'dark' 
-                          ? 'bg-gray-500 hover:bg-gray-400' 
-                          : 'bg-gray-300 hover:bg-gray-500 text-white'
-                      }
-                    >
-                      Join
-                    </Button>
-                  </div>
-                  <div className="flex justify-center">
-                    <Button 
-                      variant="outline" 
-                      className={`w-full ${
-                        theme.name === 'dark' 
-                          ? 'border-gray-600 hover:bg-gray-700 text-white' 
-                          : 'border-gray-300 hover:bg-gray-100'
-                      }`}
-                    >
-                      Create New Battle
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+        {/* Optional: a soft translucent overlay */}
+        <div className="absolute inset-0 bg-black/10" />
+      </div>
+
+      {/* Left Side (Game Stats & Leaderboard) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-muted/40 flex-col items-center justify-center p-8 relative overflow-hidden">
+        <div className="max-w-md space-y-8 text-center z-10">
+          <div>
+            <h1 className="text-5xl font-bold mb-2 text-primary">
+              <Trees className="inline-block mr-2 h-8 w-8" /> Zentra
+            </h1>
+            <h2 className="text-2xl font-semibold">Epic Combat Arena</h2>
+            <div className="flex justify-center gap-2 mt-3">
+              <Link href="/forest">
+                <Badge
+                  variant="outline"
+                  className="px-3 py-1 cursor-pointer hover:bg-muted transition"
+                >
+                  <Crown className="h-4 w-4 mr-1 cursor-pointer" /> Join as a Guest
+                </Badge>
+              </Link>
             </div>
           </div>
 
-          <Card className={
-            theme.name === 'dark' 
-              ? 'bg-gray-800 border-gray-700' 
-              : 'bg-white border-gray-200 shadow-sm'
-          }>
-            <CardHeader>
-              <CardTitle>
-                <div className="flex items-center">
-                  Active Matches
-                  <span className="relative ml-2 mb-2">
-                    <span className="absolute inline-flex h-2 w-2 rounded-full bg-green-500 opacity-75 animate-ping"></span>
-                    <span className="absolute inline-flex h-2 w-2 rounded-full bg-green-600"></span>
-                  </span>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {upcomingBattles.map(battle => (
-                  <div 
-                    key={battle.id} 
-                    className={`flex flex-col sm:flex-row justify-between items-center p-3 border rounded-md ${
-                      theme.name === 'dark' 
-                        ? 'border-gray-700 bg-gray-700/50' 
-                        : 'border-gray-200 bg-white shadow-sm'
-                    }`}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">MatchId: {battle.id}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mt-2 sm:mt-0">
-                      <span className={`text-sm flex items-center ${
-                        theme.name === 'dark' ? 'text-gray-300' : 'text-gray-600'
-                      }`}>
-                        <Users className="w-4 h-4 mr-1" />
-                        {battle.numberOfPlayers}/10
-                      </span>
-                      <Button 
-                        size="sm"
-                        className={
-                          theme.name === 'dark' 
-                            ? 'bg-blue-600 hover:bg-blue-700' 
-                            : 'bg-blue-500 hover:bg-blue-600 text-white'
-                        }
-                      >Join</Button>
-                    </div>
-                  </div>
-                ))}
+
+
+        </div>
+
+        {/* Decorative Elements */}
+        <div className="absolute bottom-4 right-4 font-mono text-xs text-muted-foreground">
+          Build: v2.4.3
+        </div>
+      </div>
+
+      {/* Right Side (Login Form) */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <Card className={`w-full max-w-md border-gray-300 shadow-lg relative ${radiusClass} overflow-hidden bg-white`}>
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-500"></div>
+
+          <CardHeader className="space-y-1">
+            <div className="flex justify-center mb-2">
+              <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                {isLogin ?
+                  <Swords className="h-6 w-6 text-emerald-600" /> :
+                  <Knight className="h-6 w-6 text-emerald-600" />
+                }
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tournaments Tab */}
-        <TabsContent value="tournaments" className="space-y-6">
-          <span className={`text-xl font-semibold ${theme.name === 'dark' ? 'text-gray-300' : 'text-gray-400'}`}>Coming Soon</span>
-
-          <div className="grid md:grid-cols-2 gap-4 relative">
-            <div className="absolute inset-0 flex items-center justify-center bg-transparent opacity-0 rounded-2xl z-10">
             </div>
-            <div className="blur-sm pointer-events-none">
-              {tournaments.map(tournament => (
-                <Card key={tournament.id} className={
-                  theme.name === 'dark' 
-                    ? 'bg-gray-800 border-gray-700' 
-                    : 'bg-white border-gray-200 shadow-sm'
-                }>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle>{tournament.name}</CardTitle>
-                        <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Starts on {tournament.startDate}</CardDescription>
-                      </div>
-                      <Badge className={
-                        tournament.status === 'Registering' 
-                          ? theme.name === 'dark' ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800'
-                          : theme.name === 'dark' ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-800'
-                      }>
-                        {tournament.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-2 mb-4">
-                      <div>
-                        <p className={`text-sm ${
-                        theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Participants</p>
-                        <p className="font-medium">{tournament.participants}</p>
-                      </div>
-                      <div>
-                        <p className={`text-sm ${
-                        theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Rounds</p>
-                        <p className="font-medium">{tournament.rounds}</p>
-                      </div>
-                      <div>
-                        <p className={`text-sm ${
-                        theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Prize</p>
-                        <p className={`font-medium ${theme.name === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>{tournament.prize}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button 
-                      className={`w-full ${
-                        theme.name === 'dark' 
-                          ? 'bg-blue-600 hover:bg-blue-700' 
-                          : 'bg-blue-500 hover:bg-blue-600 text-white'
-                      }`}
-                    >
-                      {tournament.status === 'Registering' ? 'Register' : 'View Bracket'}
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          </div>
+            <CardTitle className="text-2xl font-bold text-center text-gray-800">
+              {isLogin ? "Enter The Battlefield" : "Forge Your Legend"}
+            </CardTitle>
+            <CardDescription className="text-center text-gray-600">
+              {isLogin ?
+                "Sign in to battle fierce opponents and claim your glory" :
+                "Register to begin your warrior's journey and join the fray"
+              }
+            </CardDescription>
+          </CardHeader>
 
-          <Card className={
-            theme.name === 'dark' 
-              ? 'bg-gray-800 border-gray-700' 
-              : 'bg-white border-gray-200 shadow-sm'
-          }>
-            <CardHeader>
-              <CardTitle>Create Tournament</CardTitle>
-              <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Set up your own coding tournament</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                className={`w-full ${
-                  theme.name === 'dark' 
-                    ? 'bg-blue-600 hover:bg-blue-700' 
-                    : 'bg-blue-500 hover:bg-blue-600 text-white'
-                }`}
-              >Create Tournament</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleAuth}>
+              {/* Email Field */}
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input onChange={(e) => setEmail(e.target.value)} placeholder="email" type="text" className="pl-10 text-gray-800 border-gray-300" />
+              </div>
 
-        {/* Leaderboard Tab */}
-        <TabsContent value="leaderboard">
-          <span className={`text-xl font-semibold ${theme.name === 'dark' ? 'text-gray-300' : 'text-gray-400'}`}>Coming Soon</span>
+              {/* Registration-only fields */}
+              {!isLogin && (
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input onChange={(e) => setPlayerName(e.target.value)} placeholder="player name" type="text" className="pl-10 text-gray-800 border-gray-300" />
+                </div>
+              )}
 
-          <div className="grid md:grid-cols-2 gap-4 relative">
-            <div className="absolute inset-0 flex items-center justify-center bg-transparent opacity-0 rounded-2xl z-10">
+              {/* Password Field */}
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  className="pl-10 pr-10 text-gray-800 border-gray-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {/* Remember Me & Forgot Password (Login only) */}
+              {isLogin && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="remember" />
+                    <Label htmlFor="remember" className="text-sm font-medium cursor-pointer text-gray-800">Keep me battle-ready</Label>
+                  </div>
+                  <Link href="/forgot-password" className="text-sm font-medium text-emerald-700 hover:text-emerald-600">
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
+
+              {/* Terms & Conditions (Registration only) */}
+              {!isLogin && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="terms" />
+                  <Label htmlFor="terms" className="text-sm font-medium cursor-pointer text-gray-800">
+                    I accept the{" "}
+                    <Link href="/terms" className="text-emerald-600 hover:text-emerald-500">
+                      Code of Honor
+                    </Link>
+                  </Label>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <Button type="submit" className="w-full relative overflow-hidden bg-emerald-600 text-white hover:bg-emerald-500">
+                <span className="relative z-10">{isLogin ? "Charge Into Battle" : "Forge Account"}</span>
+              </Button>
+              {success && <p className="text-gray-600">{success}</p>}
+              {error && <p className="text-gray-600">{error}</p>}
+            </form>
+
+            {/* Divider */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">Or join with</span>
+              </div>
             </div>
-            <div className="blur-sm pointer-events-none">
-              <Card className={
-                theme.name === 'dark' 
-                  ? 'bg-gray-800 border-gray-700' 
-                  : 'bg-white border-gray-200 shadow-sm'
-              }>
-                <CardHeader>
-                  <CardTitle>Global Leaderboard</CardTitle>
-                  <CardDescription className={theme.name === 'dark' ? 'text-gray-400' : ''}>Top performers this month</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-96">
-                    <div className="space-y-1">
-                      {leaderboard.map((player, index) => (
-                        <div
-                          key={player.username}
-                          className={`flex items-center p-3 rounded-md ${
-                            theme.name === 'dark' 
-                              ? index === 0 ? 'bg-amber-900/30' : index === 1 ? 'bg-gray-700' : index === 2 ? 'bg-orange-900/30' : ''
-                              : index === 0 ? 'bg-amber-100' : index === 1 ? 'bg-slate-100' : index === 2 ? 'bg-orange-100' : 'bg-white'
-                          }`}
-                        >
-                          <div className="w-8 text-center font-semibold">
-                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : player.rank}
-                          </div>
-                          <Avatar className="mx-3">
-                            <AvatarImage src={player.avatar} />
-                            <AvatarFallback>{player.username.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <p className="font-medium">{player.username}</p>
-                            <div className={`flex text-sm ${
-                              theme.name === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                            }`}>
-                              <span className={`flex items-center ${theme.name === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                {player.wins}
-                              </span>
-                              <span className="mx-1">•</span>
-                              <span className={`flex items-center ${theme.name === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
-                                <XCircle className="w-3 h-3 mr-1" />
-                                {player.losses}
-                              </span>
-                            </div>
-                          </div>
-                          <Badge 
-                            variant="outline" 
-                            className={
-                              theme.name === 'dark' 
-                                ? 'bg-amber-900/50 text-amber-300 border-amber-700' 
-                                : 'bg-amber-200 text-amber-800 border-amber-300'
-                            }
-                          >
-                            <Trophy className={`w-3 h-3 mr-1 ${theme.name === 'dark' ? 'text-amber-400' : 'text-amber-500'}`} />
-                            {player.rating}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
+
+            {/* Social Login Buttons */}
+            <div className="grid ">
+              <Button onClick={() => { }} variant="outline" type="button" className="w-full border-gray-300 text-gray-500 cursor-pointer">
+                <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                  <defs>
+                    <linearGradient id="emeraldBlue" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="#10B981" />
+                      <stop offset="100%" stopColor="#3B82F6" />
+                    </linearGradient>
+                  </defs>
+                  <path fill="url(#emeraldBlue)" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
+                  <path fill="url(#emeraldBlue)" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
+                </svg>
+                Google
+              </Button>
             </div>
-          </div>
-        </TabsContent>
-      </Tabs>
+          </CardContent>
+
+          {/* Footer (Toggle between Login/Register) */}
+          <CardFooter className="flex justify-center">
+            <p className="text-sm text-gray-600">
+              {isLogin ? "New to the fight? " : "Already a warrior? "}
+              <button
+                onClick={() => setIsLogin(!isLogin)}
+                className="cursor-pointer text-emerald-600 hover:text-emerald-500 font-medium "
+              >
+                {isLogin ? "Forge your warrior profile" : "Return to battle"}
+              </button>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
-};
-
-export default CodeBattlePlatform;
+}
