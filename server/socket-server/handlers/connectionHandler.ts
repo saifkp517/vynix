@@ -25,8 +25,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   const cookies = cookie.parse(rawCookie);
   console.log("cookies: ", cookies);
   const sessionId = cookies["session_id"];
-  console.log(sessionId)
-
+  console.log("Session iD: ", sessionId)
 
   socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
