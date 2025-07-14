@@ -7,7 +7,7 @@ import { io } from "socket.io-client";
 //});
 
 
- const socket = io("https://strategy-creative-advertisements-mercury.trycloudflare.com", {
+ const socket = io("https://wx-climb-printable-barrier.trycloudflare.com", {
    withCredentials: true,
  });
 
