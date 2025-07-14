@@ -1,12 +1,31 @@
 // /socket-server/handlers/connectionHandler.ts
 
 import { Server } from "socket.io";
+import cookie from "cookie";
 import type { AuthenticatedSocket } from "../../shared/types";
 import { handleJoinRoom, handleUpdatePositionAndCamera, handleShoot } from "./events";
 import { players } from "../../shared/data";
+import { rooms } from "../../shared/data";
+
 
 export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSocket) => {
+
+
   console.log("User connected", socket.id);
+
+    const rawCookie = socket.handshake.headers.cookie;
+
+  if (!rawCookie) {
+    console.log("🚫 No cookies sent with socket handshake.");
+    socket.disconnect();
+    return;
+  }
+
+
+  const cookies = cookie.parse(rawCookie);
+  console.log("cookies: ", cookies);
+  const sessionId = cookies["session_id"];
+  console.log("Session iD: ", sessionId)
 
   socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
@@ -28,7 +47,26 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   socket.on("disconnect", () => {
     console.log("User disconnected", socket.id);
-    //TODO: cleanup logic 
+
+    for (const room of rooms) {
+      console.log("Checking room", room.id, "for socket", socket.id);
+      console.log("Room players:", room.players.map(p => ({ id: p.id })));
+
+      const playerIndex = room.players.findIndex(player => player.id === socket.id);
+      if (playerIndex !== -1) {
+        room.players.splice(playerIndex, 1);
+
+        // Remove player from players map
+        delete players[socket.id];
+        console.log(`Player ${socket.id} removed from room ${room.id}`);
+        console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
+
+
+        break;
+      }
+    }
+
+    io.emit('playerDisconnected', socket.id);
   });
 
   socket.on('playerWalking', ({ userId }) => {

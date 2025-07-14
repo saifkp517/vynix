@@ -27,6 +27,7 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
     const deadPlayers = useRef<Set<string>>(new Set()); // Track dead players
     const shootEventEmitter = useRef(new EventEmitter()); // EventEmitter for playerShot events
     const walkingAudioRefs = useRef<Record<string, PositionalAudio>>({});
+    const shootingAudioRefs = useRef<Record<string, PositionalAudio>>({});
 
     useEffect(() => {
         console.log('RemoteOpponents mounted, playerIds:', playerIds);
@@ -73,7 +74,7 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
                 return newIds;
             });
 
-            // Respawn after 6 seconds
+            // Respawn after 5 seconds
             setTimeout(() => {
                 console.log(`Respawning player ${playerId}`);
                 deadPlayers.current.delete(playerId); // Allow re-adding
@@ -102,9 +103,9 @@ const RemoteOpponents: React.FC<Props> = ({ hitPlayers, addObstacleRef, smoothne
         const handlePlayerWalking = ({ userId }: { userId: string }) => {
             const audio = walkingAudioRefs.current[userId];
             if (audio && !audio.isPlaying) {
-                audio.setRefDistance(2);
+                audio.setRefDistance(5);
                 audio.setLoop(true);
-                audio.setVolume(0.5);
+                audio.setVolume(1)
                 audio.play();
             }
         };

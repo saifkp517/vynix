@@ -147,6 +147,7 @@ export const TreeVisual: React.FC<{
             roughness: 0.7,
             metalness: 0.0,
             flatShading: false,
+            side: THREE.DoubleSide
         });
 
         // Horizontal plates material, now matching canopy style

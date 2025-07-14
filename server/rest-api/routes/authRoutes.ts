@@ -1,9 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
-import { generateAccessToken, generateRefreshToken } from '../../utils/jwt';
 
 const prisma = new PrismaClient();
 
@@ -129,7 +127,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
             } else {
                 if (existing_session.expiresAt < new Date()) {
 
-                    const delete_session = await prisma.session.delete({ where: { id: existing_session.id } });
+                    await prisma.session.delete({ where: { id: existing_session.id } });
 
                     const session = await prisma.session.create({
                         data: {
@@ -148,10 +146,6 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
                 }
             }
         }
-
-
-
-
         res.status(201).json({ message: "Logged In" });
 
     } catch (error) {

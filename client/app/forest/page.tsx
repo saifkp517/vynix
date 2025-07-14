@@ -1,6 +1,6 @@
 'use client'
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { Canvas} from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { useWhyDidYouUpdate } from '@/lib/utils';
 import { Howl } from 'howler';
 import Player from '@/components/game-components/player/TPP';
@@ -83,6 +83,19 @@ const Game: React.FC = () => {
     // Perform actions requiring all components (e.g., full game loop)
   };
 
+  //redirect user to login page after refresh
+  useEffect(() => {
+    if (sessionStorage.getItem('justRefreshed')) {
+      sessionStorage.removeItem('justRefreshed');
+
+      // Disconnect socket manually (if it exists)
+      socket.disconnect();
+
+      // Redirect
+      window.location.href = '/';
+    }
+  }, []);
+
   // Player connection handling
   useEffect(() => {
     const handleConnect = () => {
@@ -115,9 +128,10 @@ const Game: React.FC = () => {
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      window.location.href = '/';
-      socket.disconnect();
+      sessionStorage.setItem('justRefreshed', 'true');
     };
+
+
 
     window.addEventListener("beforeunload", handleBeforeUnload);
 

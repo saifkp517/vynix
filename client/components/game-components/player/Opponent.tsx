@@ -50,9 +50,8 @@ export const Opponent = ({
     loader.load('/sounds/walk.mp3', (buffer) => {
       sound.setBuffer(buffer);
       sound.setPlaybackRate(2)
-      sound.setLoop(true);
       sound.setVolume(1);
-      sound.setRefDistance(30);
+      sound.setRefDistance(5);
       sphereRef.current!.add(sound);
       soundRef.current = sound;
 
