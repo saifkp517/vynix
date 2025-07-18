@@ -16,7 +16,6 @@ import { CollisionType } from './checkCollision';
 //hooks
 import { useAudioListener } from '@/hooks/useAudioListener';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
-import { useShootHandler } from '@/hooks/useShootHandler';
 
 
 interface PlayerProps {
@@ -150,8 +149,8 @@ const Player: React.FC<PlayerProps> = ({
                 }
 
                 players.forEach((player) => {
-                    const playerPosition = player.position.clone().add(new Vector3(0, -1, 0)); // Adjust for sphere offset
-                    const playerRadius = 2; // Match the sphereGeometry radius
+                    const playerPosition = player.position.clone().add(new Vector3(0, -1.5, 0)); // Adjust for sphere offset
+                    const playerRadius = 0.5; // Match the sphereGeometry radius
 
 
                     const { hit, distance } = rayIntersectsSphere(playerCenterRef.current, shootDirection, playerPosition, playerRadius)

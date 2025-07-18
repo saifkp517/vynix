@@ -82,7 +82,7 @@ export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: str
 
     const playerCenter = new Vector3(
       player.position.x,
-      player.position.y,
+      player.position.y - 1.5,
       player.position.z
     );
 
@@ -99,7 +99,7 @@ export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: str
 
     // Try values that are "near" the ray
 
-    const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 2);
+    const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 0.5);
 
     console.log(`[Check] playerId: ${playerId}, hit: ${hit}, distance: ${distance.toFixed(3)} units`);
 
