@@ -287,10 +287,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
     let newCenter: Position = { x: 0, y: 0, z: 0 };
 
-    socket.on("requestForestUpdate", withDelay(() => {
-        console.log("requested");
-        socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
-    }));
 
     socket.on('updatePosition', withDelay((position, velocity) => {
 

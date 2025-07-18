@@ -13,7 +13,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   console.log("User connected", socket.id);
 
-    const rawCookie = socket.handshake.headers.cookie;
+  const rawCookie = socket.handshake.headers.cookie;
 
   if (!rawCookie) {
     console.log("🚫 No cookies sent with socket handshake.");
@@ -36,9 +36,17 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
   socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCamera(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
-  socket.on("requestForestUpdate", (() => {
-    socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
-  }));
+
+
+  socket.on("requestVegetationPositions", ({ roomId }) => {
+    const room = rooms.find(r => r.id === roomId);
+    if (room) {
+      socket.emit("receiveVegetationPositions", {
+        roomId,
+        vegetationPositions: room.vegetationPositions,
+      });
+    }
+  });
 
   socket.on("sendMessage", ({ roomId, userId, message }) => {
     console.log(`Message from ${userId} in room ${roomId}: ${message}`);

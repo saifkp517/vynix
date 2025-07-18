@@ -315,6 +315,12 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       logger.logStatus('Socket Connection', 'loaded');
     });
 
+    socket.on("receiveVegetationPositions", ({ roomId, vegetationPositions }) => {
+      console.log("recieved tree pos")
+      vegetationPositions.current = vegetationPositions;
+      // treeCache.set(roomId, vegetationPositions);
+    });
+
     return () => {
       socket.off("updateForest", ({ id, position }: any) => {
         setTargetPosition([position.x, position.y, position.z]);
@@ -414,7 +420,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
     logger.logStatus('Texture Processing', 'loading');
 
-   
+
   }, []);
 
   const sunPosition = useMemo(() => new THREE.Vector3(100, 1000, 100), []);
