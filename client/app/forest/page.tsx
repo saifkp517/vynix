@@ -9,7 +9,7 @@ import { PointerLockControls } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
-import RemoteOpponents from '@/components/game-components/player/RemoteOpponents';
+import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
@@ -40,7 +40,6 @@ const Game: React.FC = () => {
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
 
-  const ammoRef = useRef(30);
   const grenadeCoolDownRef = useRef(false);
   const CrosshairRef = useRef(null);
 
@@ -130,7 +129,6 @@ const Game: React.FC = () => {
       e.preventDefault();
       sessionStorage.setItem('justRefreshed', 'true');
     };
-
 
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -228,7 +226,6 @@ const Game: React.FC = () => {
         userId={localPlayerId}
         grenadeCoolDownRef={grenadeCoolDownRef}
         pingRef={pingRef}
-        ammoRef={ammoRef}
         getGroundHeight={getGroundHeight}
       />
     );
@@ -290,7 +287,6 @@ const Game: React.FC = () => {
               controlsRef={controlsRef}
               userid={localPlayerId}
               team={team}
-              ammoRef={ammoRef}
               bulletsAvailable={30}
               explosionTimeout={3000}
               kills={0}

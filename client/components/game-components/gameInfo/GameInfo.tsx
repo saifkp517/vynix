@@ -2,7 +2,10 @@ import React, { RefObject, useEffect, useState, useRef } from 'react';
 import { Heart, Target, Users, MessageCircle, X, Skull } from 'lucide-react';
 import { Vector3 } from 'three';
 import socket from '@/lib/socket';
-import { Stats } from '@react-three/drei';
+
+
+import { useGameInfoStore } from '@/hooks/useGameInfoStore';
+
 
 interface GameInfoProps {
   roomId: string | null;
@@ -10,7 +13,6 @@ interface GameInfoProps {
   controlsRef?: RefObject<any>;
   team: string | null;
   grenadeCoolDownRef: RefObject<boolean>;
-  ammoRef: RefObject<number>;
   bulletsAvailable: number;
   explosionTimeout: number | null;
   kills: number;
@@ -52,7 +54,7 @@ interface DamageIndicator {
 }
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, controlsRef, ammoRef, bulletsAvailable, kills, pingRef, isPlayerDead, otherPlayers }) => {
+  ({ roomId, userid, team, controlsRef, bulletsAvailable, kills, pingRef, isPlayerDead, otherPlayers }) => {
 
     const healthRef = useRef(100);
     const [pingInfo, setPingInfo] = useState(0);
@@ -62,6 +64,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const chatInputRef = useRef<HTMLInputElement>(null);
     const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
     const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
+
+    const ammo = useGameInfoStore((state) => state.ammo);
 
     // Mock data - replace with real data from your socket
     const [players, setPlayers] = useState<Player[]>([]);
@@ -461,7 +465,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           <div className="text-right text-white/90">
             <div className="flex items-center justify-end space-x-2 mb-1">
               <Target size={14} className="text-orange-400" />
-              <span className="text-lg font-bold tabular-nums">{ammoRef.current}</span>
+              <span className="text-lg font-bold tabular-nums">{ammo}</span>
               <span className="text-sm text-white/60">/</span>
               <span className="text-sm text-white/60 tabular-nums">{bulletsAvailable}</span>
             </div>

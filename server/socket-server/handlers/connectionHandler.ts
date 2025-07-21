@@ -6,6 +6,7 @@ import type { AuthenticatedSocket } from "../../shared/types";
 import { handleJoinRoom, handleUpdatePositionAndCamera, handleShoot } from "./events";
 import { players } from "../../shared/data";
 import { rooms } from "../../shared/data";
+import axios from "axios";
 
 
 export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSocket) => {
@@ -13,7 +14,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   console.log("User connected", socket.id);
 
-    const rawCookie = socket.handshake.headers.cookie;
+  const rawCookie = socket.handshake.headers.cookie;
 
   if (!rawCookie) {
     console.log("🚫 No cookies sent with socket handshake.");
@@ -21,11 +22,36 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
     return;
   }
 
+  async function validateSession(sessionId: string) {
+    const response = await axios.get("http://localhost:3001/auth/me", {
+      headers: {
+        Cookie: `session_id=${sessionId}`,
+      },
+    });
+
+    return response.data; // or response.data.user if it’s nested
+  }
+
 
   const cookies = cookie.parse(rawCookie);
   console.log("cookies: ", cookies);
   const sessionId = cookies["session_id"];
   console.log("Session iD: ", sessionId)
+
+  if (sessionId) {
+    validateSession(sessionId)
+      .then((user) => {
+        socket.user = user;
+        console.log("User validated:", user);
+
+      })
+      .catch((error) => {
+        console.error("Error validating session:", error);
+      });
+  } else {
+    console.warn("No session ID provided. Disconnecting.");
+    socket.disconnect();
+  }
 
   socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
@@ -36,9 +62,17 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
   socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCamera(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
-  socket.on("requestForestUpdate", (() => {
-    socket.emit('updateForest', { id: socket.id, position: { x: 0, y: 0, z: 0 } });
-  }));
+
+
+  socket.on("requestVegetationPositions", ({ roomId }) => {
+    const room = rooms.find(r => r.id === roomId);
+    if (room) {
+      socket.emit("receiveVegetationPositions", {
+        roomId,
+        vegetationPositions: room.vegetationPositions,
+      });
+    }
+  });
 
   socket.on("sendMessage", ({ roomId, userId, message }) => {
     console.log(`Message from ${userId} in room ${roomId}: ${message}`);

@@ -15,7 +15,7 @@ const io = new Server(httpServer, {
   }
 });
 
-io.on("connection", socketConnectionHandler(io)); // You will define this
+io.on("connection", socketConnectionHandler(io)); 
 
 httpServer.listen(4000, () => console.log("WebSocket server running on port 4000"));
 

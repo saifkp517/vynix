@@ -20,12 +20,6 @@ export default function GameLoading() {
     ];
 
     useEffect(() => {
-        if (user) {
-            redirect("/");
-        }
-    }, [user]);
-
-    useEffect(() => {
         setMounted(true);
         // Simulate loading progress
         const interval = setInterval(() => {
