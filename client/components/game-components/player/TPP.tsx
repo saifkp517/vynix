@@ -26,7 +26,6 @@ interface PlayerProps {
     crosshairRef: RefObject<{ triggerHit: () => void }>;
     grenadeCoolDownRef: RefObject<boolean>;
     getGroundHeight: (x: number, z: number) => number;
-    ammoRef: RefObject<number>;
     otherPlayers: RefObject<{ [playerId: string]: { position: Vector3; velocity: Vector3 } }>;
     controlsRef: RefObject<any>;
     playerDeadRef: RefObject<boolean>;
@@ -49,7 +48,6 @@ const Player: React.FC<PlayerProps> = ({
     getGroundHeight,
     grenadeCoolDownRef,
     otherPlayers,
-    ammoRef,
     pingRef,
     userId,
     listenerRef
@@ -591,7 +589,6 @@ const Player: React.FC<PlayerProps> = ({
                 {/* Gun (attached to player's right hand) */}
                 <Gun
                     camera={camera}
-                    ammoRef={ammoRef}
                     shootEvent={shootEvent.current}
                     pingRef={pingRef}
                     userId={userId}

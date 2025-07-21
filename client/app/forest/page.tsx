@@ -40,7 +40,6 @@ const Game: React.FC = () => {
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
 
-  const ammoRef = useRef(30);
   const grenadeCoolDownRef = useRef(false);
   const CrosshairRef = useRef(null);
 
@@ -227,7 +226,6 @@ const Game: React.FC = () => {
         userId={localPlayerId}
         grenadeCoolDownRef={grenadeCoolDownRef}
         pingRef={pingRef}
-        ammoRef={ammoRef}
         getGroundHeight={getGroundHeight}
       />
     );
@@ -289,7 +287,6 @@ const Game: React.FC = () => {
               controlsRef={controlsRef}
               userid={localPlayerId}
               team={team}
-              ammoRef={ammoRef}
               bulletsAvailable={30}
               explosionTimeout={3000}
               kills={0}

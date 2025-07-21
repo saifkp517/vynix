@@ -4,8 +4,9 @@ import { Howl } from 'howler';
 import { EventEmitter } from 'events';
 import { useFrame, useThree } from '@react-three/fiber';
 
+import { useGameInfoStore } from '@/hooks/useGameInfoStore';
+
 interface GunProps {
-    ammoRef: RefObject<number>;
     camera: THREE.Camera;
     shootEvent: EventEmitter;
     pingRef: RefObject<number>;
@@ -13,7 +14,7 @@ interface GunProps {
     obstacles: any;
 }
 
-const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => {
+const Gun: React.FC<GunProps> = ({ camera, shootEvent, obstacles }) => {
     const maxAmmo = 30;
     const gunRef = useRef<THREE.Group>(null as unknown as THREE.Group);
     const shootingInterval = useRef<NodeJS.Timeout | null>(null);
@@ -21,12 +22,19 @@ const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => 
     const isReloading = useRef(false);
     const scene = useThree().scene;
 
+
     const muzzleFlashTimeout = useRef<NodeJS.Timeout | null>(null);
     const barrelEndRef = useRef<THREE.Mesh>(null);
     const isRecoiling = useRef(false);
     const recoilProgress = useRef(0);
     const bulletSpeed = 150; // units per second
     const maxTracerDistance = 100;
+
+    const ammo = useGameInfoStore(state => state.ammo);
+    const shoot = useGameInfoStore(state => state.shootBullet);
+    const resetAmmo = useGameInfoStore(state => state.resetAmmo);
+
+
 
     const raycaster = useRef(new THREE.Raycaster()); // Single raycaster instance
     const mouse = useRef(new THREE.Vector2(0, 0)); // Center of the screen, reusable
@@ -219,13 +227,9 @@ const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => 
         }
     });
 
-    const updateAmmo = (newAmmo: number) => {
-        ammoRef.current = newAmmo;
-    };
-
     const reload = () => {
         if (isReloading.current) return;
-        if (ammoRef.current === maxAmmo) return;
+        if (ammo === maxAmmo) return;
 
         const reloadSound = new Howl({
             src: ['/sounds/reload.mp3'],
@@ -236,9 +240,11 @@ const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => 
         isReloading.current = true;
 
         setTimeout(() => {
-            updateAmmo(maxAmmo);
             isReloading.current = false;
+            resetAmmo(maxAmmo);
         }, 2000);
+
+        
     };
 
     useEffect(() => {
@@ -249,7 +255,6 @@ const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => 
         const handleKeyDown = (e: KeyboardEventWithKey) => {
             if (e.key.toLowerCase() === 'r') {
                 if (!isReloading.current) {
-                    console.log("reloading");
                     reload();
                 }
             }
@@ -265,7 +270,9 @@ const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => 
     const shootBullet = () => {
         if (isReloading.current) return;
 
-        if (ammoRef.current <= 0) {
+        const ammo = useGameInfoStore.getState().ammo;
+
+        if (ammo <= 0) {
             reload();
             return;
         }
@@ -292,20 +299,24 @@ const Gun: React.FC<GunProps> = ({ camera, shootEvent, ammoRef, obstacles }) => 
         };
 
         const fireOnce = () => {
-            if (isReloading.current || ammoRef.current <= 0) {
+
+            const ammo = useGameInfoStore.getState().ammo;
+
+            if (isReloading.current || ammo <= 0) {
                 if (shootingInterval.current) {
                     clearInterval(shootingInterval.current);
                     shootingInterval.current = null;
                 }
 
-                if (ammoRef.current <= 0 && !isReloading.current) {
+                if (ammo <= 0 && !isReloading.current) {
+                    console.log('asdasd')
                     reload();
                 }
                 return;
             }
 
             recoilAnimate();
-            ammoRef.current -= 1;
+            shoot();
             gunShotSound.play();
             muzzleFlash.current = true;
 
