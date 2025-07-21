@@ -19,7 +19,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   if (!rawCookie) {
     console.log("🚫 No cookies sent with socket handshake.");
     // socket.disconnect();
-    return;
+    // return;
   }
 
   async function validateSession(sessionId: string) {
@@ -33,10 +33,10 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   }
 
 
-  const cookies = cookie.parse(rawCookie);
-  console.log("cookies: ", cookies);
-  const sessionId = cookies["session_id"];
-  console.log("Session iD: ", sessionId)
+  // const cookies = cookie.parse(rawCookie);
+  // console.log("cookies: ", cookies);
+  // const sessionId = cookies["session_id"];
+  // console.log("Session iD: ", sessionId)
 
   // if (sessionId) {
   //   validateSession(sessionId)
