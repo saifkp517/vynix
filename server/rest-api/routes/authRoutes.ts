@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const router = Router();
+const authRouter = Router();
 
 export async function authorizeSession(sessionId: string | null): Promise<{ userId: string } | null> {
     try {
@@ -32,7 +32,7 @@ export async function authorizeSession(sessionId: string | null): Promise<{ user
 
 
 // Register User
-router.post("/register", async (req, res): Promise<void> => {
+authRouter.post("/register", async (req, res): Promise<void> => {
     const { username, email, password } = req.body;
 
     try {
@@ -66,7 +66,7 @@ router.post("/register", async (req, res): Promise<void> => {
 });
 
 // Login User
-router.post("/login", async (req: Request, res: Response): Promise<void> => {
+authRouter.post("/login", async (req: Request, res: Response): Promise<void> => {
     const { email, password } = req.body;
 
     const existing_session_id = req.cookies["session_id"];
@@ -157,7 +157,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
 
 
 
-router.post("/oauth/login", async (req: Request, res: Response): Promise<void> => {
+authRouter.post("/oauth/login", async (req: Request, res: Response): Promise<void> => {
     console.log("called")
     const { username, email, image, provider } = req.body;
 
@@ -186,7 +186,7 @@ router.post("/oauth/login", async (req: Request, res: Response): Promise<void> =
 });
 
 
-router.post("/logout", async (req: Request, res: Response): Promise<void> => {
+authRouter.post("/logout", async (req: Request, res: Response): Promise<void> => {
     try {
         const sessionId = req.cookies["session_id"];
         if (sessionId) {
@@ -205,7 +205,7 @@ router.post("/logout", async (req: Request, res: Response): Promise<void> => {
     }
 })
 
-router.get("/me", async (req: Request, res: Response): Promise<void> => {
+authRouter.get("/me", async (req: Request, res: Response): Promise<void> => {
     const session_id = req.cookies["session_id"];
 
     try {
@@ -242,4 +242,4 @@ router.get("/me", async (req: Request, res: Response): Promise<void> => {
 
 })
 
-export default router;
+export default authRouter;

@@ -1,16 +1,13 @@
 // Player component
 import React, { useRef, useState, useEffect, RefObject } from 'react';
-import { PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber'
 import socket from '@/lib/socket';
 import { Howl } from 'howler';
 import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
-import { Vector3, Box3, Mesh, Camera, Raycaster, Sphere, SphereGeometry, CylinderGeometry, Matrix4, PositionalAudio, AudioListener } from 'three';
-import { EventEmitter } from 'events';
+import { Vector3, Mesh, Camera, Raycaster, AudioListener } from 'three';
 import { checkCollisions } from './checkCollision';
 import { CollisionType } from './checkCollision';
-// import { Fireball } from './Fireball';
 
 
 //hooks
@@ -84,96 +81,6 @@ const Player: React.FC<PlayerProps> = ({
 
     useAudioListener(camera, listenerRef);
 
-    const raycaster = new Raycaster();
-    let shootDirection = new Vector3();
-
-    const shootEvent = useRef(new EventEmitter());
-
-    function handleShoot() {
-        camera.getWorldDirection(shootDirection);
-
-        // Set ray origin and direction
-        raycaster.set(camera.position, shootDirection);
-
-        // Raycast against all mesh objects in the scene
-        const intersects = raycaster.intersectObjects(obstacles, true); // true = recursive
-
-
-
-        if (intersects.length > 0) {
-            const firstHit = intersects[0];
-            shootDirection = new Vector3().subVectors(firstHit.point, playerCenterRef.current).normalize();
-
-            const hitX = firstHit.point.x;
-            const hitZ = firstHit.point.z;
-            const hitY = firstHit.point.y;
-
-            const groundY = getGroundHeight(hitX, hitZ);
-
-            const threshold = 0.1; // Tolerance for noise or minor overlap
-
-            if (hitY <= groundY + threshold) {
-                console.log("🚫 Shot blocked by terrain at", { x: hitX, y: groundY, z: hitZ });
-            } else {
-                const players = Object.values(otherPlayers.current);
-
-                function rayIntersectsSphere(
-                    rayOrigin: Vector3,
-                    rayDirection: Vector3,
-                    sphereCenter: Vector3,
-                    sphereRadius: number
-                ): { hit: boolean, distance: number } {
-
-                    if (!rayOrigin || !rayDirection || !sphereCenter) {
-                        console.error("Invalid argument passed to rayIntersectsSphere:", {
-                            rayOrigin,
-                            rayDirection,
-                            sphereCenter
-                        });
-                        return { hit: false, distance: Infinity };
-                    }
-
-                    const toCenter = new Vector3().subVectors(sphereCenter, rayOrigin);
-                    const projectionLength = toCenter.dot(rayDirection);
-
-                    // Sphere is behind the ray origin
-                    if (projectionLength < 0) return { hit: false, distance: Infinity };
-
-                    const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
-                    const distanceToCenter = closestPoint.distanceTo(sphereCenter);
-
-                    const hit = distanceToCenter <= sphereRadius;
-                    return { hit, distance: distanceToCenter };
-                }
-
-                players.forEach((player) => {
-                    const playerPosition = player.position.clone().add(new Vector3(0, -1.5, 0)); // Adjust for sphere offset
-                    const playerRadius = 0.5; // Match the sphereGeometry radius
-
-
-                    const { hit, distance } = rayIntersectsSphere(playerCenterRef.current, shootDirection, playerPosition, playerRadius)
-                    if (hit) {
-                        console.log("hit!");
-                        crosshairRef?.current?.triggerHit();
-                    } else {
-                        console.log("missed by distance: ", distance)
-                    }
-                });
-
-            }
-        } else {
-            console.log("missed: ", intersects.length);
-        }
-
-        const shootObject = {
-            rayOrigin: playerCenterRef.current,
-            rayDirection: shootDirection,
-            timestamp: Date.now(),
-            ping: pingRef.current
-        };
-        socket.emit("shoot", { userId, shootObject });
-
-    }
 
     const result = checkCollisions(playerPosition.current, obstacles);
     collidingRef.current = result.isColliding;
@@ -252,18 +159,8 @@ const Player: React.FC<PlayerProps> = ({
             }
         },
         onMouseDown: () => {
-            if (!shootingInterval) {
-                handleShoot();
-                shootingInterval = setInterval(handleShoot, 150);
-                shootEvent.current.emit('start');
-            }
         },
         onMouseUp: () => {
-            if (shootingInterval) {
-                clearInterval(shootingInterval);
-                shootingInterval = null;
-            }
-            shootEvent.current.emit('stop');
         },
         setMoveState,
     });
@@ -589,10 +486,12 @@ const Player: React.FC<PlayerProps> = ({
                 {/* Gun (attached to player's right hand) */}
                 <Gun
                     camera={camera}
-                    shootEvent={shootEvent.current}
-                    pingRef={pingRef}
                     userId={userId}
                     obstacles={obstacles}
+                    playerCenterRef={playerCenterRef}
+                    getGroundHeight={getGroundHeight}
+                    otherPlayers={otherPlayers}
+                    crosshairRef={crosshairRef}
                 />
             </group>
         </>

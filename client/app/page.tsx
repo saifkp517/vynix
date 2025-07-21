@@ -22,7 +22,6 @@ import { useThemeConfig } from "./theme-provider";
 import { getRadiusClass } from "@/lib/theme-config";
 import { redirect } from "next/navigation";
 import { useAuth } from "./utils/AuthContext";
-import axios from "axios";
 
 export default function GameLoginPage() {
 
@@ -41,12 +40,6 @@ export default function GameLoginPage() {
     { name: "IronDefender", victories: 137, rank: 2 },
     { name: "ShadowStriker", victories: 129, rank: 3 },
   ]);
-
-  useEffect(() => {
-    if (user) {
-      redirect("/forest");
-    }
-  }, [user]);
 
 
 

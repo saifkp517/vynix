@@ -5,9 +5,9 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const router = Router();
+const scoresRouter = Router();
 
-router.post("/update-details", async (req: Request, res: Response): Promise<void> => {
+scoresRouter.post("/update-details", async (req: Request, res: Response): Promise<void> => {
   const { matchId, userId, updateType } = req.body;
 
   try {
@@ -40,3 +40,5 @@ router.post("/update-details", async (req: Request, res: Response): Promise<void
     }
   }
 });
+
+export default scoresRouter;

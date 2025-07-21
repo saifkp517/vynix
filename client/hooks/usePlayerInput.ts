@@ -73,16 +73,18 @@ export function usePlayerInput({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup',   handleKeyUp);
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mouseup',   onMouseUp);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('blur', onMouseUp); // fallback if window loses focus
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keyup',   handleKeyUp);
-      document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('mouseup',   onMouseUp);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('blur', onMouseUp);
     };
   }, [
     onJump,
