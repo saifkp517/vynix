@@ -38,20 +38,20 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   const sessionId = cookies["session_id"];
   console.log("Session iD: ", sessionId)
 
-  if (sessionId) {
-    validateSession(sessionId)
-      .then((user) => {
-        socket.user = user;
-        console.log("User validated:", user);
+  // if (sessionId) {
+  //   validateSession(sessionId)
+  //     .then((user) => {
+  //       socket.user = user;
+  //       console.log("User validated:", user);
 
-      })
-      .catch((error) => {
-        console.error("Error validating session:", error);
-      });
-  } else {
-    console.warn("No session ID provided. Disconnecting.");
-    socket.disconnect();
-  }
+  //     })
+  //     .catch((error) => {
+  //       console.error("Error validating session:", error);
+  //     });
+  // } else {
+  //   console.warn("No session ID provided. Disconnecting.");
+  // socket.disconnect();
+  // }
 
   socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
 
