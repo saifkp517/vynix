@@ -209,7 +209,7 @@ export default function GameLoginPage() {
                 <span className="relative z-10">{isLogin ? "Charge Into Battle" : "Forge Account"}</span>
               </Button> */}
                            <Button type="submit" disabled={true} className="w-full relative overflow-hidden bg-emerald-600 text-white hover:bg-emerald-500">
-                <span className="relative z-10">Server is down for maintenance please use guest mode</span>
+                <span className="relative z-10">Auth is down for maintenance please use guest mode</span>
               </Button>
               {success && <p className="text-gray-600">{success}</p>}
               {error && <p className="text-gray-600">{error}</p>}

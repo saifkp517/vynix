@@ -18,7 +18,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   if (!rawCookie) {
     console.log("🚫 No cookies sent with socket handshake.");
-    socket.disconnect();
+    // socket.disconnect();
     return;
   }
 
