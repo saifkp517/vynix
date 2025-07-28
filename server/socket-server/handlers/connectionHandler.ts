@@ -4,8 +4,6 @@ import { Server } from "socket.io";
 import cookie from "cookie";
 import type { AuthenticatedSocket } from "../../shared/types";
 import { handleJoinRoom, handleUpdatePositionAndCamera, handleShoot } from "./events";
-import { players } from "../../shared/data";
-import { rooms } from "../../shared/data";
 import axios from "axios";
 
 
