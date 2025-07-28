@@ -161,6 +161,7 @@ export function findOrCreateRoom(userId: string, socketId: string, socket: Authe
     };
     rooms.push(room);
     console.log(`New room created: ${room.id}`);
+    console.log("rooms reference in findOrCreateRoom", rooms);
 
   } else {
     if (userId) {

@@ -5,7 +5,7 @@ import { allowedOrigins } from "../shared/data";
 import cookieParser from "cookie-parser";
 import { PrismaClient } from "@prisma/client";
 import authRouter from "./routes/authRoutes";
-import scoresRouter from "./routes/scoreRoutes";
+import gameRouter from "./routes/scoreRoutes";
 
 const app = express();
 const prisma = new PrismaClient();
@@ -18,7 +18,7 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 app.use("/auth", authRouter);
-app.use("/scores", scoresRouter);
+app.use("/game", gameRouter);
 
 const PORT = 3001;
 app.listen(PORT, () => console.log(`REST API running on port ${PORT}`));

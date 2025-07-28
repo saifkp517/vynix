@@ -3,7 +3,6 @@ import axios from "axios";
 import { redirect } from "next/navigation";
 
 const API_URL = process.env.BACKEND_URL; // Replace with your actual API URL
-console.log(API_URL)
 type ResponseType = {
   success: true;
   message: string; // You can replace `any` with a more specific type if you know the response structure
