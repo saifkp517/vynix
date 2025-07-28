@@ -114,7 +114,7 @@ export const leaveRoom = async (playerId: string) => {
   if (!roomId) return;
 
   await redis.sRem(`roomPlayer:${roomId}`, playerId);
-  await redis.del(`playerRoom: ${playerId}`);
+  await redis.del(`playerRoom:${playerId}`);
 }
 
 // ============================================================== 
