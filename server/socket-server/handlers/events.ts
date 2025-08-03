@@ -1,67 +1,13 @@
 import { Server } from "socket.io";
 import type { AuthenticatedSocket, Player, ShootObject, RayIntersectionResult } from "../../shared/types";
 import { Vector3 } from "three";
-import { rooms, players, grid } from "../../shared/data";
-import { findOrCreateRoom, getCellKey, broadcastToNearbyPlayers, rayIntersectsSphere } from "../../shared/utils";
+import { grid, findOrCreateRoom } from "../../shared/data";
+
+import {getCellKey, broadcastToNearbyPlayers, rayIntersectsSphere } from "../../shared/utils";
 
 export const handleJoinRoom = (socket: AuthenticatedSocket, userId: string) => {
-  const room = findOrCreateRoom(userId, socket.id, socket);
-  socket.join(room.id);
-
-  // Assign a random position between 100 and 200 for x and z
-  const rand = () => Math.random() * 100 + 100;
-  const startPosition = { x: rand(), y: 0, z: rand() };
-  //assign team to player
-  const team = Math.random() < 0.5 ? "red" : "blue";
-
-  const newPlayer: Player = {
-    id: userId,
-    team: team,
-    health: 100,
-    position: startPosition,
-    velocity: { x: 0, y: 0, z: 0 },
-    cameraDirection: new Vector3(0, 0, 0)
-  }
-  room.players.push(newPlayer)
-  socket.emit('roomAssigned', { room: room, team });
-  console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
-};
-
-export const handleUpdatePositionAndCamera = (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
-
-
-  const currentHealth = players[socket.id]?.health ?? 100;
-
-  players[socket.id] = {
-    id: socket.id,
-    position,
-    velocity,
-    team: "red",
-    health: currentHealth,  // Preserve the current health
-    cameraDirection
-  };
-
-  const cellKey = getCellKey(position);
-
-  //remove player from old cell
-  for (const [key, set] of grid.entries()) {
-    if (set.has(socket.id)) set.delete(socket.id);
-  }
-
-  //add player to new cell
-  if (!grid.has(cellKey)) grid.set(cellKey, new Set());
-  grid.get(cellKey)?.add(socket.id);
-
-  //broadcast only to players within my grid
-  broadcastToNearbyPlayers(socket, cellKey, {
-    event: 'playerMoved',
-    payload: {
-      id: socket.id,
-      position,
-      velocity,
-      cameraDirection,
-    },
-  }, io);
+  const roomId = findOrCreateRoom(userId, socket);
+  return roomId;
 };
 
 export const handleShoot = (socket: AuthenticatedSocket, io: Server, userId: string, shootObject: ShootObject) => {

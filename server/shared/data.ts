@@ -1,8 +1,14 @@
-import type { Player } from "./types";
-import type { AuthenticatedSocket } from "./types";
-import { generateTreePositions } from "./utils";
+import { Vector3 } from "three";
+import type { AuthenticatedSocket, Player } from "./types";
+import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid"
 import { redis } from "./redisClient";
+
+
+import { getCellKey, broadcastToNearbyPlayers, generateTreePositions } from "./utils";
+
+
+
 
 export const allowedOrigins = [
   "http://localhost:3000",
@@ -55,10 +61,15 @@ export const createRoom = async (): Promise<string> => {
   return roomId;
 }
 
-export const getRoom = async (roomId: string) => {
+export const getRoom = async (roomId: string, socket: AuthenticatedSocket) => {
 
   const vegetationPositions = await redis.get(`room:${roomId}:vegetation`);
-  const roomPlayers = await redis.get(`room:${roomId}`)
+  const roomPlayers = await redis.get(`room:${roomId}:players`)
+
+  socket.emit("recieveVegetationPositions", {
+    roomId,
+    vegetationPositions
+  })
 
 }
 
@@ -66,7 +77,7 @@ export const getAllRooms = async () => {
   const roomIds = await redis.sMembers(ROOM_KEY);
   const rooms = [];
   for (const roomId of roomIds) {
-    const playerCount = await redis.sCard(`roomPlayers${roomId}`);
+    const playerCount = await redis.sCard(`room:${roomId}:players`);
     rooms.push("players", playerCount);
   }
   return rooms;
@@ -85,18 +96,41 @@ export const findAvailableRoom = async (): Promise<string | null> => {
   return null;
 }
 
-export async function findOrCreateRoom(userId: string, socketId: string, socket: AuthenticatedSocket) {
+export const findOrCreateRoom = async (playerId: string, socket: AuthenticatedSocket) => {
   let roomId = await findAvailableRoom();
+
+  const rand = () => Math.random() * 100 + 100;
+  const startPosition = { x: rand(), y: 0, z: rand() };
 
   if (!roomId) {
     roomId = await createRoom();
     console.log(`New room created: ${roomId}`);
   }
 
-  if (userId) {
-    console.log(`User ${userId} joined room: ${roomId}`);
-    // Optional: add user to roomPlayers set
-    await redis.sAdd(`roomPlayers:${roomId}`, userId);
+  if (playerId) {
+
+    console.log(`User ${playerId} joined room: ${roomId}`);
+
+    try {
+      await redis.sAdd(`roomPlayers:${roomId}`, playerId);
+
+      //set player attributes
+      await redis.set(`playerRoom:${playerId}`, roomId);
+      await redis.set(`playerHealth:${playerId}`, 100);
+      await redis.set(`playerPosition:${playerId}`, JSON.stringify(startPosition));
+      await redis.set(`playerVelocity:${playerId}`, JSON.stringify(new Vector3(0, 0, 0)));
+      await redis.set(`playerCameraDirection:${playerId}`, JSON.stringify(new Vector3(0, 0, 0)));
+
+
+      socket.join(roomId);
+      socket.emit('roomAssigned', { room: roomId });
+
+    } catch (err) {
+
+      console.log(err)
+
+    }
+
   } else {
     console.warn("User ID is required to join a room.");
   }
@@ -104,17 +138,46 @@ export async function findOrCreateRoom(userId: string, socketId: string, socket:
   return roomId;
 }
 
-export const joinRoom = async (playerId: string, roomId: string) => {
-  await redis.sAdd(`roomPlayers:${roomId}`, playerId);
-  await redis.set(`playerRoom:${playerId}`, roomId);
+export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
+
+  const playerId = socket.id;
+
+
+  const updatePosition = await redis.set(`playerPosition:${playerId}`, JSON.stringify(position))
+  const updateVelocity = await redis.set(`playerVelocity:${playerId}`, JSON.stringify(velocity))
+  const updateCamerDir = await redis.set(`playerCameraDirection:${playerId}`, JSON.stringify(cameraDirection))
+
+
+  const cellKey = getCellKey(position);
+
+  //remove player from old cell
+  for (const [key, set] of grid.entries()) {
+    if (set.has(playerId)) set.delete(playerId);
+  }
+
+  //add player to new cell
+  if (!grid.has(cellKey)) grid.set(cellKey, new Set());
+  grid.get(cellKey)?.add(playerId);
+
+  broadcastToNearbyPlayers(socket, cellKey, {
+    event: 'playerMoved',
+    payload: {
+      id: socket.id,
+      position,
+      velocity,
+      cameraDirection,
+    },
+  }, io);
 }
 
 export const leaveRoom = async (playerId: string) => {
+
   const roomId = await redis.get(`playerRoom:${playerId}`);
   if (!roomId) return;
 
   await redis.sRem(`roomPlayer:${roomId}`, playerId);
   await redis.del(`playerRoom:${playerId}`);
+
 }
 
 // ============================================================== 
