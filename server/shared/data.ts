@@ -114,16 +114,29 @@ export const findOrCreateRoom = async (playerId: string, socket: AuthenticatedSo
     try {
       await redis.sAdd(`roomPlayers:${roomId}`, playerId);
 
+      const player: Player = {
+        id: playerId,
+        room: roomId,
+        health: 100,
+        position: startPosition,
+        velocity: new Vector3(0, 0, 0),
+        cameraDirection: new Vector3(0, 0, 0)
+      }
+
       //set player attributes
       await redis.set(`playerRoom:${playerId}`, roomId);
-      await redis.set(`playerHealth:${playerId}`, 100);
-      await redis.set(`playerPosition:${playerId}`, JSON.stringify(startPosition));
-      await redis.set(`playerVelocity:${playerId}`, JSON.stringify(new Vector3(0, 0, 0)));
-      await redis.set(`playerCameraDirection:${playerId}`, JSON.stringify(new Vector3(0, 0, 0)));
+      await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(player));
+
+      const getPositions = await redis.get(`room:${roomId}:vegetation`);
+
+      if (getPositions) {
+        const vegetationPositions = JSON.parse(getPositions)
+
+        socket.join(roomId);
+        socket.emit('roomAssigned', { roomId, vegetationPos: vegetationPositions });
+      }
 
 
-      socket.join(roomId);
-      socket.emit('roomAssigned', { room: roomId });
 
     } catch (err) {
 
@@ -142,10 +155,19 @@ export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedS
 
   const playerId = socket.id;
 
+  const getPlayer = await redis.hGet(PLAYER_KEY, playerId);
+  if (!getPlayer) return;
 
-  const updatePosition = await redis.set(`playerPosition:${playerId}`, JSON.stringify(position))
-  const updateVelocity = await redis.set(`playerVelocity:${playerId}`, JSON.stringify(velocity))
-  const updateCamerDir = await redis.set(`playerCameraDirection:${playerId}`, JSON.stringify(cameraDirection))
+  const player = JSON.parse(getPlayer);
+
+  const updatedPlayer: Player = {
+    ...player,
+    position,
+    velocity,
+    cameraDirection
+  }
+
+  await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(updatedPlayer));
 
 
   const cellKey = getCellKey(position);

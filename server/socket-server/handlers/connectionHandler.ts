@@ -3,7 +3,8 @@
 import { Server } from "socket.io";
 import cookie from "cookie";
 import type { AuthenticatedSocket } from "../../shared/types";
-import { handleJoinRoom, handleUpdatePositionAndCamera, handleShoot } from "./events";
+import { handleJoinRoom, handleShoot } from "./events";
+import { handleUpdatePositionAndCameraUpdate } from "../../shared/data";
 import axios from "axios";
 import { getRoom, leaveRoom, getPlayer } from "../../shared/data";
 
@@ -67,7 +68,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   })
 
   socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
-  socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCamera(socket, io, position, velocity, cameraDirection));
+  socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCameraUpdate(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
 
 

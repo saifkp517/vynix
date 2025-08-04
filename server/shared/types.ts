@@ -6,7 +6,7 @@ export interface Position {
 
 export interface Player {
     id: string;
-    team: string;
+    room: string;
     position: Position;
     velocity: Position;
     health: number;

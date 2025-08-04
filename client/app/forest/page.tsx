@@ -111,11 +111,12 @@ const Game: React.FC = () => {
       handleConnect();
     }
 
-    socket.on("roomAssigned", ({ room, team }: any) => {
-      console.log(`Assigned to room: ${room.id}`);
-      setRoomId(room.id);
-      vegetationPositions.current = room.vegetationPositions
-      setTeam(team);
+    socket.on("roomAssigned", ({ roomId, vegetationPos }: any) => {
+      console.log(`Assigned to room: ${roomId}`);
+      setRoomId(roomId);
+      console.log("Vegetation: ", vegetationPos)
+      vegetationPositions.current = vegetationPos
+      setTeam("red");
     });
 
     socket.on("youDied", () => {
