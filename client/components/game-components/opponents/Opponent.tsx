@@ -2,7 +2,7 @@ import { RefObject, useEffect, useRef } from "react";
 import { useFrame, useThree, useLoader } from "@react-three/fiber";
 import { PositionalAudio, AudioListener, AudioLoader, Group, Mesh, Vector3, Color } from 'three';
 import { EventEmitter } from "events";
-import Gun from "./OpGun"
+import OpponentGun from "./OpGun"
 
 const RED = new Color("red");
 const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
@@ -61,7 +61,7 @@ export const Opponent = ({
     });
   }, [listener]);
 
-
+  /** Obstacle detection code, to prevent lerping from making the opponent clip through trees */
   useEffect(() => {
     if (addObstacleRef) {
       addObstacleRef(sphereRef.current);
@@ -81,6 +81,8 @@ export const Opponent = ({
     }
   }, [positionRef]);
 
+
+  /** Code used to update the opponent's position and rotation by lerping */
   useFrame((_, delta) => {
     const pos = positionRef();
     const vel = velocityRef();
@@ -107,7 +109,7 @@ export const Opponent = ({
         <sphereGeometry args={[0.5]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
-      <Gun
+      <OpponentGun
         cameraDirection={cameraDirectionRef() || new Vector3(0, 0, -1)}
         shootEvent={shootEvent}
         userId={userId}

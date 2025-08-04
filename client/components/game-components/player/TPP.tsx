@@ -110,27 +110,26 @@ const Player: React.FC<PlayerProps> = ({
 
     };
 
+    /** Work on explosion damage synced with server */
+    // const handleExplosion = (position: Vector3) => {
 
-    const handleExplosion = (position: Vector3) => {
+    //     const id = Date.now();
+    //     setFireballs((prev) => prev.slice(1)); // Remove the first fireball
+    //     setExplosions((prev) => [...prev, { id, position }]);
 
-        const id = Date.now();
-        setFireballs((prev) => prev.slice(1)); // Remove the first fireball
-        setExplosions((prev) => [...prev, { id, position }]);
+    //     const sound = new Howl({
+    //         src: ['/sounds/explosion.mp3'],
+    //         volume: 1,
+    //     })
+    //     sound.play();
 
-        const sound = new Howl({
-            src: ['/sounds/explosion.mp3'],
-            volume: 1,
-        })
-        sound.play();
+    //     // Remove explosion after a second
+    //     setTimeout(() => {
+    //         setExplosions((prev) => prev.filter((exp) => exp.id !== id));
 
-        // Remove explosion after a second
-        setTimeout(() => {
-            setExplosions((prev) => prev.filter((exp) => exp.id !== id));
+    //     }, 1000);
+    // };
 
-        }, 1000);
-    };
-
-    const velocity = useRef<Vector3>(new Vector3());
     const direction = useRef<Vector3>(new Vector3());
     const [moveState, setMoveState] = useState({
         forward: false,
@@ -139,12 +138,6 @@ const Player: React.FC<PlayerProps> = ({
         right: false
     });
 
-
-
-
-
-
-    let shootingInterval: NodeJS.Timeout | null = null;
 
     // Handle keyboard input
     usePlayerInput({

@@ -3,10 +3,11 @@
 import { Server } from "socket.io";
 import cookie from "cookie";
 import type { AuthenticatedSocket } from "../../shared/types";
-import { handleJoinRoom, handleUpdatePositionAndCamera, handleShoot } from "./events";
-import { players } from "../../shared/data";
-import { rooms } from "../../shared/data";
+import { handleJoinRoom, handleShoot } from "../../shared/data";
+import { handleUpdatePositionAndCameraUpdate } from "../../shared/data";
 import axios from "axios";
+import { getRoom, leaveRoom, getPlayer } from "../../shared/data";
+
 
 
 export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSocket) => {
@@ -53,25 +54,26 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   // socket.disconnect();
   // }
 
-  socket.broadcast.emit("newPlayer", { id: socket.id, position: players[socket.id] });
+  getPlayer(socket.id).then(data => {
+    socket.broadcast.emit("newPlayer", { id: socket.id, position: data?.position });
+  })
+  .catch(err => {
+    console.log("Error getting player: ", err);
+  })
+
+  
 
   socket.on("ping-check", (clientTime) => {
     socket.emit("pong-check", clientTime)
   })
 
-  socket.on("joinRoom", (userId) => handleJoinRoom(socket, userId));
-  socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCamera(socket, io, position, velocity, cameraDirection));
+  socket.on("joinRoom", (userId) => handleJoinRoom(userId, socket));
+  socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCameraUpdate(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
 
 
   socket.on("requestVegetationPositions", ({ roomId }) => {
-    const room = rooms.find(r => r.id === roomId);
-    if (room) {
-      socket.emit("receiveVegetationPositions", {
-        roomId,
-        vegetationPositions: room.vegetationPositions,
-      });
-    }
+    getRoom(roomId, socket);
   });
 
   socket.on("sendMessage", ({ roomId, userId, message }) => {
@@ -82,23 +84,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   socket.on("disconnect", () => {
     console.log("User disconnected", socket.id);
 
-    for (const room of rooms) {
-      console.log("Checking room", room.id, "for socket", socket.id);
-      console.log("Room players:", room.players.map(p => ({ id: p.id })));
-
-      const playerIndex = room.players.findIndex(player => player.id === socket.id);
-      if (playerIndex !== -1) {
-        room.players.splice(playerIndex, 1);
-
-        // Remove player from players map
-        delete players[socket.id];
-        console.log(`Player ${socket.id} removed from room ${room.id}`);
-        console.log(rooms.map(r => ({ roomId: r.id, playerIds: r.players.map(p => p.id) })));
-
-
-        break;
-      }
-    }
+    leaveRoom(socket.id);
 
     io.emit('playerDisconnected', socket.id);
   });
