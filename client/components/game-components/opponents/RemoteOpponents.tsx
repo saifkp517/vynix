@@ -123,7 +123,10 @@ const RemoteOpponents: React.FC<Props> = ({
     const handlePlayerWalking = ({ userId }: { userId: string }) => {
         const audio = walkingAudioRefs.current[userId];
         if (audio && !audio.isPlaying) {
+            audio.setDistanceModel('linear') //allows full cut off of volume
             audio.setRefDistance(5);
+            audio.setMaxDistance(25)
+            
             audio.setLoop(true);
             audio.setVolume(1);
             audio.play();
