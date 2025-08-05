@@ -123,18 +123,20 @@ const Gun: React.FC<GunProps> = ({
     };
   }, [scene]);
 
+  let barrelWorldPos = new THREE.Vector3();
+  if (gunRef.current && barrelEndRef.current) {
+    barrelEndRef.current.getWorldPosition(barrelWorldPos);
+  } else {
+    barrelWorldPos = camera.position.clone();
+  }
+
   const createBulletTracer = () => {
     if (!instancedTracers.current || !instancedTrails.current) return;
 
     const availableIndex = instanceData.current.findIndex(data => !data.active);
     if (availableIndex === -1) return;
 
-    let barrelWorldPos = new THREE.Vector3();
-    if (gunRef.current && barrelEndRef.current) {
-      barrelEndRef.current.getWorldPosition(barrelWorldPos);
-    } else {
-      barrelWorldPos = camera.position.clone();
-    }
+
 
     raycaster.current.setFromCamera(mouse.current, camera);
 
@@ -180,13 +182,13 @@ const Gun: React.FC<GunProps> = ({
 
   // Integrate with usePlayerInput
   usePlayerInput({
-    onJump: () => {},
-    onSprintStart: () => {},
-    onSprintEnd: () => {},
-    onGrenade: () => {},
+    onJump: () => { },
+    onSprintStart: () => { },
+    onSprintEnd: () => { },
+    onGrenade: () => { },
     onMouseDown: () => handleShoot(true),
     onMouseUp: () => handleShoot(false),
-    setMoveState: () => {},
+    setMoveState: () => { },
   });
 
   const shootBullet = () => {
@@ -225,6 +227,12 @@ const Gun: React.FC<GunProps> = ({
 
       const intersects = raycaster.current.intersectObjects(obstacles, true);
 
+      let shootObject = {
+        rayOrigin: barrelWorldPos,
+        rayDirection: shootDirection,
+        timestamp: Date.now(),
+      };
+
       if (intersects.length > 0) {
         const firstHit = intersects[0];
         const hitDirection = new Vector3()
@@ -253,23 +261,23 @@ const Gun: React.FC<GunProps> = ({
               playerRadius
             );
             if (hit) {
-              console.log('hit!');
               crosshairRef.current?.triggerHit();
             } else {
               console.log('missed by distance: ', distance);
             }
           });
+          shootObject = {
+            rayOrigin: playerCenterRef.current,
+            rayDirection: hitDirection,
+            timestamp: Date.now(),
+          };
         }
       } else {
         console.log('missed: no intersections');
       }
 
       // Emit shoot event to server
-      const shootObject = {
-        rayOrigin: playerCenterRef.current,
-        rayDirection: shootDirection,
-        timestamp: Date.now(),
-      };
+
       socket.emit('shoot', { userId, shootObject });
 
       // Visual and audio effects
@@ -440,7 +448,7 @@ const Gun: React.FC<GunProps> = ({
   }, []);
 
   return (
-    <group frustumCulled={true} ref={gunRef} position={[0.5, -0.3, -0.5]}>
+    <group frustumCulled={true} ref={gunRef} position={[0.5, -1.5, -0.5]}>
       <mesh>
         <boxGeometry args={[0.4, 0.2, 1]} />
         <meshStandardMaterial color="gray" />

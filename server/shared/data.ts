@@ -195,7 +195,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
   const players = await getAllPlayers();
 
   if (players) {
-    Object.entries(players).forEach(([playerId, player]) => {
+    Object.entries(players).forEach(async ([playerId, player]) => {
       if (playerId == userId) return; // Skip the current player
 
       const rayOrigin = new Vector3(
@@ -240,7 +240,9 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
         let hitPlayer = players[playerId];
         if (hitPlayer) {
           if (typeof hitPlayer.health === "number") {
-            console.log(hitPlayer.health);
+            console.log("Before hit:", hitPlayer.health);
+            hitPlayer.health -= 10;
+            console.log("After hit:", hitPlayer.health);
             hitPlayer.health -= 10; // Reduce health by 10
             if (hitPlayer.health <= 0) {
               io.to(playerId).emit("youDied", { message: "You are dead!" });
@@ -250,6 +252,8 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
             }
           }
         }
+
+        await setPlayer(playerId, hitPlayer);
 
       } else {
         console.log(`--> User-id(${playerId}) missed by ${distance.toFixed(3)} units`);
