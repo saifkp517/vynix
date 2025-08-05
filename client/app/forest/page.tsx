@@ -9,7 +9,10 @@ import { PointerLockControls } from '@react-three/drei';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
+
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
+import BotOpponents from '@/components/game-components/opponents/BotOpponents';
+
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
@@ -31,7 +34,6 @@ const Game: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
-  const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
   const playerDataRef = useRef<{ [playerId: string]: { position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   const controlsRef = useRef<any>(null);
@@ -250,7 +252,6 @@ const Game: React.FC = () => {
   useWhyDidYouUpdate("Game", {
     roomId,
     team,
-    hitPlayers,
     localPlayerId,
     vegetationPositions,
   });
@@ -343,12 +344,19 @@ const Game: React.FC = () => {
                       listenerRef={listenerRef}
                     />
                     <RemoteOpponents
-                      hitPlayers={hitPlayers}
                       addObstacleRef={addObstacleRef}
                       smoothnessRef={smoothnessRef}
                       playerDataRef={playerDataRef}
                       showKillToast={showKillToast}
                       listenerRef={listenerRef}
+                    />
+                    <BotOpponents
+                      addObstacleRef={addObstacleRef}
+                      smoothnessRef={smoothnessRef}
+                      playerDataRef={playerDataRef}
+                      showKillToast={showKillToast}
+                      listenerRef={listenerRef}
+                      numBots={10}
                     />
                   </Ground>
                 </Canvas>

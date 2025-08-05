@@ -18,7 +18,6 @@ export const Opponent = ({
   getGroundHeight,
   addObstacleRef,
   listener,
-  isHit = false,
   setAudioRef
 }: {
   positionRef: () => Vector3 | null;
@@ -30,7 +29,6 @@ export const Opponent = ({
   isRemote?: boolean;
   getGroundHeight: (x: number, z: number) => number;
   addObstacleRef?: (ref: Mesh | null) => void;
-  isHit?: boolean;
   listener: AudioListener | undefined;
   setAudioRef?: (userId: string, audio: PositionalAudio) => void;
 }) => {

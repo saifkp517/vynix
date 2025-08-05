@@ -63,6 +63,8 @@ const Player: React.FC<PlayerProps> = ({
     const walkSoundRef = useRef<Howl | null>(null);
     const wasWalkingRef = useRef(false); // to track last frame walking state
 
+    const rand = () => Math.random() * 100 + 100;
+
     const playerPosition = useRef<Vector3>(new Vector3(0, 0, 0));
     const playerVelocity = useRef<Vector3>(new Vector3());
     const playerSpeed = useRef(10);

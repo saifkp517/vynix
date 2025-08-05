@@ -16,7 +16,6 @@ interface PlayerData {
 
 
 interface Props {
-    hitPlayers: Record<string, boolean>;
     addObstacleRef: (ref: Mesh | null) => void;
     smoothnessRef: RefObject<number>;
     playerDataRef: RefObject<Record<string, PlayerData>>;
@@ -26,7 +25,6 @@ interface Props {
 
 
 const RemoteOpponents: React.FC<Props> = ({
-    hitPlayers,
     addObstacleRef,
     smoothnessRef,
     playerDataRef,
@@ -184,7 +182,6 @@ const RemoteOpponents: React.FC<Props> = ({
                         shootEvent={shootEventEmitter.current}
                         userId={id}
                         isRemote={true}
-                        isHit={!!hitPlayers[id]}
                         addObstacleRef={addObstacleRef}
                         getGroundHeight={getGroundHeight}
                         smoothnessRef={smoothnessRef}
@@ -194,20 +191,6 @@ const RemoteOpponents: React.FC<Props> = ({
                         }}
                     />
                 );
-            })}
-        </>
-    );
-
-    return (
-        <>
-            {playerIds.map((id) => {
-                const data = playerDataRef.current[id];
-                if (!data || deadPlayers.current.has(id)) {
-                    console.log(`Skipping render for ${id}, data:`, data, 'isDead:', deadPlayers.current.has(id));
-                    return null;
-                }
-
-
             })}
         </>
     );
