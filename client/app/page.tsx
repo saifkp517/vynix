@@ -24,6 +24,8 @@ import { redirect } from "next/navigation";
 import { useAuth } from "./utils/AuthContext";
 import { RoomsUI } from "@/components/custom/Rooms";
 
+
+
 export default function GameLoginPage() {
 
   const { user, loginUser, registerUser } = useAuth();
@@ -42,6 +44,12 @@ export default function GameLoginPage() {
     { name: "ShadowStriker", victories: 129, rank: 3 },
   ]);
 
+  const handleFullScreen = () => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    }
+    redirect("/forest")
+  };
 
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -214,10 +222,10 @@ export default function GameLoginPage() {
 
             {/* Social Login Buttons */}
             <div className="grid ">
-              <Button onClick={() => { redirect("/forest") }} variant="outline" type="button" className="w-full border-gray-300 text-gray-300 cursor-pointer">
-                <Crown className="h-4 w-4 mr-1 cursor-pointer" /> 
+              <Button onClick={() => handleFullScreen} variant="outline" type="button" className="w-full border-gray-300 text-gray-300 cursor-pointer">
+                <Crown className="h-4 w-4 mr-1 cursor-pointer" />
                 <Link href="/forest">
-                    Guest
+                  Guest
                 </Link>
               </Button>
             </div>

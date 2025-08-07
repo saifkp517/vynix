@@ -11,7 +11,7 @@ import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
 
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
-import BotOpponents from '@/components/game-components/opponents/BotOpponents';
+import BotOpponents from '@/components/game-components/opponents/ParentBotOpponents';
 
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
@@ -24,6 +24,7 @@ type Player = {
   position?: Vector3;
   velocity?: Vector3;
 }
+
 
 
 // Main game component
@@ -61,6 +62,7 @@ const Game: React.FC = () => {
   const listenerRef = useRef<AudioListener>(null as unknown as AudioListener);
 
 
+
   const handleComponentStatusChange = (
     componentName: string,
     status: 'loading' | 'loaded' | 'failed' | 'unloaded',
@@ -84,6 +86,13 @@ const Game: React.FC = () => {
     // Perform actions requiring all components (e.g., full game loop)
   };
 
+  //set page to fullscreen
+  useEffect(() => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    }
+  })
+
   //redirect user to login page after refresh
   useEffect(() => {
     if (sessionStorage.getItem('justRefreshed')) {
@@ -95,6 +104,7 @@ const Game: React.FC = () => {
       // Redirect
       window.location.href = '/';
     }
+
   }, []);
 
   // Player connection handling
@@ -356,7 +366,7 @@ const Game: React.FC = () => {
                       playerDataRef={playerDataRef}
                       showKillToast={showKillToast}
                       listenerRef={listenerRef}
-                      numBots={10}
+                      numBots={1}
                     />
                   </Ground>
                 </Canvas>

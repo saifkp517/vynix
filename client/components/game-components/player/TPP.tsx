@@ -178,7 +178,7 @@ const Player: React.FC<PlayerProps> = ({
         }
 
         const handleMouseMove = (event: MouseMoveEvent) => {
-            const sensitivity: number = 0.002;
+            const sensitivity: number = 0.004;
 
             // Always update camera angles when mouse moves
             (cameraAngles.current as CameraAngles).horizontal -= event.movementX * sensitivity;
@@ -281,8 +281,8 @@ const Player: React.FC<PlayerProps> = ({
         direction.current.normalize();
 
 
-        const cameraDistance = 6; // Distance behind/around player
-        const cameraHeight = 0.05; // Base height above player
+        const cameraDistance = 3; // Distance behind/around player
+        const cameraHeight = 1; // Base height above player
         const smoothingFactor = 0.5; // Camera smoothing
 
         // Get player head position

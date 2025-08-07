@@ -59,8 +59,8 @@ const BotOpponents: React.FC<Props> = ({
     }, [numBots]);
 
     const getRandomSpawnPosition = () => {
-        const x = Math.random() * 40 - 20; // Random x between -20 and 20
-        const z = Math.random() * 40 - 20; // Random z between -20 and 20
+        const x = Math.random() * 80 - 80; // Random x between -20 and 20
+        const z = Math.random() * 80 - 80; // Random z between -20 and 20
         const y = getGroundHeight(x, z) + 2.5;
         return new Vector3(x, y, z);
     };

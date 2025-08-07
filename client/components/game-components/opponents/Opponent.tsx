@@ -104,7 +104,7 @@ export const Opponent = ({
   return (
     <group ref={group} position={[0, 0, 0]}>
       <mesh ref={sphereRef} position={[0, -1.5, 0]}>
-        <sphereGeometry args={[0.5]} />
+        <sphereGeometry args={[1.0]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
       <OpponentGun

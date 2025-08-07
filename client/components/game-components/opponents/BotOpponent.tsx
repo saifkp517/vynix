@@ -67,10 +67,10 @@ const BotOpponent: React.FC<Props> = ({
     // Generate unique personality for this bot
     useEffect(() => {
         personalityRef.current = {
-            aggressiveness: Math.random(),
-            mobility: Math.random(),
+            aggressiveness: 0,
+            mobility: 0,
             accuracy: Math.random(),
-            cautiousness: Math.random(),
+            cautiousness:0,
         };
     }, []);
 
@@ -250,9 +250,9 @@ const BotOpponent: React.FC<Props> = ({
         if (!audio) return;
 
         if (isWalkingRef.current && !audio.isPlaying) {
-            audio.setDistanceModel('linear');
+            audio.setDistanceModel('inverse');
             audio.setRefDistance(5);
-            audio.setMaxDistance(50);
+            audio.setMaxDistance(15);
             audio.setLoop(true);
             audio.setVolume(0.5);
             audio.play();
