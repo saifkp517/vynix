@@ -1,11 +1,13 @@
 'use client'
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { useWhyDidYouUpdate } from '@/lib/utils';
 import { Howl } from 'howler';
-import Player from '@/components/game-components/player/TPP';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls } from '@react-three/drei';
+import { Stats } from '@react-three/drei';
+
+import { useWhyDidYouUpdate } from '@/lib/utils';
+import Player from '@/components/game-components/player/TPP';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
@@ -209,7 +211,7 @@ const Game: React.FC = () => {
   useEffect(() => {
     const sound = new Howl({
       src: ['/sounds/breeze.mp3'],
-      volume: 0.1,
+      volume: 1,
       preload: true,
       loop: true,
     });
@@ -293,6 +295,7 @@ const Game: React.FC = () => {
 
         {isReady ? (
           <>
+            <Stats />
             <GameInfo
               roomId={roomId}
               grenadeCoolDownRef={grenadeCoolDownRef}
@@ -317,7 +320,6 @@ const Game: React.FC = () => {
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
               }}
             >
               <div style={{
@@ -339,7 +341,8 @@ const Game: React.FC = () => {
                   style={{
                     width: `${canvasWidth}px`,
                     height: `${canvasHeight}px`,
-                    imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
+                    imageRendering: 'auto'
+                    // resolutionScale < 1 ? 'pixelated' : 'auto'
                   }}
                   camera={{ position: [0, 1.6, 0], fov: currentFov, near: 0.1, far: 1000 }}
                 >
@@ -366,7 +369,7 @@ const Game: React.FC = () => {
                       playerDataRef={playerDataRef}
                       showKillToast={showKillToast}
                       listenerRef={listenerRef}
-                      numBots={1}
+                      numBots={10}
                     />
                   </Ground>
                 </Canvas>

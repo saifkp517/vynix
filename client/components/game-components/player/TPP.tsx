@@ -50,6 +50,13 @@ const Player: React.FC<PlayerProps> = ({
     listenerRef
 }) => {
 
+    const [isFPS, setIsFPS] = useState(false);
+
+
+
+
+
+
     const { camera } = useThree();
     const collidingRef = useRef(false);
     const collisionNormalRef = useRef<Vector3 | null>(null);
@@ -153,9 +160,12 @@ const Player: React.FC<PlayerProps> = ({
                 setTimeout(() => (grenadeCoolDownRef.current = false), 5000);
             }
         },
-        onMouseDown: () => {
+        onRightMouseDown: () => {
+            setIsFPS(true);
         },
+        onLeftMouseDown: () => { },
         onMouseUp: () => {
+            setIsFPS(false);
         },
         setMoveState,
     });
@@ -281,45 +291,72 @@ const Player: React.FC<PlayerProps> = ({
         direction.current.normalize();
 
 
-        const cameraDistance = 3; // Distance behind/around player
-        const cameraHeight = 1; // Base height above player
-        const smoothingFactor = 0.5; // Camera smoothing
+        // const cameraDistance = 6; // Distance behind/around player
+        // const cameraHeight = 2; // Base height above player
+        // const smoothingFactor = 0.5; // Camera smoothing
 
         // Get player head position
         const playerHeadPosition = playerPosition.current.clone().add(new Vector3(0, playerHeight, 0));
 
-        // Calculate camera position using spherical coordinates from mouse angles
-        const horizontalAngle = cameraAngles.current.horizontal;
-        const verticalAngle = cameraAngles.current.vertical;
+        if (isFPS) {
 
-        // Convert spherical coordinates to cartesian for camera offset
-        const cameraOffset = new Vector3(
-            Math.sin(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance,
-            Math.sin(verticalAngle) * cameraDistance + cameraHeight,
-            Math.cos(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance
-        );
 
-        const idealCameraPosition = playerHeadPosition.clone().add(cameraOffset);
+            const horizontalAngle = cameraAngles.current.horizontal;
+            const verticalAngle = cameraAngles.current.vertical;
 
-        // Smooth camera movement
-        camera.position.lerp(idealCameraPosition, smoothingFactor);
+            // Position camera at the head (slightly offset optional to avoid clipping)
+            const eyeOffsetY = -2.5; // tweak if needed (e.g., 0.1)
+            const eye = playerHeadPosition.clone();
+            eye.y += eyeOffsetY;
 
-        // Handle camera collision with obstacles
-        const raycaster = new Raycaster();
-        const rayDirection = cameraOffset.clone().normalize();
-        raycaster.set(playerHeadPosition, rayDirection);
+            camera.position.copy(eye);
 
-        const intersects = raycaster.intersectObjects(obstacles, true);
-        if (intersects.length > 0 && intersects[0].distance < cameraDistance) {
-            // Pull camera closer if there's an obstacle
-            const safeDistance = Math.max(intersects[0].distance * 0.9, 0.5);
-            const adjustedOffset = rayDirection.clone().multiplyScalar(safeDistance);
-            adjustedOffset.y += cameraHeight;
-            camera.position.copy(playerHeadPosition.clone().add(adjustedOffset));
+            // Compute forward direction from angles
+            const forward = new Vector3(
+                -Math.sin(horizontalAngle) * Math.cos(verticalAngle),
+                -Math.sin(verticalAngle),
+                -Math.cos(horizontalAngle) * Math.cos(verticalAngle)
+            ).normalize();
+
+            // Look direction
+            camera.lookAt(eye.clone().add(forward));
+
+
+        } else {
+            // Third-person as before
+            const cameraDistance = 6;
+            const cameraHeight = 2;
+            const smoothingFactor = 0.5;
+
+            const horizontalAngle = cameraAngles.current.horizontal;
+            const verticalAngle = cameraAngles.current.vertical;
+
+            const cameraOffset = new Vector3(
+                Math.sin(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance,
+                Math.sin(verticalAngle) * cameraDistance + cameraHeight,
+                Math.cos(horizontalAngle) * Math.cos(verticalAngle) * cameraDistance
+            );
+
+            const idealCameraPosition = playerHeadPosition.clone().add(cameraOffset);
+
+            // Smooth camera movement
+            camera.position.lerp(idealCameraPosition, smoothingFactor);
+
+            // Handle camera collision (ray from head toward camera offset)
+            const raycaster = new Raycaster();
+            const rayDirection = cameraOffset.clone().normalize();
+            raycaster.set(playerHeadPosition, rayDirection);
+
+            const intersects = raycaster.intersectObjects(obstacles, true);
+            if (intersects.length > 0 && intersects[0].distance < cameraDistance) {
+                const safeDistance = Math.max(intersects[0].distance * 0.9, 0.5);
+                const adjustedOffset = rayDirection.clone().multiplyScalar(safeDistance);
+                adjustedOffset.y += cameraHeight;
+                camera.position.copy(playerHeadPosition.clone().add(adjustedOffset));
+            }
+
+            camera.lookAt(playerHeadPosition);
         }
-
-        // Make camera look at player
-        camera.lookAt(playerHeadPosition);
 
         // 4. UPDATE movement to use camera direction
         // Replace your existing movement calculation with this:

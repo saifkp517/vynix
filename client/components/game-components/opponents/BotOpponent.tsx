@@ -250,7 +250,7 @@ const BotOpponent: React.FC<Props> = ({
         if (!audio) return;
 
         if (isWalkingRef.current && !audio.isPlaying) {
-            audio.setDistanceModel('inverse');
+            audio.setDistanceModel('linear');
             audio.setRefDistance(5);
             audio.setMaxDistance(15);
             audio.setLoop(true);
