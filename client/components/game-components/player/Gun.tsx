@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { Howl } from 'howler';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Raycaster, Vector3 } from 'three';
+import { Raycaster, Vector3, Mesh, Group } from 'three';
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 import socket from '@/lib/socket';
@@ -28,13 +28,12 @@ const Gun: React.FC<GunProps> = ({
 }) => {
   const maxAmmo = 30;
   const gunRef = useRef<THREE.Group>(null!);
-  const shootingInterval = useRef<NodeJS.Timeout | null>(null);
   const muzzleFlash = useRef(false);
   const isReloading = useRef(false);
   const scene = useThree().scene;
 
   const muzzleFlashTimeout = useRef<NodeJS.Timeout | null>(null);
-  const barrelEndRef = useRef<THREE.Mesh>(null!);
+  const barrelEndRef = useRef<Mesh>(null!);
   const isRecoiling = useRef(false);
   const recoilProgress = useRef(0);
   const bulletSpeed = 150; // units per second
@@ -60,8 +59,41 @@ const Gun: React.FC<GunProps> = ({
     }>
   >([]);
 
-  // Initialize bullets and trails instanced meshes
+  // Impact particles system
+  const impactParticles = useRef<THREE.InstancedMesh | null>(null);
+  const maxParticles = 20; // Allow for multiple impacts
+  const particleData = useRef<
+    Array<{
+      active: boolean;
+      position: THREE.Vector3;
+      velocity: THREE.Vector3;
+      life: number;
+      maxLife: number;
+    }>
+  >([]);
+
+
+
+  //these vars are used to prevent infinite shoot loop
+  const isTriggerHeld = useRef(false);
+  const lastFireTime = useRef(0);
+  const fireRateMs = 150;
+
+
+  //get live barrel position
+  const getBarrelWorldPos = () => {
+    const v = new THREE.Vector3();
+    if (barrelEndRef.current) {
+      barrelEndRef.current.getWorldPosition(v);
+      return v;
+    }
+    // fallback to camera position if barrel not ready
+    return camera.position.clone();
+  };
+
+  // Initialize bullets, trails, and impact particles instanced meshes
   useEffect(() => {
+    // Bullet tracer setup
     const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const bulletMaterial = new THREE.MeshStandardMaterial({
       color: '#ffff00',
@@ -73,6 +105,7 @@ const Gun: React.FC<GunProps> = ({
     instancedBulletMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     instancedBulletMesh.frustumCulled = false;
 
+    // Trail setup
     const trailGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
     const trailMaterial = new THREE.MeshStandardMaterial({
       color: '#ffffff',
@@ -91,8 +124,22 @@ const Gun: React.FC<GunProps> = ({
       3
     );
 
+    // Impact particles setup
+    const particleGeometry = new THREE.SphereGeometry(0.05, 6, 6);
+    const particleMaterial = new THREE.MeshBasicMaterial({
+      color: '#ffaa00',
+      transparent: true,
+      opacity: 1,
+    });
+
+    const instancedParticleMesh = new THREE.InstancedMesh(particleGeometry, particleMaterial, maxParticles);
+    instancedParticleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    instancedParticleMesh.frustumCulled = false;
+
+    // Initialize all matrices and data
     const matrix = new THREE.Matrix4();
     const color = new THREE.Color();
+
     for (let i = 0; i < maxInstances; i++) {
       matrix.makeScale(0, 0, 0);
       instancedBulletMesh.setMatrixAt(i, matrix);
@@ -107,28 +154,79 @@ const Gun: React.FC<GunProps> = ({
       });
     }
 
+    for (let i = 0; i < maxParticles; i++) {
+      matrix.makeScale(0, 0, 0);
+      instancedParticleMesh.setMatrixAt(i, matrix);
+      particleData.current.push({
+        active: false,
+        position: new THREE.Vector3(),
+        velocity: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0,
+      });
+    }
+
     instancedBulletMesh.instanceMatrix.needsUpdate = true;
     instancedTrailMesh.instanceMatrix.needsUpdate = true;
     instancedTrailMesh.instanceColor!.needsUpdate = true;
+    instancedParticleMesh.instanceMatrix.needsUpdate = true;
+
     instancedTracers.current = instancedBulletMesh;
     instancedTrails.current = instancedTrailMesh;
-    scene.add(instancedBulletMesh, instancedTrailMesh);
+    impactParticles.current = instancedParticleMesh;
+
+    scene.add(instancedBulletMesh, instancedTrailMesh, instancedParticleMesh);
 
     return () => {
-      scene.remove(instancedBulletMesh, instancedTrailMesh);
+      scene.remove(instancedBulletMesh, instancedTrailMesh, instancedParticleMesh);
       bulletGeometry.dispose();
       bulletMaterial.dispose();
       trailGeometry.dispose();
       trailMaterial.dispose();
+      particleGeometry.dispose();
+      particleMaterial.dispose();
     };
   }, [scene]);
 
-  let barrelWorldPos = new THREE.Vector3();
-  if (gunRef.current && barrelEndRef.current) {
-    barrelEndRef.current.getWorldPosition(barrelWorldPos);
-  } else {
-    barrelWorldPos = camera.position.clone();
-  }
+
+  const createImpactParticles = (impactPoint: THREE.Vector3, normal: THREE.Vector3) => {
+    if (!impactParticles.current) return;
+
+    // Create exactly 2 particles
+    for (let p = 0; p < 2; p++) {
+      const availableIndex = particleData.current.findIndex(data => !data.active);
+      if (availableIndex === -1) continue;
+
+      const data = particleData.current[availableIndex];
+      data.active = true;
+      data.position.copy(impactPoint);
+      data.life = 0;
+      data.maxLife = 0.5 + Math.random() * 0.5; // 0.5-1 second life
+
+      // Create random velocity in hemisphere based on surface normal
+      const randomDirection = new THREE.Vector3(
+        (Math.random() - 0.5) * 2,
+        Math.random(), // Always up
+        (Math.random() - 0.5) * 2
+      ).normalize();
+
+      // Blend with surface normal for more realistic bounce
+      const velocity = normal.clone()
+        .multiplyScalar(0.7)
+        .add(randomDirection.multiplyScalar(0.3))
+        .multiplyScalar(2 + Math.random() * 3); // Random speed 2-5 units/sec
+
+      data.velocity.copy(velocity);
+
+      // Set initial particle transform
+      const matrix = new THREE.Matrix4();
+      matrix.makeTranslation(impactPoint.x, impactPoint.y, impactPoint.z);
+      matrix.scale(new THREE.Vector3(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.4));
+      impactParticles.current.setMatrixAt(availableIndex, matrix);
+    }
+
+    impactParticles.current.instanceMatrix.needsUpdate = true;
+  };
 
   const createBulletTracer = () => {
     if (!instancedTracers.current || !instancedTrails.current) return;
@@ -136,12 +234,12 @@ const Gun: React.FC<GunProps> = ({
     const availableIndex = instanceData.current.findIndex(data => !data.active);
     if (availableIndex === -1) return;
 
-
-
     raycaster.current.setFromCamera(mouse.current, camera);
 
     let bulletDirection = camera.getWorldDirection(new THREE.Vector3()).normalize();
     const intersects = raycaster.current.intersectObjects(obstacles, false);
+
+    const barrelWorldPos = getBarrelWorldPos();
 
     if (intersects.length > 0) {
       const point = intersects[0].point;
@@ -169,149 +267,101 @@ const Gun: React.FC<GunProps> = ({
     instancedTrails.current.instanceColor!.needsUpdate = true;
   };
 
-  const handleShoot = (isShooting: boolean) => {
-    if (isShooting) {
-      shootBullet();
-    } else {
-      if (shootingInterval.current) {
-        clearInterval(shootingInterval.current);
-        shootingInterval.current = null;
-      }
-    }
-  };
-
   // Integrate with usePlayerInput
   usePlayerInput({
     onJump: () => { },
     onSprintStart: () => { },
     onSprintEnd: () => { },
     onGrenade: () => { },
-    onMouseDown: () => handleShoot(true),
-    onMouseUp: () => handleShoot(false),
+    onLeftMouseDown: () => { isTriggerHeld.current = true },
+    onRightMouseDown: () => { },
+    onMouseUp: () => { isTriggerHeld.current = false },
     setMoveState: () => { },
   });
 
   const shootBullet = () => {
     if (isReloading.current) return;
 
-    if (ammo <= 0) {
+    // fresh ammo read
+    const currentAmmo = useGameInfoStore.getState().ammo;
+    if (currentAmmo <= 0) {
       reload();
       return;
     }
 
-    isRecoiling.current = true;
-    recoilProgress.current = 0;
+    // consume ammo first
+    useGameInfoStore.getState().shootBullet();
 
-    const gunShotSound = new Howl({
-      src: ['/sounds/gunshot.mp3'],
-      volume: 0.5,
-      rate: 2.0,
-    });
+    // perform raycast and effects ONCE
+    const barrelWorldPos = getBarrelWorldPos();
+    const shootDirection = new Vector3();
+    camera.getWorldDirection(shootDirection).normalize();
+    raycaster.current.set(camera.position, shootDirection);
 
-    const fireOnce = () => {
-      if (isReloading.current || ammo <= 0) {
-        if (shootingInterval.current) {
-          clearInterval(shootingInterval.current);
-          shootingInterval.current = null;
-        }
-        if (ammo <= 0 && !isReloading.current) {
-          reload();
-        }
-        return;
-      }
+    const intersects = raycaster.current.intersectObjects(obstacles, true);
 
-      // Perform raycasting and hit detection
-      const shootDirection = new Vector3();
-      camera.getWorldDirection(shootDirection);
-      raycaster.current.set(camera.position, shootDirection);
-
-      const intersects = raycaster.current.intersectObjects(obstacles, true);
-
-      let shootObject = {
-        rayOrigin: barrelWorldPos,
-        rayDirection: shootDirection,
-        timestamp: Date.now(),
-      };
-
-      if (intersects.length > 0) {
-        const firstHit = intersects[0];
-        const hitDirection = new Vector3()
-          .subVectors(firstHit.point, playerCenterRef.current!)
-          .normalize();
-
-        const hitX = firstHit.point.x;
-        const hitZ = firstHit.point.z;
-        const hitY = firstHit.point.y;
-
-        const groundY = getGroundHeight(hitX, hitZ);
-        const threshold = 0.1;
-
-        if (hitY <= groundY + threshold) {
-          console.log('🚫 Shot blocked by terrain at', { x: hitX, y: groundY, z: hitZ });
-        } else {
-          const players = Object.values(otherPlayers.current || {});
-          players.forEach(player => {
-            const playerPosition = player.position.clone().add(new Vector3(0, -1.5, 0));
-            const playerRadius = 0.5;
-
-            const { hit, distance } = rayIntersectsSphere(
-              playerCenterRef.current!,
-              hitDirection,
-              playerPosition,
-              playerRadius
-            );
-            if (hit) {
-              crosshairRef.current?.triggerHit();
-            } else {
-              console.log('missed by distance: ', distance);
-            }
-          });
-          shootObject = {
-            rayOrigin: playerCenterRef.current,
-            rayDirection: hitDirection,
-            timestamp: Date.now(),
-          };
-        }
-      } else {
-        console.log('missed: no intersections');
-      }
-
-      // Emit shoot event to server
-
-      socket.emit('shoot', { userId, shootObject });
-
-      // Visual and audio effects
-      const recoilAnimate = () => {
-        if (!gunRef.current) return;
-        gunRef.current.position.z = -0.7;
-        setTimeout(() => {
-          if (gunRef.current) {
-            gunRef.current.position.z = -0.6;
-          }
-        }, 100);
-      };
-
-      recoilAnimate();
-      shoot();
-      gunShotSound.play();
-      muzzleFlash.current = true;
-
-      if (muzzleFlashTimeout.current) {
-        clearTimeout(muzzleFlashTimeout.current);
-      }
-
-      muzzleFlashTimeout.current = setTimeout(() => {
-        muzzleFlash.current = false;
-      }, 50);
-
-      createBulletTracer();
+    let shootObject = {
+      // ensure these are plain Vector3 copies, not refs
+      rayOrigin: barrelWorldPos.clone(),
+      rayDirection: shootDirection.clone(),
+      timestamp: Date.now(),
     };
 
-    fireOnce();
-    if (!shootingInterval.current) {
-      shootingInterval.current = setInterval(fireOnce, 150);
+    if (intersects.length > 0) {
+      const firstHit = intersects[0];
+      const hitPoint = firstHit.point;
+      const hitNormal = firstHit.face?.normal || new Vector3(0, 1, 0);
+      const worldNormal = hitNormal.clone().transformDirection(firstHit.object.matrixWorld);
+      createImpactParticles(hitPoint, worldNormal);
+
+      const hitDirection = new Vector3().subVectors(firstHit.point, playerCenterRef.current!).normalize();
+
+      const groundY = getGroundHeight(hitPoint.x, hitPoint.z);
+      const threshold = 0.1;
+      if (hitPoint.y > groundY + threshold) {
+        const players = Object.values(otherPlayers.current || {});
+        players.forEach(player => {
+          const playerPosition = player.position.clone().add(new Vector3(0, -1.5, 0));
+          const playerRadius = 0.5;
+          const { hit, distance } = rayIntersectsSphere(
+            playerCenterRef.current!,
+            hitDirection,
+            playerPosition,
+            playerRadius
+          );
+          if (hit) crosshairRef.current?.triggerHit();
+        });
+        shootObject = {
+          rayOrigin: playerCenterRef.current!.clone(),
+          rayDirection: hitDirection.clone(),
+          timestamp: Date.now(),
+        };
+      }
     }
+
+    socket.emit('shoot', { userId, shootObject });
+
+    // visuals and sound
+    if (gunRef.current) {
+      gunRef.current.position.z = -0.7;
+      setTimeout(() => {
+        if (gunRef.current) gunRef.current.position.z = -0.6;
+      }, 100);
+    }
+
+    // play the sound; ideally reuse a preloaded Howl to avoid per-shot allocations
+    const gunShotSound = new Howl({ src: ['/sounds/gunshot.mp3'], volume: 0.5, rate: 2.0 });
+    gunShotSound.play();
+
+    muzzleFlash.current = true;
+    if (muzzleFlashTimeout.current) clearTimeout(muzzleFlashTimeout.current);
+    muzzleFlashTimeout.current = setTimeout(() => { muzzleFlash.current = false; }, 50);
+
+    createBulletTracer();
+
+    lastFireTime.current = performance.now();
   };
+
 
   const rayIntersectsSphere = (
     rayOrigin: Vector3,
@@ -379,6 +429,7 @@ const Gun: React.FC<GunProps> = ({
     const bulletMatrix = new THREE.Matrix4();
     const trailMatrix = new THREE.Matrix4();
 
+    // Animate bullet tracers and trails
     instanceData.current.forEach((data, index) => {
       if (!data.active) return;
 
@@ -426,6 +477,54 @@ const Gun: React.FC<GunProps> = ({
         instancedTrails.current.instanceColor.needsUpdate = true;
       }
     }
+
+    // Animate impact particles
+    if (impactParticles.current) {
+      let needsParticleUpdate = false;
+      const gravity = new THREE.Vector3(0, -9.8, 0); // Gravity
+      const particleMatrix = new THREE.Matrix4();
+
+      particleData.current.forEach((data, index) => {
+        if (!data.active) return;
+
+        data.life += delta;
+
+        if (data.life >= data.maxLife) {
+          data.active = false;
+          particleMatrix.makeScale(0, 0, 0);
+          needsParticleUpdate = true;
+        } else {
+          // Apply gravity
+          data.velocity.add(gravity.clone().multiplyScalar(delta));
+
+          // Update position
+          data.position.add(data.velocity.clone().multiplyScalar(delta));
+
+          // Calculate scale based on life (fade out)
+          const lifeRatio = data.life / data.maxLife;
+          const scale = 3; // Shrink as it dies
+
+          particleMatrix.makeTranslation(data.position.x, data.position.y, data.position.z);
+          particleMatrix.scale(new THREE.Vector3(scale, scale, scale));
+          needsParticleUpdate = true;
+        }
+
+        impactParticles.current?.setMatrixAt(index, particleMatrix);
+      });
+
+      if (needsParticleUpdate) {
+        impactParticles.current.instanceMatrix.needsUpdate = true;
+      }
+    }
+
+
+    if (isTriggerHeld.current && !isReloading.current) {
+      const now = performance.now();
+      if (now - lastFireTime.current >= fireRateMs) {
+        shootBullet();
+      }
+    }
+
   });
 
   useEffect(() => {

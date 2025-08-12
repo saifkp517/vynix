@@ -1,15 +1,20 @@
 'use client'
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { useWhyDidYouUpdate } from '@/lib/utils';
 import { Howl } from 'howler';
-import Player from '@/components/game-components/player/TPP';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls } from '@react-three/drei';
+import { Stats } from '@react-three/drei';
+
+import { useWhyDidYouUpdate } from '@/lib/utils';
+import Player from '@/components/game-components/player/TPP';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
+
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
+import BotOpponents from '@/components/game-components/opponents/ParentBotOpponents';
+
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
@@ -23,6 +28,7 @@ type Player = {
 }
 
 
+
 // Main game component
 const Game: React.FC = () => {
 
@@ -31,7 +37,6 @@ const Game: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
-  const [hitPlayers, setHitPlayers] = useState<{ [id: string]: boolean }>({});
   const playerDataRef = useRef<{ [playerId: string]: { position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   const controlsRef = useRef<any>(null);
@@ -59,6 +64,7 @@ const Game: React.FC = () => {
   const listenerRef = useRef<AudioListener>(null as unknown as AudioListener);
 
 
+
   const handleComponentStatusChange = (
     componentName: string,
     status: 'loading' | 'loaded' | 'failed' | 'unloaded',
@@ -82,6 +88,13 @@ const Game: React.FC = () => {
     // Perform actions requiring all components (e.g., full game loop)
   };
 
+  //set page to fullscreen
+  useEffect(() => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    }
+  })
+
   //redirect user to login page after refresh
   useEffect(() => {
     if (sessionStorage.getItem('justRefreshed')) {
@@ -93,6 +106,7 @@ const Game: React.FC = () => {
       // Redirect
       window.location.href = '/';
     }
+
   }, []);
 
   // Player connection handling
@@ -197,7 +211,7 @@ const Game: React.FC = () => {
   useEffect(() => {
     const sound = new Howl({
       src: ['/sounds/breeze.mp3'],
-      volume: 0.1,
+      volume: 1,
       preload: true,
       loop: true,
     });
@@ -250,7 +264,6 @@ const Game: React.FC = () => {
   useWhyDidYouUpdate("Game", {
     roomId,
     team,
-    hitPlayers,
     localPlayerId,
     vegetationPositions,
   });
@@ -282,6 +295,7 @@ const Game: React.FC = () => {
 
         {isReady ? (
           <>
+            <Stats />
             <GameInfo
               roomId={roomId}
               grenadeCoolDownRef={grenadeCoolDownRef}
@@ -306,7 +320,6 @@ const Game: React.FC = () => {
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
               }}
             >
               <div style={{
@@ -328,7 +341,8 @@ const Game: React.FC = () => {
                   style={{
                     width: `${canvasWidth}px`,
                     height: `${canvasHeight}px`,
-                    imageRendering: resolutionScale < 1 ? 'pixelated' : 'auto'
+                    imageRendering: 'auto'
+                    // resolutionScale < 1 ? 'pixelated' : 'auto'
                   }}
                   camera={{ position: [0, 1.6, 0], fov: currentFov, near: 0.1, far: 1000 }}
                 >
@@ -343,12 +357,19 @@ const Game: React.FC = () => {
                       listenerRef={listenerRef}
                     />
                     <RemoteOpponents
-                      hitPlayers={hitPlayers}
                       addObstacleRef={addObstacleRef}
                       smoothnessRef={smoothnessRef}
                       playerDataRef={playerDataRef}
                       showKillToast={showKillToast}
                       listenerRef={listenerRef}
+                    />
+                    <BotOpponents
+                      addObstacleRef={addObstacleRef}
+                      smoothnessRef={smoothnessRef}
+                      playerDataRef={playerDataRef}
+                      showKillToast={showKillToast}
+                      listenerRef={listenerRef}
+                      numBots={10}
                     />
                   </Ground>
                 </Canvas>

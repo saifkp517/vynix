@@ -56,6 +56,7 @@ export const createRoom = async (): Promise<string> => {
   const vegetation = generateTreePositions();
 
   await redis.set(`room:${roomId}:vegetation`, JSON.stringify(vegetation));
+  await redis.sAdd(ROOM_KEY, roomId);
 
   return roomId;
 }
@@ -86,7 +87,7 @@ export const findAvailableRoom = async (): Promise<string | null> => {
   const roomIds = await redis.sMembers(ROOM_KEY);
 
   for (const roomId of roomIds) {
-    const playerCount = await redis.sCard(`roomPlayers${roomId}`);
+    const playerCount = await redis.sCard(`roomPlayers:${roomId}`);
     if (playerCount < MAX_PLAYERS) {
       return roomId;
     }
@@ -99,7 +100,6 @@ export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSock
   let roomId = await findAvailableRoom();
 
   const rand = () => Math.random() * 100 + 100;
-  const startPosition = { x: rand(), y: 0, z: rand() };
 
   if (!roomId) {
     roomId = await createRoom();
@@ -117,7 +117,7 @@ export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSock
         id: playerId,
         room: roomId,
         health: 100,
-        position: startPosition,
+        position: new Vector3(0, 0, 0),
         velocity: new Vector3(0, 0, 0),
         cameraDirection: new Vector3(0, 0, 0)
       }
