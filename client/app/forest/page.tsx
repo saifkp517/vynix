@@ -363,14 +363,14 @@ const Game: React.FC = () => {
                       showKillToast={showKillToast}
                       listenerRef={listenerRef}
                     />
-                    <BotOpponents
+{/*                     <BotOpponents
                       addObstacleRef={addObstacleRef}
                       smoothnessRef={smoothnessRef}
                       playerDataRef={playerDataRef}
                       showKillToast={showKillToast}
                       listenerRef={listenerRef}
                       numBots={10}
-                    />
+                    /> */}
                   </Ground>
                 </Canvas>
               </div>
