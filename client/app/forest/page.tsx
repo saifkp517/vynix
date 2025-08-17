@@ -337,11 +337,11 @@ const Game: React.FC = () => {
                     failIfMajorPerformanceCaveat: false,
                     outputColorSpace: SRGBColorSpace,
                   }}
-                  dpr={0.5} // Force device pixel ratio to 1
+                  dpr={1} // Force device pixel ratio to 1
                   style={{
                     width: `${canvasWidth}px`,
                     height: `${canvasHeight}px`,
-                    imageRendering: 'pixelated'
+                    imageRendering: 'auto'
                     // resolutionScale < 1 ? 'pixelated' : 'auto'
                   }}
                   camera={{ position: [0, 1.6, 0], fov: currentFov, near: 0.1, far: 1000 }}
