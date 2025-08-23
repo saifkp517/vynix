@@ -37,7 +37,7 @@ const Game: React.FC = () => {
   const [roomId, setRoomId] = useState<string | null>(null);
   const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const [team, setTeam] = useState<string | null>(null);
-  const playerDataRef = useRef<{ [playerId: string]: { position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
+  const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   const controlsRef = useRef<any>(null);
 
@@ -344,7 +344,7 @@ const Game: React.FC = () => {
                     imageRendering: 'pixelated'
                     // resolutionScale < 1 ? 'pixelated' : 'auto'
                   }}
-                  camera={{ position: [0, 1.6, 0], fov: currentFov, near: 0.1, far: 1000 }}
+                  camera={{ position: [0, 0.1, 0], fov: currentFov, near: 0.1, far: 1000 }}
                 >
                   <ambientLight intensity={0.5} />
                   <pointLight position={[10, 10, 10]} intensity={1} />
@@ -363,7 +363,7 @@ const Game: React.FC = () => {
                       showKillToast={showKillToast}
                       listenerRef={listenerRef}
                     />
-{/*                     <BotOpponents
+                    {/*                     <BotOpponents
                       addObstacleRef={addObstacleRef}
                       smoothnessRef={smoothnessRef}
                       playerDataRef={playerDataRef}

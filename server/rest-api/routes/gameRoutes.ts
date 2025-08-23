@@ -19,6 +19,10 @@ gameRouter.get("/rooms", async (req: Request, res: Response): Promise<void> => {
   }
 })
 
+// =============== FRIEND REQUESTS ==================
+
+
+
 
 
 

@@ -5,7 +5,7 @@ import { allowedOrigins } from "../shared/data";
 import cookieParser from "cookie-parser";
 import { PrismaClient } from "@prisma/client";
 import authRouter from "./routes/authRoutes";
-import gameRouter from "./routes/scoreRoutes";
+import gameRouter from "./routes/gameRoutes";
 
 const app = express();
 const prisma = new PrismaClient();

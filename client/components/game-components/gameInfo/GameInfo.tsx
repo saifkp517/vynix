@@ -17,7 +17,7 @@ interface GameInfoProps {
   explosionTimeout: number | null;
   kills: number;
   pingRef: RefObject<number>;
-  otherPlayers: RefObject<{ [playerId: string]: { position: Vector3; velocity: Vector3 } }>;
+  otherPlayers: RefObject<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3 } }>;
   isPlayerDead?: RefObject<boolean>;
 }
 
@@ -76,7 +76,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
         const updatedPlayers: Player[] = Object.entries(otherPlayers.current).map(([id, data]) => ({
           id,
-          name: `Player_${id}`, // Or pull from another source if you have real names
+          name: `${data.user ? data.user.username : `Guest_User`}`, // Or pull from another source if you have real names
           kills: 0,              // Default/fake data unless you have real values
           deaths: 0,
           health: 100,
