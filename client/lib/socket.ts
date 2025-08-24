@@ -8,7 +8,7 @@ import { io } from "socket.io-client";
 
 
 
- const socket = io("https://grave-organizations-checkout-ecological.trycloudflare.com", {
+ const socket = io("https://zum-reflection-dutch-shapes.trycloudflare.com", {
    withCredentials: true,
  });
 
