@@ -1,6 +1,6 @@
 import * as THREE from "three"
 
-export type TreeType = {
+export interface TreeType {
     trunkRadiusTop: number;
     trunkRadiusBottom: number;
     barkDetailColor: string;
@@ -16,7 +16,7 @@ export type TreeType = {
     wideCanopy?: boolean;
 };
 
-export type InstancedTreeProps = {
+export interface InstancedTreeProps {
     positions: []; // An array of positions for each tree instance
     scales?: number[]; // Optional scales for each tree
     ageVariations?: number[]; // Optional age variations for each tree
@@ -24,10 +24,18 @@ export type InstancedTreeProps = {
     getGroundHeight?: (x: number, z: number) => number;
 };
 
-export type Vegetation = {
+export interface Vegetation {
     id?: string;
     type: string;
     position: [number, number, number];
     scale: number;
     rotation: number;
+}
+
+export interface Player {
+    id: string;
+    username: string;
+    health: number;
+    kills: number;
+    deaths: number;
 }

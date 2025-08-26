@@ -20,6 +20,9 @@ import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
 import type { Vegetation } from '../types/types';
 
+//hooks
+import { useRoomStore } from '@/hooks/useRoomStore';
+
 type Player = {
   id: string;
   team?: string;
@@ -36,7 +39,6 @@ const Game: React.FC = () => {
   const isPlayerDead = useRef(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
-  const [team, setTeam] = useState<string | null>(null);
   const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   const controlsRef = useRef<any>(null);
@@ -120,6 +122,13 @@ const Game: React.FC = () => {
     };
 
     socket.on("connect", handleConnect);
+    socket.on("roomSnapshot", (roomPlayers: any) => {
+      useRoomStore.getState().setPlayers(roomPlayers);
+      console.log(roomPlayers)
+    });
+    socket.on("playerJoined", (player: any) => {
+      useRoomStore.getState().addPlayers([JSON.parse(player)]);
+    });
 
     if (socket.connected) {
       handleConnect();
@@ -130,7 +139,6 @@ const Game: React.FC = () => {
       setRoomId(roomId);
       console.log("Vegetation: ", vegetationPos)
       vegetationPositions.current = vegetationPos
-      setTeam("red");
     });
 
     socket.on("youDied", () => {
@@ -263,7 +271,6 @@ const Game: React.FC = () => {
 
   useWhyDidYouUpdate("Game", {
     roomId,
-    team,
     localPlayerId,
     vegetationPositions,
   });
@@ -301,13 +308,11 @@ const Game: React.FC = () => {
               grenadeCoolDownRef={grenadeCoolDownRef}
               controlsRef={controlsRef}
               userid={localPlayerId}
-              team={team}
               bulletsAvailable={30}
               explosionTimeout={3000}
               kills={0}
               pingRef={pingRef}
               isPlayerDead={isPlayerDead}
-              otherPlayers={playerDataRef}
             />
             <Crosshair ref={CrosshairRef} />
 

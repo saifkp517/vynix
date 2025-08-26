@@ -5,19 +5,18 @@ import socket from '@/lib/socket';
 
 
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
+import { useRoomStore } from '@/hooks/useRoomStore';
 
 
 interface GameInfoProps {
   roomId: string | null;
   userid: string | null;
   controlsRef?: RefObject<any>;
-  team: string | null;
   grenadeCoolDownRef: RefObject<boolean>;
   bulletsAvailable: number;
   explosionTimeout: number | null;
   kills: number;
   pingRef: RefObject<number>;
-  otherPlayers: RefObject<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3 } }>;
   isPlayerDead?: RefObject<boolean>;
 }
 
@@ -27,8 +26,6 @@ interface Player {
   kills: number;
   deaths: number;
   health: number;
-  team: string;
-  isAlive: boolean;
 }
 
 interface ChatMessage {
@@ -54,7 +51,7 @@ interface DamageIndicator {
 }
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, team, controlsRef, bulletsAvailable, kills, pingRef, isPlayerDead, otherPlayers }) => {
+  ({ roomId, userid, controlsRef, bulletsAvailable, kills, pingRef, isPlayerDead }) => {
 
     const healthRef = useRef(100);
     const [pingInfo, setPingInfo] = useState(0);
@@ -68,27 +65,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const ammo = useGameInfoStore((state) => state.ammo);
 
     // Mock data - replace with real data from your socket
-    const [players, setPlayers] = useState<Player[]>([]);
-
-    useEffect(() => {
-      const interval = setInterval(() => {
-        if (!otherPlayers.current) return;
-
-        const updatedPlayers: Player[] = Object.entries(otherPlayers.current).map(([id, data]) => ({
-          id,
-          name: `${data.user ? data.user.username : `Guest_User`}`, // Or pull from another source if you have real names
-          kills: 0,              // Default/fake data unless you have real values
-          deaths: 0,
-          health: 100,
-          team: Math.random() > 0.5 ? 'red' : 'blue', // Assign team randomly (or however you like)
-          isAlive: true,
-        }));
-
-        setPlayers(updatedPlayers);
-      }, 500); // Poll every 500ms
-
-      return () => clearInterval(interval);
-    }, [otherPlayers]);
+    const players = useRoomStore.getState().players;
+    
 
     const chatMessages = useRef<ChatMessage[]>([]);
     const [, forceUpdate] = useState({});
@@ -556,15 +534,12 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
                   <div key={player.id} className="bg-black/20 rounded p-1">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-1">
-                        <div className={`w-0.5 h-0.5 rounded-full ${player.isAlive ? 'bg-green-400' : 'bg-red-400'}`} />
-                        <span className="text-gray-300 text-xs truncate max-w-[80px]">{player.name}</span>
+                        <div className={`w-0.5 h-0.5 rounded-full ${player.health > 0 ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span className="text-gray-300 text-xs truncate max-w-[80px]">{player.username}</span>
                         {player.id === userid && (
                           <span className="text-[10px] bg-black/30 text-gray-300 px-0.5 rounded">You</span>
                         )}
                       </div>
-                      <span className="text-[10px] bg-black/30 text-gray-300 px-0.5 rounded">
-                        teammate
-                      </span>
                     </div>
 
                     <div className="flex justify-between text-[10px] text-gray-500 mt-0.5">
@@ -572,7 +547,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
                       <span>{player.health}%</span>
                     </div>
 
-                    {player.isAlive && player.health > 0 && (
+                    {player.health > 0 && (
                       <div className="mt-0.5 w-full bg-black/30 rounded-full h-0.5">
                         <div
                           className="bg-green-400 h-0.5 rounded-full"
