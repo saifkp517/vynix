@@ -64,7 +64,6 @@ export const createRoom = async (): Promise<string> => {
 export const getRoom = async (roomId: string, socket: AuthenticatedSocket) => {
 
   const vegetationPositions = await redis.get(`room:${roomId}:vegetation`);
-  const roomPlayers = await redis.get(`room:${roomId}:players`)
 
   socket.emit("recieveVegetationPositions", {
     roomId,
@@ -73,11 +72,12 @@ export const getRoom = async (roomId: string, socket: AuthenticatedSocket) => {
 
 }
 
+
 export const getAllRooms = async () => {
   const roomIds = await redis.sMembers(ROOM_KEY);
   const rooms = [];
   for (const roomId of roomIds) {
-    const playerCount = await redis.sCard(`room:${roomId}:players`);
+    const playerCount = await redis.sCard(`roomPlayers:${roomId}`);
     rooms.push("players", playerCount);
   }
   return rooms;
@@ -106,35 +106,50 @@ export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSock
     console.log(`New room created: ${roomId}`);
   }
 
-  if (playerId) {
+  const user = socket.user;
 
-    console.log(`User ${playerId} joined room: ${roomId}`);
+  if (user) {
+
+    console.log(`User ${user.id} joined room: ${roomId}`);
 
     try {
-      await redis.sAdd(`roomPlayers:${roomId}`, playerId);
 
-      const player: Player = {
-        id: playerId,
-        room: roomId,
+      socket.join(roomId);
+
+      const player: any = {
+        id: user.id,
+        username: user.username,
+        kills: 0,
+        deaths: 0,
         health: 100,
-        position: new Vector3(0, 0, 0),
-        velocity: new Vector3(0, 0, 0),
-        cameraDirection: new Vector3(0, 0, 0)
       }
 
+      await redis.sAdd(`roomPlayers:${roomId}`, JSON.stringify(player));
+
+
       //set player attributes
-      await redis.set(`playerRoom:${playerId}`, roomId);
-      await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(player));
+      await redis.set(`playerRoom:${user.id}`, roomId);
+      await redis.hSet(PLAYER_KEY, user.id, JSON.stringify(player));
 
       const getPositions = await redis.get(`room:${roomId}:vegetation`);
+      const roomPlayersStr = await redis.sMembers(`roomPlayers:${roomId}`)
+
+
 
       if (getPositions) {
         const vegetationPositions = JSON.parse(getPositions)
 
-        socket.join(roomId);
         socket.emit('roomAssigned', { roomId, vegetationPos: vegetationPositions });
       }
 
+      if (roomPlayersStr) {
+
+        const roomPlayers: Player[] = roomPlayersStr.map((str) => JSON.parse(str));
+
+        socket.emit('roomSnapshot', roomPlayers);
+
+        socket.to(roomId).emit(`playerJoined`, playerId)
+      }
 
 
     } catch (err) {
@@ -152,9 +167,9 @@ export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSock
 
 export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
 
-  const playerId = socket.id;
+  const userId = socket.user.id;
 
-  const getPlayer = await redis.hGet(PLAYER_KEY, playerId);
+  const getPlayer = await redis.hGet(PLAYER_KEY, userId);
   if (!getPlayer) return;
 
   const player = JSON.parse(getPlayer);
@@ -166,19 +181,19 @@ export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedS
     cameraDirection
   }
 
-  await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(updatedPlayer));
+  await redis.hSet(PLAYER_KEY, userId, JSON.stringify(updatedPlayer));
 
 
   const cellKey = getCellKey(position);
 
   //remove player from old cell
   for (const [key, set] of grid.entries()) {
-    if (set.has(playerId)) set.delete(playerId);
+    if (set.has(userId)) set.delete(userId);
   }
 
   //add player to new cell
   if (!grid.has(cellKey)) grid.set(cellKey, new Set());
-  grid.get(cellKey)?.add(playerId);
+  grid.get(cellKey)?.add(userId);
 
   broadcastToNearbyPlayers(socket, cellKey, {
     event: 'playerMoved',

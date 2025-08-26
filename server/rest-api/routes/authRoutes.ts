@@ -118,7 +118,7 @@ authRouter.post("/login", async (req: Request, res: Response): Promise<void> => 
 
                 res.cookie("session_id", session.id, {
                     httpOnly: true, // Prevent JavaScript access
-                    secure: process.env.NODE_ENV === "production", // Secure in production (HTTPS only)
+                    secure: true, // Secure in production (HTTPS only)
                     maxAge: 60 * 60 * 1000, // 1 hour expiration
                     path: "/"
                 });
@@ -220,13 +220,7 @@ authRouter.get("/me", async (req: Request, res: Response): Promise<void> => {
 
             if (session) {
                 const user_details = await prisma.user.findUnique({ where: { id: session?.userId } });
-
-                res.status(200).json({
-                    username: user_details?.username,
-                    email: user_details?.email,
-                    id: user_details?.id,
-                    image: user_details?.image
-                });
+                res.status(200).json(user_details);
                 return;
             }
         }
