@@ -6,12 +6,13 @@ export const RainEffect = memo(
   ({
     count = 3000,
     size = 0.5,
-    color = "#87CEEB",
+    color = "#00a8ebff",
     intensity = 15,
     area = 120,
-    center = [0, 50, 0],
+    center,
     wind = 0.5
   }: any) => {
+
     const rainRef = useRef<Points>(null);
     
     // Custom shader material for rain streaks
@@ -69,9 +70,9 @@ export const RainEffect = memo(
 
       for (let i = 0; i < count; i++) {
         // Spread rain across area
-        positions[i * 3] = (Math.random() - 0.5) * area + center[0];
-        positions[i * 3 + 1] = Math.random() * rainFallHeight + center[1];
-        positions[i * 3 + 2] = (Math.random() - 0.5) * area + center[2];
+        positions[i * 3] = (Math.random() - 0.5) * area + center.current.x;
+        positions[i * 3 + 1] = Math.random() * rainFallHeight + center.current.y;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * area + center.current.z;
         
         // Varied velocities for more natural look
         velocities[i] = (Math.random() * 0.5 + 0.8) * intensity;
@@ -110,10 +111,10 @@ export const RainEffect = memo(
         positions[idx] += Math.sin(time * 0.5 + i * 0.1) * wind * delta;
         
         // Reset raindrop when it goes below ground
-        if (positions[idx + 1] < center[1] - 60) {
-          positions[idx] = (Math.random() - 0.5) * area + center[0];
-          positions[idx + 1] = center[1] + 60 + Math.random() * 20;
-          positions[idx + 2] = (Math.random() - 0.5) * area + center[2];
+        if (positions[idx + 1] < center.current.y - 60) {
+          positions[idx] = (Math.random() - 0.5) * area + center.current.x;
+          positions[idx + 1] = center.current.y + 60 + Math.random() * 20;
+          positions[idx + 2] = (Math.random() - 0.5) * area + center.current.z;
         }
       }
 

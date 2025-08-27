@@ -223,7 +223,7 @@ const EnhancedLoot = memo((props: any) => {
 // Main Ground component implementation
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
-  fogDistance = 15,
+  fogDistance = 50,
   vegetationPositions,
   fogColor = "#A8B8D0",
   addObstacleRef,
@@ -554,7 +554,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         color="#A9CCE3"
         intensity={8}
         area={300}
-        center={targetPosition}
+        center={playerCenterRef}
       />
 
       <EnhancedLoot

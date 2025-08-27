@@ -305,9 +305,8 @@ const Player: React.FC<PlayerProps> = ({
             const verticalAngle = cameraAngles.current.vertical;
 
             // Position camera at the head (slightly offset optional to avoid clipping)
-            const eyeOffsetY = -2.5; // tweak if needed (e.g., 0.1)
             const eye = playerHeadPosition.clone();
-            eye.y += eyeOffsetY;
+            eye.y -= playerHeight;
 
             camera.position.copy(eye);
 

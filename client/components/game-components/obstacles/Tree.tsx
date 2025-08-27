@@ -462,39 +462,122 @@ export const TreeVisual: React.FC<{
     );
 };
 
-export const TreeColliders: React.FC<{ positions: Vegetation[], addObstacleRef: (ref: THREE.Mesh | null) => void }> =
-    ({ positions, addObstacleRef }) => {
+export const TreeColliders: React.FC<{
+  positions: Vegetation[],
+  addObstacleRef: (ref: THREE.Mesh | null) => void
+}> = ({ positions, addObstacleRef }) => {
 
-        // Create refs for all colliders
-        const colliderRefs = useRef<(THREE.Mesh | null)[]>([]);
+  // Create refs for all colliders
+  const colliderRefs = useRef<(THREE.Mesh | null)[]>([]);
 
-        useEffect(() => {
-            // Initialize the array with null values
-            colliderRefs.current = Array(positions.length).fill(null);
-        }, [positions.length]);
+  const numberOfCollidersPerTree = 5; // trunk, plate, large, medium, small
+
+  useEffect(() => {
+    // Initialize the array with null values
+    colliderRefs.current = Array(positions.length * numberOfCollidersPerTree).fill(null);
+  }, [positions.length]);
+
+  return (
+    <>
+      {positions.map((treePos, index) => {
+        const baseScale = treePos.scale * 1.2;
+        const groundHeight = treePos.position[1];
+        let colliderIndex = index * numberOfCollidersPerTree;
 
         return (
-            <>
-                {positions.map((treePos, index) => (
-                    <mesh
-                        name='tree'
-                        key={`tree-collider-${index}`}
-                        ref={(ref) => {
-                            // Store ref in our local array
-                            if (colliderRefs.current) {
-                                colliderRefs.current[index] = ref;
-                                // Also register with parent component for collision detection
-                                addObstacleRef(ref);
-                            }
-                        }}
-                        position={treePos.position}
-                        frustumCulled={false}
-                        scale={[treePos.scale * 0.8, treePos.scale * 3.6, treePos.scale * 0.8]}
-                    >
-                        <cylinderGeometry args={[1.5, 1.5, 48, 8]} />
-                        <meshBasicMaterial visible={false} />
-                    </mesh>
-                ))}
-            </>
+          <React.Fragment key={`tree-colliders-${index}`}>
+            {/* Trunk collider */}
+            <mesh
+              name='tree'
+              key={`tree-trunk-collider-${index}`}
+              ref={(ref) => {
+                colliderRefs.current[colliderIndex] = ref;
+                addObstacleRef(ref);
+                colliderIndex++;
+              }}
+              position={[treePos.position[0], groundHeight + (48 * baseScale) / 2, treePos.position[2]]}
+              rotation={[0, treePos.rotation, 0]}
+              scale={[baseScale, baseScale, baseScale]}
+              frustumCulled={false}
+            >
+              <cylinderGeometry args={[1.2, 1.5, 48, 8, 1]} />
+              <meshBasicMaterial visible={false} />
+            </mesh>
+
+            {/* Canopy plate collider */}
+            <mesh
+              name='tree'
+              key={`tree-plate-collider-${index}`}
+              ref={(ref) => {
+                colliderRefs.current[colliderIndex] = ref;
+                addObstacleRef(ref);
+                colliderIndex++;
+              }}
+              position={[treePos.position[0], groundHeight + 6.4 * baseScale, treePos.position[2]]}
+              rotation={[0, treePos.rotation, 0]}
+              scale={[baseScale * 2.6, baseScale * 0.8, baseScale * 2.6]}
+              frustumCulled={false}
+            >
+              <sphereGeometry args={[3.5, 8, 4]} />
+              <meshBasicMaterial visible={false} />
+            </mesh>
+
+            {/* Large canopy collider */}
+            <mesh
+              name='tree'
+              key={`tree-large-collider-${index}`}
+              ref={(ref) => {
+                colliderRefs.current[colliderIndex] = ref;
+                addObstacleRef(ref);
+                colliderIndex++;
+              }}
+              position={[treePos.position[0], groundHeight + 20.4 * baseScale, treePos.position[2]]}
+              rotation={[0, treePos.rotation, 0]}
+              scale={[baseScale * 6.0, baseScale * 2.4, baseScale * 6.0]}
+              frustumCulled={false}
+            >
+              <sphereGeometry args={[2.8, 8, 4]} />
+              <meshBasicMaterial visible={false} />
+            </mesh>
+
+            {/* Medium canopy collider */}
+            <mesh
+              name='tree'
+              key={`tree-medium-collider-${index}`}
+              ref={(ref) => {
+                colliderRefs.current[colliderIndex] = ref;
+                addObstacleRef(ref);
+                colliderIndex++;
+              }}
+              position={[treePos.position[0], groundHeight + 21.6 * baseScale, treePos.position[2]]}
+              rotation={[0, treePos.rotation, 0]}
+              scale={[baseScale * 3.5, baseScale * 1.0, baseScale * 3.5]}
+              frustumCulled={false}
+            >
+              <sphereGeometry args={[2.0, 8, 4]} />
+              <meshBasicMaterial visible={false} />
+            </mesh>
+
+            {/* Small canopy collider */}
+            <mesh
+              name='tree'
+              key={`tree-small-collider-${index}`}
+              ref={(ref) => {
+                colliderRefs.current[colliderIndex] = ref;
+                addObstacleRef(ref);
+                colliderIndex++;
+              }}
+              position={[treePos.position[0], groundHeight + 20.6 * baseScale, treePos.position[2]]}
+              rotation={[0, treePos.rotation, 0]}
+              scale={[baseScale * 2.8, baseScale * 0.8, baseScale * 2.8]}
+              frustumCulled={false}
+            >
+              <sphereGeometry args={[1.4, 8, 4]} />
+              <meshBasicMaterial visible={false} />
+            </mesh>
+          </React.Fragment>
         );
-    };
+      })}
+    </>
+  );
+};
