@@ -7,9 +7,13 @@ export interface Position {
 export interface Player {
     id: string;
     room: string;
+    username: string;
     position: Position;
     velocity: Position;
     health: number;
+    isDead: boolean;
+    kills: number;
+    deaths: number;
     cameraDirection: Vector3
 }
 

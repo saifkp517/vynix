@@ -21,9 +21,9 @@ import { Badge } from "@/components/ui/badge";
 import { useThemeConfig } from "./theme-provider";
 import { getRadiusClass } from "@/lib/theme-config";
 import { redirect } from "next/navigation";
-import { useAuth } from "./utils/AuthContext";
-import { RoomsUI } from "@/components/custom/Rooms";
 
+import { GameHeader } from "@/components/custom/GameHeader";
+import { useAuth } from "./utils/AuthContext";
 
 
 export default function GameLoginPage() {
@@ -38,11 +38,6 @@ export default function GameLoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const { theme: configTheme } = useThemeConfig();
   const [mounted, setMounted] = useState(false);
-  const [arenaData, setArenaData] = useState([
-    { name: "StormBlade", victories: 143, rank: 1 },
-    { name: "IronDefender", victories: 137, rank: 2 },
-    { name: "ShadowStriker", victories: 129, rank: 3 },
-  ]);
 
   const handleFullScreen = () => {
     if (document.documentElement.requestFullscreen) {
@@ -102,8 +97,8 @@ export default function GameLoginPage() {
       <div className=" hidden lg:flex lg:w-1/2 bg-muted/40 flex-col items-center justify-center p-8 relative overflow-hidden">
         <div className="w-full text-center z-10">
           {/* RoomsUI would come in place of this div below */}
-          <RoomsUI />
-          {/* RoomsUI would come in place of this div below */}
+          {/* Header */}
+          <GameHeader />
 
 
         </div>
@@ -203,8 +198,8 @@ export default function GameLoginPage() {
               {/* <Button type="submit" className="w-full relative overflow-hidden bg-emerald-600 text-white hover:bg-emerald-500">
                 <span className="relative z-10">{isLogin ? "Charge Into Battle" : "Forge Account"}</span>
               </Button> */}
-              <Button type="submit" disabled={true} className="w-full relative overflow-hidden bg-emerald-600 text-white hover:bg-emerald-500">
-                <span className="relative z-10">Auth is down for maintenance please use guest mode</span>
+              <Button type="submit" className="w-full relative overflow-hidden bg-emerald-600 text-white hover:bg-emerald-500">
+                <span className="relative z-10">Sign In</span>
               </Button>
               {success && <p className="text-gray-600">{success}</p>}
               {error && <p className="text-gray-600">{error}</p>}

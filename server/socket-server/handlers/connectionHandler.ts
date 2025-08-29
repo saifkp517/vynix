@@ -3,10 +3,10 @@
 import { Server } from "socket.io";
 import cookie from "cookie";
 import type { AuthenticatedSocket } from "../../shared/types";
-import { handleJoinRoom, handleShoot } from "../../shared/data";
-import { handleUpdatePositionAndCameraUpdate } from "../../shared/data";
+import { handleJoinRoom, handleShoot } from "../../shared/redisControllers";
+import { handleUpdatePositionAndCameraUpdate } from "../../shared/redisControllers";
 import axios from "axios";
-import { getRoom, leaveRoom, getPlayer } from "../../shared/data";
+import { getRoom, leaveRoom, getPlayer } from "../../shared/redisControllers";
 
 
 
@@ -19,8 +19,8 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   if (!rawCookie) {
     console.log("🚫 No cookies sent with socket handshake.");
-    // socket.disconnect();
-    // return;
+    socket.disconnect();
+    return;
   }
 
   async function validateSession(sessionId: string) {
@@ -34,34 +34,28 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   }
 
 
-  // const cookies = cookie.parse(rawCookie);
-  // console.log("cookies: ", cookies);
-  // const sessionId = cookies["session_id"];
-  // console.log("Session iD: ", sessionId)
+  const cookies = cookie.parse(rawCookie);
+  console.log("cookies: ", cookies);
+  const sessionId = cookies["session_id"];
+  console.log("Session iD: ", sessionId)
 
-  // if (sessionId) {
-  //   validateSession(sessionId)
-  //     .then((user) => {
-  //       socket.user = user;
-  //       console.log("User validated:", user);
+  if (sessionId) {
+    validateSession(sessionId)
+      .then((user) => {
+        socket.user = user;
+        console.log("User validated:", user);
+        socket.emit("userId", user.id);
+      })
+      .catch((error) => {
+        console.error("Error validating session:", error);
+        socket.disconnect();
+      });
+  } else {
+    console.warn("No session ID provided. Disconnecting.");
+    socket.disconnect();
+  }
 
-  //     })
-  //     .catch((error) => {
-  //       console.error("Error validating session:", error);
-  //     });
-  // } else {
-  //   console.warn("No session ID provided. Disconnecting.");
-  // socket.disconnect();
-  // }
 
-  getPlayer(socket.id).then(data => {
-    socket.broadcast.emit("newPlayer", { id: socket.id, position: data?.position });
-  })
-  .catch(err => {
-    console.log("Error getting player: ", err);
-  })
-
-  
 
   socket.on("ping-check", (clientTime) => {
     socket.emit("pong-check", clientTime)

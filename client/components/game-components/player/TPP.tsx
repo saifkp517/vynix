@@ -463,9 +463,21 @@ const Player: React.FC<PlayerProps> = ({
         }
 
         //walk sound logic
-        const isMovingHorizontally = horizontalMove.lengthSq() > 0.01;
 
-        const isWalkingNow = isMovingHorizontally && onGround && !playerDeadRef.current;
+        const START_WALK_THRESHOLD = 0.01;
+        const STOP_WALK_THRESHOLD = 0.001;
+
+        const velocitySq = horizontalMove.lengthSq();
+
+        let nowWalking = wasWalkingRef.current;
+
+        if (!wasWalkingRef.current && velocitySq > START_WALK_THRESHOLD) {
+            nowWalking = true;
+        } else if (wasWalkingRef.current && velocitySq < STOP_WALK_THRESHOLD) {
+            nowWalking = false;
+        }
+
+        const isWalkingNow = nowWalking && onGround && !playerDeadRef.current;
 
         const walkSound = walkSoundRef.current;
 
@@ -482,8 +494,8 @@ const Player: React.FC<PlayerProps> = ({
                 socket.emit("playerStopped", { userId });
             } else if (isWalkingNow && walkSound.playing()) {
                 // Update rate and volume dynamically if needed while walking
-                walkSound.volume(isShift ? 0.8 : 0.2);
-                walkSound.rate(isShift ? 2 : 1);
+                walkSound.volume(isShift ? 0.8 : 0);
+                walkSound.rate(isShift ? 2 : 0);
             }
 
             wasWalkingRef.current = isWalkingNow;

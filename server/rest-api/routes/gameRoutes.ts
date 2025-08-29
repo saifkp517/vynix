@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { getAllRooms } from "../../shared/data";
+import { getAllRooms } from "../../shared/redisControllers";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -18,6 +18,10 @@ gameRouter.get("/rooms", async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: "Internal server error" });
   }
 })
+
+// =============== FRIEND REQUESTS ==================
+
+
 
 
 

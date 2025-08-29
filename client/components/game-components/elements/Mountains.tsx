@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { SimplexNoise } from 'three-stdlib';
 
 // Mountain Component that creates borders around a square map
-export const Mountains = ({ mapSize = 2000, height = 400, thickness = 25, detail = 64 }) => {
+export const Mountains = ({ mapSize = 2000, height = 400, thickness = 5, detail = 64 }) => {
   // Create a new simplex noise instance
   const simplex = useMemo(() => new SimplexNoise(), []);
   
@@ -88,6 +88,7 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 25, detail
       color: 0x5a6352, // More natural greenish-gray mountain color
       roughness: 0.9,
       metalness: 0.1,
+      side: THREE.DoubleSide,
       flatShading: true,
       vertexColors: false
     });
@@ -111,7 +112,7 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 25, detail
     <group>
       {/* North Mountains - wider with more gentle slopes */}
       <mesh 
-        position={[0, height / 2, -offset]} 
+        position={[0, height / 2 - 20, -offset]} 
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness)}
         material={mountainMaterial}
         castShadow
@@ -121,7 +122,7 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 25, detail
       
       {/* South Mountains */}
       <mesh 
-        position={[0, height / 2, offset]} 
+        position={[0, height / 2 - 20, offset]} 
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness)}
         material={mountainMaterial}
         castShadow
@@ -132,7 +133,7 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 25, detail
       
       {/* East Mountains */}
       <mesh 
-        position={[offset, height / 2, 0]} 
+        position={[offset, height / 2 - 20, 0]} 
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness, true)}
         material={mountainMaterial}
         castShadow
@@ -143,7 +144,7 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 25, detail
       
       {/* West Mountains */}
       <mesh 
-        position={[-offset, height / 2, 0]} 
+        position={[-offset, height / 2 - 20, 0]} 
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness, true)}
         material={mountainMaterial}
         castShadow

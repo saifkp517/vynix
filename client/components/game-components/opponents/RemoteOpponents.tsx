@@ -9,6 +9,7 @@ import socket from '@/lib/socket';
 import { useWhyDidYouUpdate } from '@/lib/utils';
 
 interface PlayerData {
+    user: any;
     position: Vector3;
     velocity: Vector3;
     cameraDirection: Vector3;
@@ -49,11 +50,13 @@ const RemoteOpponents: React.FC<Props> = ({
 
     const handlePlayerMoved = ({
         id,
+        user,
         position,
         velocity,
         cameraDirection,
     }: {
         id: string;
+        user: any;
         position: Vector3;
         velocity: Vector3;
         cameraDirection: Vector3;
@@ -64,6 +67,7 @@ const RemoteOpponents: React.FC<Props> = ({
         }
 
         playerDataRef.current[id] = {
+            user: user,
             position: new Vector3(position.x, position.y, position.z),
             velocity: new Vector3(velocity.x, velocity.y, velocity.z),
             cameraDirection: new Vector3(cameraDirection.x, cameraDirection.y, cameraDirection.z),
@@ -86,10 +90,14 @@ const RemoteOpponents: React.FC<Props> = ({
 
         setPlayerIds((prev) => prev.filter((id) => id !== playerId));
 
+        // Store the user object before deleting
+        const user = playerDataRef.current[playerId]?.user;
+
         // Respawn logic
         setTimeout(() => {
             deadPlayers.current.delete(playerId);
             playerDataRef.current[playerId] = {
+                user: user,
                 position: new Vector3(0, 0, 0),
                 velocity: new Vector3(0, 0, 0),
                 cameraDirection: new Vector3(0, 0, -1),
@@ -121,10 +129,10 @@ const RemoteOpponents: React.FC<Props> = ({
     const handlePlayerWalking = ({ userId }: { userId: string }) => {
         const audio = walkingAudioRefs.current[userId];
         if (audio && !audio.isPlaying) {
-            audio.setDistanceModel('linear') //allows full cut off of volume
+            // audio.setDistanceModel('linear') //allows full cut off of volume
             audio.setRefDistance(5);
             audio.setMaxDistance(25)
-            
+
             audio.setLoop(true);
             audio.setVolume(1);
             audio.play();
