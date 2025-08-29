@@ -11,6 +11,9 @@ export interface Player {
     position: Position;
     velocity: Position;
     health: number;
+    isDead: boolean;
+    kills: number;
+    deaths: number;
     cameraDirection: Vector3
 }
 

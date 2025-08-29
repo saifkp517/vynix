@@ -1,7 +1,7 @@
 import type { AuthenticatedSocket, Position, Vegetation } from "./types";
 import { Vector3 } from "three";
 import { createNoise2D } from 'simplex-noise';
-import { grid, findAvailableRoom, createRoom } from "./data";
+import { grid, findAvailableRoom, createRoom } from "./redisControllers";
 import { Server } from "socket.io";
 
 const SEED = 12345;
