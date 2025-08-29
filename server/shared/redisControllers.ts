@@ -1,5 +1,6 @@
 import { Vector3 } from "three";
 import type { AuthenticatedSocket, Player, ShootObject } from "./types";
+import { PrismaClient } from "@prisma/client";
 import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid"
 import { redis } from "./redisClient";
@@ -9,6 +10,8 @@ import { getCellKey, broadcastToNearbyPlayers, generateTreePositions, rayInterse
 export const CELL_SIZE = 100;
 export type Grid = Map<string, Set<string>>;
 export const grid: Grid = new Map();
+
+const prisma = new PrismaClient();
 
 export const allowedOrigins = [
   "http://localhost:3000",
@@ -61,13 +64,52 @@ export const deletePlayer = async (id: string) => {
 const ROOM_KEY = 'rooms';
 const MAX_PLAYERS = 50;
 
-export const createRoom = async (): Promise<string> => {
+export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
   const roomId = uuidv4();
 
   const vegetation = generateTreePositions();
 
   await redis.set(`room:${roomId}:vegetation`, JSON.stringify(vegetation));
   await redis.sAdd(ROOM_KEY, roomId);
+
+  //game over room deletion logic
+
+  const GAME_DURATION = 60 * 1000;
+
+
+  setTimeout(async () => {
+
+    try {
+      const playerIds = await redis.sMembers(`roomPlayers:${roomId}`);
+
+      for (const playerId of playerIds) {
+        const player = await getPlayer(playerId);
+
+        if (player) {
+
+          await prisma.user.update({
+            where: { id: player.userId },
+            data: {
+              totalKills: { increment: player.kills },
+              totalDeaths: { increment: player.deaths },
+              totalMatches: { increment: 1 }
+            }
+          })
+        }
+      }
+
+      socket.to(roomId).emit("gameOver");
+
+      await redis.del(`room:${roomId}:vegetation`);
+      await redis.sRem(ROOM_KEY, roomId);
+      await redis.del(`roomPlayers:${roomId}`);
+
+      console.log("gameOver");
+
+    } catch (err) {
+      console.log(err)
+    }
+  }, GAME_DURATION);
 
   return roomId;
 }
@@ -113,13 +155,13 @@ export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSock
   const rand = () => Math.random() * 100 + 100;
 
   if (!roomId) {
-    roomId = await createRoom();
+    roomId = await createRoom(socket);
     console.log(`New room created: ${roomId}`);
   }
 
-  const user = socket.user;
+  const { userId, username } = socket;
 
-  if (user) {
+  if (userId) {
 
     console.log(`User ${playerId} joined room: ${roomId}`);
 
@@ -130,20 +172,21 @@ export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSock
       // ============== initialize players ==========================
 
       const player: Player = {
-        id: playerId,
+        socketId: playerId,
+        userId: userId,
         room: roomId,
         position: new Vector3(0, 0, 0),
         velocity: new Vector3(0, 0, 0),
         cameraDirection: new Vector3(0, 0, 0),
-        username: user.username,
+        username: username,
         isDead: false,
         kills: 0,
         deaths: 0,
         health: 100,
       }
 
-      await redis.sAdd(`roomPlayers:${roomId}`, player.id);
-      await setPlayer(player.id, player);
+      await redis.sAdd(`roomPlayers:${roomId}`, player.socketId);
+      await setPlayer(player.socketId, player);
 
 
       //set player attributes
@@ -172,7 +215,7 @@ export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSock
 
       socket.to(roomId).emit('playerJoined', {
         id: playerId,
-        username: user.username,
+        username: username,
         position: player.position,
         velocity: player.velocity,
         health: player.health,
@@ -229,7 +272,7 @@ export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedS
     event: 'playerMoved',
     payload: {
       id: socket.id,
-      user: socket.user,
+      userId: socket.userId,
       position,
       velocity,
       cameraDirection,
@@ -302,7 +345,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
               io.to(userId).emit("playerDead", { userId, playerId }); // Notify others
 
               io.to(hitPlayer.room).emit("playerUpdate", {
-                id: hitPlayer.id,
+                id: hitPlayer.socketId,
                 isDead: hitPlayer.isDead,
                 health: hitPlayer.health
               })
@@ -315,7 +358,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
                 hitPlayer.health = 100;
 
                 io.to(hitPlayer.room).emit("playerUpdate", {
-                  id: hitPlayer.id,
+                  id: hitPlayer.socketId,
                   isDead: hitPlayer.isDead,
                   health: hitPlayer.health
                 })
@@ -324,7 +367,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
             }
 
             io.to(hitPlayer.room).emit("playerUpdate", {
-              id: hitPlayer.id,
+              id: hitPlayer.socketId,
               isDead: hitPlayer.isDead,
               health: hitPlayer.health
             })

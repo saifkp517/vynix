@@ -1,15 +1,13 @@
-export interface Position {
-    x: number;
-    y: number;
-    z: number;
-}
+import type { Vector3 } from "three";
+
 
 export interface Player {
-    id: string;
+    socketId: string;
+    userId: string;
     room: string;
     username: string;
-    position: Position;
-    velocity: Position;
+    position: Vector3;
+    velocity: Vector3;
     health: number;
     isDead: boolean;
     kills: number;
@@ -48,8 +46,8 @@ export interface Vegetation {
 
 
 import { Socket } from "socket.io";
-import type { Vector3 } from "three";
 export interface AuthenticatedSocket extends Socket {
-    user?: any;
+    userId: string;
+    username: string;
 }
 

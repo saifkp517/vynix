@@ -1,12 +1,12 @@
-import type { AuthenticatedSocket, Position, Vegetation } from "./types";
+import type { AuthenticatedSocket, Vegetation } from "./types";
 import { Vector3 } from "three";
 import { createNoise2D } from 'simplex-noise';
-import { grid, findAvailableRoom, createRoom } from "./redisControllers";
+import { grid } from "./redisControllers";
 import { Server } from "socket.io";
 
 const SEED = 12345;
 
-export function getCellKey(position: Position): string {
+export function getCellKey(position: Vector3): string {
   const cellX = Math.floor(position.x / 100);
   const cellZ = Math.floor(position.z / 100);
   return `${cellX}_${cellZ}`;
@@ -36,9 +36,9 @@ export function getNearbyPlayers(socket: AuthenticatedSocket, centerKey: string)
   return Array.from(nearby);
 }
 
-export function getRandomPosition(min = -10, max = 10): Position {
+export function getRandomPosition(min = -10, max = 10): Vector3 {
   const rand = () => Math.random() * (max - min) + min;
-  return { x: rand(), y: 0, z: rand() };
+  return new Vector3(rand(), 0, rand());
 }
 
 export function rayIntersectsSphere(

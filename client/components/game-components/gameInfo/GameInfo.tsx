@@ -163,6 +163,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       };
 
       socket.on("hit", handleHit);
+      socket.on("gameOver", () => alert("gameover"))
       socket.on("receiveMessage", handleReceiveMessage);
 
       return () => {

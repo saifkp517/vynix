@@ -127,7 +127,7 @@ const Game: React.FC = () => {
       console.log(roomPlayers)
     });
     socket.on("playerJoined", (player: any) => {
-      useRoomStore.getState().addPlayers([JSON.parse(player)]);
+      useRoomStore.getState().addPlayers([player]);
     });
 
     if (socket.connected) {
@@ -342,11 +342,11 @@ const Game: React.FC = () => {
                     failIfMajorPerformanceCaveat: false,
                     outputColorSpace: SRGBColorSpace,
                   }}
-                  dpr={1} // Force device pixel ratio to 1
+                  dpr={0.5} // Force device pixel ratio to 1
                   style={{
                     width: `${canvasWidth}px`,
                     height: `${canvasHeight}px`,
-                    imageRendering: 'auto'
+                    imageRendering: 'pixelated'
                     // resolutionScale < 1 ? 'pixelated' : 'auto'
                   }}
                   camera={{ position: [0, 0.1, 0], fov: currentFov, near: 0.1, far: 1000 }}

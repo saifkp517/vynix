@@ -2,7 +2,7 @@
 
 import { Server } from "socket.io";
 import cookie from "cookie";
-import type { AuthenticatedSocket } from "../../shared/types";
+import type { AuthenticatedSocket, Player } from "../../shared/types";
 import { handleJoinRoom, handleShoot } from "../../shared/redisControllers";
 import { handleUpdatePositionAndCameraUpdate } from "../../shared/redisControllers";
 import axios from "axios";
@@ -42,7 +42,8 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   if (sessionId) {
     validateSession(sessionId)
       .then((user) => {
-        socket.user = user;
+        socket.userId = user.id;
+        socket.username = user.username;
         console.log("User validated:", user);
         socket.emit("userId", user.id);
       })
