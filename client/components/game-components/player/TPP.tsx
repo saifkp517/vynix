@@ -291,10 +291,6 @@ const Player: React.FC<PlayerProps> = ({
         direction.current.normalize();
 
 
-        // const cameraDistance = 6; // Distance behind/around player
-        // const cameraHeight = 2; // Base height above player
-        // const smoothingFactor = 0.5; // Camera smoothing
-
         // Get player head position
         const playerHeadPosition = playerPosition.current.clone().add(new Vector3(0, playerHeight, 0));
 

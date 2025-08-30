@@ -18,7 +18,7 @@ import BotOpponents from '@/components/game-components/opponents/ParentBotOppone
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
-import type { Vegetation } from '../types/types';
+import type { Vegetation } from '../../types/types';
 
 //hooks
 import { useRoomStore } from '@/hooks/useRoomStore';

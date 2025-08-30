@@ -23,11 +23,7 @@ export const allowedOrigins = [
 
 const PLAYER_KEY = 'player';
 export const setPlayer = async (id: string, player: Player) => {
-  await redis.hSet(PLAYER_KEY, id, JSON.stringify({
-    ...player,
-    position: { x: player.position.x, y: player.position.y, z: player.position.z },
-    velocity: { x: player.velocity.x, y: player.velocity.y, z: player.velocity.z }
-  }));
+  await redis.hSet(PLAYER_KEY, id, JSON.stringify(player));
 }
 
 export const getPlayer = async (id: string): Promise<Player | null> => {
@@ -62,9 +58,12 @@ export const deletePlayer = async (id: string) => {
 
 // ================== SHARED ROOMS ============================ 
 
+
+//rooms is an array of room ids and roomPlayers is a set of player ids
+
 const ROOM_KEY = 'rooms';
 const WAITING_POOL_KEY = "waitPool";
-const MIN_PLAYERS_TO_START = 3;
+const MIN_PLAYERS_TO_START = 2;
 const MAX_PLAYERS = 50;
 
 export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
@@ -161,78 +160,10 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
   let roomId = await findAvailableRoom();
 
   if (!roomId) {
+    console.log("no room")
     const poolCount = await redis.sCard(WAITING_POOL_KEY);
 
-    if (poolCount >= MAX_PLAYERS) {
-      console.log("poolCount >= MAX_PLAYERS")
-      while (true) {
-        // Pop up to MAX_PLAYERS players from the pool
-        const players = await redis.sPopCount(WAITING_POOL_KEY, MAX_PLAYERS);
-
-        // pool empty or doesn't have enough players to create new room
-        if (!players || players.length < MIN_PLAYERS_TO_START) break;
-
-        // Create a new room
-        const roomId = await createRoom(socket); // return some roomId
-        const roomKey = `roomPlayers:${roomId}`;
-
-        // Store them in Redis under that room
-        await redis.sAdd(roomKey, players);
-        const roomPlayers = [];
-
-        // Move sockets into the room
-        players.forEach(async (playerId) => {
-          const socket = io.sockets.sockets.get(playerId) as AuthenticatedSocket; // if playerId = socket.id
-          if (socket) {
-            //set player globally
-
-            const player: Player = {
-              socketId: playerId,
-              userId: socket.userId,
-              room: roomId,
-              position: new Vector3(0, 0, 0),
-              velocity: new Vector3(0, 0, 0),
-              cameraDirection: new Vector3(0, 0, 0),
-              username: socket.username,
-              isDead: false,
-              kills: 0,
-              deaths: 0,
-              health: 100,
-            }
-
-
-            await setPlayer(playerId, player);
-            await redis.set(`playerRoom:${playerId}`, roomId);
-            await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(player));
-
-            const getPositions = await redis.get(`room:${roomId}:vegetation`);
-
-            if (getPositions) {
-              const vegetationPositions = JSON.parse(getPositions)
-              socket.join(roomId);
-              socket.emit('roomAssigned', { roomId, vegetationPos: vegetationPositions });
-
-              socket.to(roomId).emit('playerJoined', {
-                id: playerId,
-                username: socket.username,
-                position: player.position,
-                velocity: player.velocity,
-                health: player.health,
-                kills: player.kills,
-                deaths: player.deaths,
-                isDead: player.isDead
-              });
-
-            }
-          }
-        });
-
-
-
-        console.log(`Created room ${roomId} with ${players.length} players`);
-      }
-
-    } else if (poolCount >= MIN_PLAYERS_TO_START) {
+    if (poolCount >= MIN_PLAYERS_TO_START) {
       console.log("poolCount >= MIN_PLAYERS_TO_START")
 
       const players = await redis.sPopCount(WAITING_POOL_KEY, poolCount);
@@ -270,7 +201,6 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
 
           await setPlayer(playerId, player);
           await redis.set(`playerRoom:${playerId}`, roomId);
-          await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(player));
 
           const getPositions = await redis.get(`room:${roomId}:vegetation`);
 

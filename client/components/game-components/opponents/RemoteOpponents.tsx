@@ -50,13 +50,13 @@ const RemoteOpponents: React.FC<Props> = ({
 
     const handlePlayerMoved = ({
         id,
-        user,
+        userId,
         position,
         velocity,
         cameraDirection,
     }: {
         id: string;
-        user: any;
+        userId: string;
         position: Vector3;
         velocity: Vector3;
         cameraDirection: Vector3;
@@ -67,7 +67,7 @@ const RemoteOpponents: React.FC<Props> = ({
         }
 
         playerDataRef.current[id] = {
-            user: user,
+            user: userId,
             position: new Vector3(position.x, position.y, position.z),
             velocity: new Vector3(velocity.x, velocity.y, velocity.z),
             cameraDirection: new Vector3(cameraDirection.x, cameraDirection.y, cameraDirection.z),
