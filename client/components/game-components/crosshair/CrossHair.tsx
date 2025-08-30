@@ -1,196 +1,207 @@
-import React, { useImperativeHandle, forwardRef, useCallback, useRef } from 'react';
+import React, {
+  useImperativeHandle,
+  forwardRef,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 
 interface CrosshairRef {
-    triggerHit: () => void;
+  triggerHit: (damage?: number) => void;
 }
 
 export const Crosshair = React.memo(
-    forwardRef<CrosshairRef, {}>((_, ref) => {
-        const animationRef = useRef<HTMLDivElement>(null);
+  forwardRef<CrosshairRef, {}>((_, ref) => {
+    const animationRef = useRef<HTMLDivElement>(null);
+    const [damageTexts, setDamageTexts] = useState<
+      { id: number; value: number; x: number; y: number }[]
+    >([]);
+    const [diagonalKeys, setDiagonalKeys] = useState<number[]>([]);
 
-        const triggerHit = useCallback(() => {
-            console.log("crosshair hit");
-            
-            // Force animation restart by removing and re-adding the animation class
-            if (animationRef.current) {
-                animationRef.current.classList.remove('hit-animation');
-                // Force reflow to ensure class removal is processed
-                void animationRef.current.offsetWidth;
-                animationRef.current.classList.add('hit-animation');
+    // Spawn floating text near the crosshair
+    const spawnDamageText = (damage: number) => {
+      const id = Date.now() + Math.random();
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 20; // distance from center in px
+
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+
+      setDamageTexts((prev) => [...prev, { id, value: damage, x, y }]);
+
+      // Remove after animation finishes
+      setTimeout(() => {
+        setDamageTexts((prev) => prev.filter((t) => t.id !== id));
+      }, 800); // match CSS animation
+    };
+
+    const triggerHit = useCallback((damage: number = 10) => {
+      console.log("crosshair hit");
+
+      // Trigger crosshair animation
+      if (animationRef.current) {
+        animationRef.current.classList.remove("hit-animation");
+        void animationRef.current.offsetWidth; // reflow
+        animationRef.current.classList.add("hit-animation");
+      }
+
+      // Trigger diagonal animations in random order
+      const randomKey = Date.now();
+      setDiagonalKeys((prev) => [...prev, randomKey]);
+      setTimeout(() => {
+        setDiagonalKeys((prev) => prev.filter((k) => k !== randomKey));
+      }, 300); // match diagonal animation length
+
+      // Spawn floating number
+      spawnDamageText(damage);
+    }, []);
+
+    useImperativeHandle(ref, () => ({
+      triggerHit,
+    }));
+
+    return (
+      <>
+        <style>
+          {`
+            .crosshair-container {
+              position: fixed;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              z-index: 1000;
+              pointer-events: none;
             }
-        }, []);
 
-        useImperativeHandle(ref, () => ({
-            triggerHit
-        }));
+            .crosshair-line {
+              position: absolute;
+              background-color: #ffffff;
+              box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+            }
 
-        return (
-            <>
-                <style>
-                    {`
-                        .crosshair-container {
-                            position: fixed;
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%);
-                            z-index: 1000;
-                            pointer-events: none;
-                        }
+            .horizontal-line {
+              width: 20px;
+              height: 2px;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+            }
 
-                        .crosshair-line {
-                            position: absolute;
-                            background-color: #ffffff;
-                            box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-                        }
+            .vertical-line {
+              width: 2px;
+              height: 20px;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+            }
 
-                        .horizontal-line {
-                            width: 20px;
-                            height: 2px;
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%);
-                        }
+            .center-dot {
+              width: 2px;
+              height: 2px;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              background-color: #ffffff;
+              box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+              position: absolute;
+            }
 
-                        .vertical-line {
-                            width: 2px;
-                            height: 20px;
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%);
-                        }
+            /* Floating damage numbers */
+            .damage-text {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              color: #ff4444;
+              font-weight: bold;
+              font-size: 16px;
+              text-shadow: 0 0 6px black;
+              opacity: 0;
+              transform: translate(-50%, -50%) scale(1);
+              animation: floatUp 0.8s ease-out forwards;
+            }
 
-                        .center-dot {
-                            width: 2px;
-                            height: 2px;
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%);
-                            background-color: #ffffff;
-                            box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-                        }
+            @keyframes floatUp {
+              0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+              }
+              50% {
+                opacity: 1;
+                transform: translate(-50%, -80%) scale(1.2);
+              }
+              100% {
+                opacity: 0;
+                transform: translate(-50%, -120%) scale(0.8);
+              }
+            }
 
-                        /* Diagonal lines for hit animation */
-                        .diagonal-line {
-                            position: absolute;
-                            width: 2px;
-                            height: 15px;
-                            background-color: #00ff00;
-                            opacity: 0;
-                            box-shadow: 0 0 8px #00ff00;
-                        }
+            /* Diagonal hit indicators */
+            .diagonal-line {
+              position: absolute;
+              width: 2px;
+              height: 15px;
+              background-color: #00ff00;
+              opacity: 0;
+              box-shadow: 0 0 8px #00ff00;
+              top: 50%;
+              left: 50%;
+              transform-origin: bottom center;
+            }
 
-                        .diagonal-tl {
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%) rotate(-45deg);
-                            transform-origin: bottom center;
-                        }
+            .diagonal-anim {
+              animation: diagonal-expand 0.25s ease-out forwards;
+            }
 
-                        .diagonal-tr {
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%) rotate(45deg);
-                            transform-origin: bottom center;
-                        }
+            @keyframes diagonal-expand {
+              0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) rotate(var(--rotation)) scale(0.5);
+              }
+              50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) rotate(var(--rotation)) scale(1) translateY(-10px);
+              }
+              100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) rotate(var(--rotation)) scale(1.2) translateY(-20px);
+              }
+            }
+          `}
+        </style>
 
-                        .diagonal-bl {
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%) rotate(135deg);
-                            transform-origin: bottom center;
-                        }
+        <div className="crosshair-container" ref={animationRef}>
+          {/* Main crosshair */}
+          <div className="crosshair-line horizontal-line"></div>
+          <div className="crosshair-line vertical-line"></div>
+          <div className="center-dot"></div>
 
-                        .diagonal-br {
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%) rotate(225deg);
-                            transform-origin: bottom center;
-                        }
+          {/* Floating numbers */}
+          {damageTexts.map((t) => (
+            <div
+              key={t.id}
+              className="damage-text"
+              style={{
+                transform: `translate(calc(-50% + ${t.x}px), calc(-50% + ${t.y}px))`,
+              }}
+            >
+              {t.value}
+            </div>
+          ))}
 
-                        /* Hit animation */
-                        .hit-animation .crosshair-line {
-                            animation: crosshair-hit 0.15s ease-out;
-                        }
-
-                        .hit-animation .center-dot {
-                            animation: center-hit 0.15s ease-out;
-                        }
-
-                        .hit-animation .diagonal-line {
-                            animation: diagonal-expand 0.2s ease-out;
-                        }
-
-                        @keyframes crosshair-hit {
-                            0% {
-                                background-color: #ffffff;
-                                box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-                            }
-                            50% {
-                                background-color: #00ff00;
-                                box-shadow: 0 0 12px #00ff00, 0 0 4px rgba(0, 0, 0, 0.8);
-                            }
-                            100% {
-                                background-color: #ffffff;
-                                box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-                            }
-                        }
-
-                        @keyframes center-hit {
-                            0% {
-                                background-color: #ffffff;
-                                transform: translate(-50%, -50%) scale(1);
-                                box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-                            }
-                            50% {
-                                background-color: #00ff00;
-                                transform: translate(-50%, -50%) scale(2);
-                                box-shadow: 0 0 12px #00ff00, 0 0 4px rgba(0, 0, 0, 0.8);
-                            }
-                            100% {
-                                background-color: #ffffff;
-                                transform: translate(-50%, -50%) scale(1);
-                                box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-                            }
-                        }
-
-                        @keyframes diagonal-expand {
-                            0% {
-                                opacity: 1;
-                                transform: translate(-50%, -50%) rotate(var(--rotation)) scale(0.5);
-                            }
-                            50% {
-                                opacity: 1;
-                                transform: translate(-50%, -50%) rotate(var(--rotation)) scale(1) translateY(-10px);
-                            }
-                            100% {
-                                opacity: 0;
-                                transform: translate(-50%, -50%) rotate(var(--rotation)) scale(1.2) translateY(-20px);
-                            }
-                        }
-
-                        .diagonal-tl { --rotation: -45deg; }
-                        .diagonal-tr { --rotation: 45deg; }
-                        .diagonal-bl { --rotation: 135deg; }
-                        .diagonal-br { --rotation: 225deg; }
-                    `}
-                </style>
-                
-                <div 
-                    className="crosshair-container" 
-                    ref={animationRef}
-                >
-                    {/* Main crosshair lines */}
-                    <div className="crosshair-line horizontal-line"></div>
-                    <div className="crosshair-line vertical-line"></div>
-                    <div className="crosshair-line center-dot"></div>
-                    
-                    {/* Diagonal hit indicators */}
-                    <div className="diagonal-line diagonal-tl"></div>
-                    <div className="diagonal-line diagonal-tr"></div>
-                    <div className="diagonal-line diagonal-bl"></div>
-                    <div className="diagonal-line diagonal-br"></div>
-                </div>
-            </>
-        );
-    })
+          {/* Diagonal hit indicators (random order on each trigger) */}
+          {diagonalKeys.map((k) => {
+            // Pick a random rotation for each hit
+            const rotations = [-45, 45, 135, 225];
+            return rotations.map((rot, i) => (
+              <div
+                key={`${k}-${i}`}
+                className="diagonal-line diagonal-anim"
+                style={{ ["--rotation" as any]: `${rot}deg` }}
+              />
+            ));
+          })}
+        </div>
+      </>
+    );
+  })
 );

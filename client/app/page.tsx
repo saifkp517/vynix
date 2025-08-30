@@ -106,9 +106,9 @@ export default function GameLoadoutMenu() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
         <div className="space-y-3">
-          {leaderboardData.map((player, index) => (
+          {leaderboardData.map((player) => (
             <div 
               key={player.rank} 
               className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 hover:bg-gray-800/50 ${
@@ -156,17 +156,16 @@ export default function GameLoadoutMenu() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-2xl font-light tracking-wide flex items-center gap-2">
-            <Users className="h-6 w-6 text-blue-500" />
+            <Users className="h-6 w-6 text-yellow-500" />
             FRIENDS & ALLIES
           </CardTitle>
           <div className="flex gap-2">
             <Button 
               variant="ghost" 
               size="sm" 
-              className="text-gray-400 hover:text-white border-gray-600 hover:bg-gray-800/50"
+              className="text-gray-400 hover:text-white"
             >
-              <UserPlus className="h-4 w-4 mr-1" />
-              Add Friend
+              <UserPlus className="h-4 w-4" />
             </Button>
             <Button 
               variant="ghost" 
@@ -179,28 +178,26 @@ export default function GameLoadoutMenu() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
-        <div className="mb-6">
+      <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
+        <div className="space-y-3">
           <Input 
             placeholder="Search friends..." 
-            className="bg-gray-800/30 border-gray-600 text-white placeholder-gray-400 rounded-lg"
+            className="bg-gray-800/30 border-gray-600 text-white placeholder-gray-400 rounded-lg p-4 text-sm"
           />
-        </div>
-        <div className="space-y-3">
           {friendsData.map((friend) => (
             <div 
               key={friend.id} 
-              className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg hover:bg-gray-800/50 transition-all duration-200"
+              className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50"
             >
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold bg-gray-600 text-white`}>
                     <Sword className="h-4 w-4" />
                   </div>
                   <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-900 ${
                     friend.status === "online" ? "bg-green-500" :
-                    friend.status === "away" ? "bg-yellow-500" :
-                    "bg-gray-500"
+                    friend.status === "away" ? "bg-yellow-600" :
+                    "bg-gray-300"
                   }`}></div>
                 </div>
                 <div>
@@ -208,24 +205,29 @@ export default function GameLoadoutMenu() {
                   <div className="text-sm text-gray-400">Level {friend.level} • {friend.activity}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {friend.status === "online" && (
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-center">
+                  {friend.status === "online" ? (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <div className="w-8"></div>
+                  )}
+                </div>
+                <div className="text-center">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="text-gray-400 hover:text-white border-gray-600 hover:bg-gray-800/50"
+                    className="text-gray-400 hover:text-white"
                   >
-                    <MessageCircle className="h-4 w-4 mr-1" />
-                    Invite
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
-                )}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-gray-400 hover:text-white"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
+                </div>
               </div>
             </div>
           ))}
@@ -240,7 +242,7 @@ export default function GameLoadoutMenu() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-2xl font-light tracking-wide flex items-center gap-2">
-            <Settings className="h-6 w-6 text-gray-400" />
+            <Settings className="h-6 w-6 text-yellow-500" />
             GAME SETTINGS
           </CardTitle>
           <Button 
@@ -253,194 +255,214 @@ export default function GameLoadoutMenu() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="p-6 space-y-8">
-        
-        {/* Audio Settings */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-300 flex items-center gap-2">
-            {settings.muteAll ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-            Audio Settings
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">Mute All</Label>
+      <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
+        <div className="space-y-3">
+          {/* Audio Settings */}
+          <div className="p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
+                  {settings.muteAll ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </div>
+                <div>
+                  <div className="font-medium">Audio Settings</div>
+                  <div className="text-sm text-gray-400">Adjust sound levels</div>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3 ml-12">
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Mute All</div>
                 <input 
                   type="checkbox" 
                   checked={settings.muteAll}
                   onChange={(e) => updateSetting("muteAll", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
-              <div className="space-y-2 p-4 bg-gray-800/30 rounded-lg">
-                <div className="flex justify-between">
-                  <Label className="text-gray-300 font-medium">Master Volume</Label>
-                  <span className="text-sm text-gray-400">{settings.masterVolume}%</span>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Master Volume</div>
+                <div className="flex items-center gap-6">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={settings.masterVolume}
+                    onChange={(e) => updateSetting("masterVolume", parseInt(e.target.value))}
+                    disabled={settings.muteAll}
+                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
+                  />
+                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.masterVolume}%</div>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={settings.masterVolume}
-                  onChange={(e) => updateSetting("masterVolume", parseInt(e.target.value))}
-                  disabled={settings.muteAll}
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-                />
               </div>
-              <div className="space-y-2 p-4 bg-gray-800/30 rounded-lg">
-                <div className="flex justify-between">
-                  <Label className="text-gray-300 font-medium">Music Volume</Label>
-                  <span className="text-sm text-gray-400">{settings.musicVolume}%</span>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Music Volume</div>
+                <div className="flex items-center gap-6">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={settings.musicVolume}
+                    onChange={(e) => updateSetting("musicVolume", parseInt(e.target.value))}
+                    disabled={settings.muteAll}
+                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
+                  />
+                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.musicVolume}%</div>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={settings.musicVolume}
-                  onChange={(e) => updateSetting("musicVolume", parseInt(e.target.value))}
-                  disabled={settings.muteAll}
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-                />
               </div>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2 p-4 bg-gray-800/30 rounded-lg">
-                <div className="flex justify-between">
-                  <Label className="text-gray-300 font-medium">SFX Volume</Label>
-                  <span className="text-sm text-gray-400">{settings.sfxVolume}%</span>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">SFX Volume</div>
+                <div className="flex items-center gap-6">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={settings.sfxVolume}
+                    onChange={(e) => updateSetting("sfxVolume", parseInt(e.target.value))}
+                    disabled={settings.muteAll}
+                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
+                  />
+                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.sfxVolume}%</div>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={settings.sfxVolume}
-                  onChange={(e) => updateSetting("sfxVolume", parseInt(e.target.value))}
-                  disabled={settings.muteAll}
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-                />
               </div>
-              <div className="space-y-2 p-4 bg-gray-800/30 rounded-lg">
-                <div className="flex justify-between">
-                  <Label className="text-gray-300 font-medium">Voice Volume</Label>
-                  <span className="text-sm text-gray-400">{settings.voiceVolume}%</span>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Voice Volume</div>
+                <div className="flex items-center gap-6">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={settings.voiceVolume}
+                    onChange={(e) => updateSetting("voiceVolume", parseInt(e.target.value))}
+                    disabled={settings.muteAll}
+                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
+                  />
+                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.voiceVolume}%</div>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={settings.voiceVolume}
-                  onChange={(e) => updateSetting("voiceVolume", parseInt(e.target.value))}
-                  disabled={settings.muteAll}
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
-                />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Display Settings */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-300 flex items-center gap-2">
-            <Monitor className="h-5 w-5" />
-            Display Settings
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">Fullscreen Mode</Label>
+          {/* Display Settings */}
+          <div className="p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
+                  <Monitor className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-medium">Display Settings</div>
+                  <div className="text-sm text-gray-400">Adjust visual options</div>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3 ml-12">
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Fullscreen Mode</div>
                 <input 
                   type="checkbox" 
                   checked={settings.fullscreen}
                   onChange={(e) => updateSetting("fullscreen", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">V-Sync</Label>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">V-Sync</div>
                 <input 
                   type="checkbox" 
                   checked={settings.vsync}
                   onChange={(e) => updateSetting("vsync", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">Show FPS Counter</Label>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Show FPS Counter</div>
                 <input 
                   type="checkbox" 
                   checked={settings.showFPS}
                   onChange={(e) => updateSetting("showFPS", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Game Settings */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-300 flex items-center gap-2">
-            <Gamepad2 className="h-5 w-5" />
-            Game Settings
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">Auto-Save</Label>
+          {/* Game Settings */}
+          <div className="p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
+                  <Gamepad2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-medium">Game Settings</div>
+                  <div className="text-sm text-gray-400">Adjust gameplay options</div>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3 ml-12">
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Auto-Save</div>
                 <input 
                   type="checkbox" 
                   checked={settings.autoSave}
                   onChange={(e) => updateSetting("autoSave", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">Notifications</Label>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Notifications</div>
                 <input 
                   type="checkbox" 
                   checked={settings.notifications}
                   onChange={(e) => updateSetting("notifications", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">Chat Enabled</Label>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Chat Enabled</div>
                 <input 
                   type="checkbox" 
                   checked={settings.chatEnabled}
                   onChange={(e) => updateSetting("chatEnabled", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                <Label className="text-gray-300 font-medium">Friend Requests</Label>
+              <div className="flex items-center justify-between">
+                <div className="font-medium">Friend Requests</div>
                 <input 
                   type="checkbox" 
                   checked={settings.friendRequests}
                   onChange={(e) => updateSetting("friendRequests", e.target.checked)}
-                  className="w-4 h-4 text-gray-400"
+                  className="w-4 h-4 accent-white rounded"
                 />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-4 pt-4 border-t border-gray-700">
-          <Button 
-            variant="ghost" 
-            className="text-gray-400 hover:text-white border-gray-600 hover:bg-gray-800/50"
-          >
-            Reset to Defaults
-          </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            <Check className="h-4 w-4 mr-2" />
-            Save Changes
-          </Button>
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
+                <Check className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="font-medium">Save Settings</div>
+                <div className="text-sm text-gray-400">Apply or reset changes</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-6 text-sm">
+              <Button 
+                variant="ghost" 
+                className="text-gray-400 hover:text-white"
+              >
+                Reset
+              </Button>
+              <Button className="text-gray-400 hover:text-white">
+                <Check className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -472,10 +494,10 @@ export default function GameLoadoutMenu() {
         
         {/* Header */}
         <div className="text-center mb-16">
-          <h1 className="text-6xl font-light text-white tracking-wider mb-4">
-            BATTLEFORGE
+          <h1 className="text-6xl font-bold text-black tracking-wider mb-4">
+            Zentra.io
           </h1>
-          <div className="w-24 h-px bg-white/40 mx-auto"></div>
+          <div className="w-24 h-px bg-black/40 mx-auto"></div>
         </div>
 
         {/* Content Grid */}

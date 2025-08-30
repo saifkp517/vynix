@@ -1,8 +1,10 @@
 import React, { RefObject, useEffect, useState, useRef } from 'react';
 import { Heart, Target, Users, MessageCircle, X, Skull } from 'lucide-react';
 import { Vector3 } from 'three';
-import socket from '@/lib/socket';
 
+
+import socket from '@/lib/socket';
+import { RadarUI } from './RadarUI'
 
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { useRoomStore } from '@/hooks/useRoomStore';

@@ -2,10 +2,11 @@ import { Vector3 } from "three";
 import type { AuthenticatedSocket, Player, ShootObject } from "./types";
 import { PrismaClient } from "@prisma/client";
 import { Server } from "socket.io";
-import { v4 as uuidv4 } from "uuid"
+import { MAX, v4 as uuidv4 } from "uuid"
 import { redis } from "./redisClient";
 
 import { getCellKey, broadcastToNearbyPlayers, generateTreePositions, rayIntersectsSphere } from "./utils";
+import { createBrotliDecompress } from "zlib";
 
 export const CELL_SIZE = 100;
 export type Grid = Map<string, Set<string>>;
@@ -62,6 +63,8 @@ export const deletePlayer = async (id: string) => {
 // ================== SHARED ROOMS ============================ 
 
 const ROOM_KEY = 'rooms';
+const WAITING_POOL_KEY = "waitPool";
+const MIN_PLAYERS_TO_START = 3;
 const MAX_PLAYERS = 50;
 
 export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
@@ -149,93 +152,166 @@ export const findAvailableRoom = async (): Promise<string | null> => {
   return null;
 }
 
-export const handleJoinRoom = async (playerId: string, socket: AuthenticatedSocket) => {
+
+export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server) => {
+  console.log("handling")
+
+  await redis.sAdd(WAITING_POOL_KEY, socket.id);
+
   let roomId = await findAvailableRoom();
 
-  const rand = () => Math.random() * 100 + 100;
-
   if (!roomId) {
-    roomId = await createRoom(socket);
-    console.log(`New room created: ${roomId}`);
-  }
+    const poolCount = await redis.sCard(WAITING_POOL_KEY);
 
-  const { userId, username } = socket;
+    if (poolCount >= MAX_PLAYERS) {
+      console.log("poolCount >= MAX_PLAYERS")
+      while (true) {
+        // Pop up to MAX_PLAYERS players from the pool
+        const players = await redis.sPopCount(WAITING_POOL_KEY, MAX_PLAYERS);
 
-  if (userId) {
+        // pool empty or doesn't have enough players to create new room
+        if (!players || players.length < MIN_PLAYERS_TO_START) break;
 
-    console.log(`User ${playerId} joined room: ${roomId}`);
+        // Create a new room
+        const roomId = await createRoom(socket); // return some roomId
+        const roomKey = `roomPlayers:${roomId}`;
 
-    try {
+        // Store them in Redis under that room
+        await redis.sAdd(roomKey, players);
+        const roomPlayers = [];
 
-      socket.join(roomId);
+        // Move sockets into the room
+        players.forEach(async (playerId) => {
+          const socket = io.sockets.sockets.get(playerId) as AuthenticatedSocket; // if playerId = socket.id
+          if (socket) {
+            //set player globally
 
-      // ============== initialize players ==========================
+            const player: Player = {
+              socketId: playerId,
+              userId: socket.userId,
+              room: roomId,
+              position: new Vector3(0, 0, 0),
+              velocity: new Vector3(0, 0, 0),
+              cameraDirection: new Vector3(0, 0, 0),
+              username: socket.username,
+              isDead: false,
+              kills: 0,
+              deaths: 0,
+              health: 100,
+            }
 
-      const player: Player = {
-        socketId: playerId,
-        userId: userId,
-        room: roomId,
-        position: new Vector3(0, 0, 0),
-        velocity: new Vector3(0, 0, 0),
-        cameraDirection: new Vector3(0, 0, 0),
-        username: username,
-        isDead: false,
-        kills: 0,
-        deaths: 0,
-        health: 100,
+
+            await setPlayer(playerId, player);
+            await redis.set(`playerRoom:${playerId}`, roomId);
+            await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(player));
+
+            const getPositions = await redis.get(`room:${roomId}:vegetation`);
+
+            if (getPositions) {
+              const vegetationPositions = JSON.parse(getPositions)
+              socket.join(roomId);
+              socket.emit('roomAssigned', { roomId, vegetationPos: vegetationPositions });
+
+              socket.to(roomId).emit('playerJoined', {
+                id: playerId,
+                username: socket.username,
+                position: player.position,
+                velocity: player.velocity,
+                health: player.health,
+                kills: player.kills,
+                deaths: player.deaths,
+                isDead: player.isDead
+              });
+
+            }
+          }
+        });
+
+
+
+        console.log(`Created room ${roomId} with ${players.length} players`);
       }
 
-      await redis.sAdd(`roomPlayers:${roomId}`, player.socketId);
-      await setPlayer(player.socketId, player);
+    } else if (poolCount >= MIN_PLAYERS_TO_START) {
+      console.log("poolCount >= MIN_PLAYERS_TO_START")
 
+      const players = await redis.sPopCount(WAITING_POOL_KEY, poolCount);
 
-      //set player attributes
-      await redis.set(`playerRoom:${playerId}`, roomId);
-      await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(player));
+      if (!players) return;
 
-      const playerIds = await redis.sMembers(`roomPlayers:${roomId}`);
+      // Create a new room
+      const roomId = await createRoom(socket); // return some roomId
+      const roomKey = `roomPlayers:${roomId}`;
+
+      // Store them in Redis under that room
+      await redis.sAdd(roomKey, players);
       const roomPlayers = [];
 
-      for (const playerId of playerIds) {
-        const player = await getPlayer(playerId);
-        if (player) {
-          roomPlayers.push(player);
+      // Move sockets into the room
+      players.forEach(async (playerId) => {
+        const socket = io.sockets.sockets.get(playerId) as AuthenticatedSocket; // if playerId = socket.id
+        if (socket) {
+          //set player globally
+
+          const player: Player = {
+            socketId: playerId,
+            userId: socket.userId,
+            room: roomId,
+            position: new Vector3(0, 0, 0),
+            velocity: new Vector3(0, 0, 0),
+            cameraDirection: new Vector3(0, 0, 0),
+            username: socket.username,
+            isDead: false,
+            kills: 0,
+            deaths: 0,
+            health: 100,
+          }
+
+
+          await setPlayer(playerId, player);
+          await redis.set(`playerRoom:${playerId}`, roomId);
+          await redis.hSet(PLAYER_KEY, playerId, JSON.stringify(player));
+
+          const getPositions = await redis.get(`room:${roomId}:vegetation`);
+
+          if (getPositions) {
+            const vegetationPositions = JSON.parse(getPositions)
+            socket.join(roomId);
+            socket.emit('roomAssigned', { roomId, vegetationPos: vegetationPositions });
+
+            socket.to(roomId).emit('playerJoined', {
+              id: playerId,
+              username: socket.username,
+              position: player.position,
+              velocity: player.velocity,
+              health: player.health,
+              kills: player.kills,
+              deaths: player.deaths,
+              isDead: player.isDead
+            });
+
+          }
         }
-      }
-
-      const getPositions = await redis.get(`room:${roomId}:vegetation`);
-
-      if (getPositions) {
-        const vegetationPositions = JSON.parse(getPositions)
-
-        socket.emit('roomAssigned', { roomId, vegetationPos: vegetationPositions });
-      }
-      console.log("players: ", roomPlayers.length);
-      socket.emit('roomSnapshot', roomPlayers);
-
-      socket.to(roomId).emit('playerJoined', {
-        id: playerId,
-        username: username,
-        position: player.position,
-        velocity: player.velocity,
-        health: player.health,
-        kills: player.kills,
-        deaths: player.deaths,
-        isDead: player.isDead
       });
 
 
-    } catch (err) {
 
-      console.log(err)
+      console.log(`Created room ${roomId} with ${players.length} players`);
+
+    } else {
+
+      console.log("matchmaking")
+
+
+      socket.emit("waitingForPlayers", {
+        count: poolCount
+      });
+
+
+      return null;
 
     }
-
-  } else {
-    console.warn("User ID is required to join a room.");
   }
-
-  return roomId;
 }
 
 export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
@@ -330,10 +406,6 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
         let hitPlayer = players[playerId];
         if (hitPlayer) {
           if (typeof hitPlayer.health === "number") {
-            console.log("Before hit:", hitPlayer.health);
-            hitPlayer.health -= 10;
-            console.log("After hit:", hitPlayer.health);
-
             // ================= if player dies =======================
 
             if (hitPlayer.health <= 0) {
@@ -363,7 +435,14 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
                   health: hitPlayer.health
                 })
 
+                await setPlayer(playerId, hitPlayer);
+
               }, 5000);
+            } else {
+              console.log("Before hit:", hitPlayer.health);
+              hitPlayer.health -= 10;
+              console.log("After hit:", hitPlayer.health);
+              await setPlayer(playerId, hitPlayer);
             }
 
             io.to(hitPlayer.room).emit("playerUpdate", {

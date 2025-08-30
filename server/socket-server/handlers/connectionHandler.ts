@@ -3,11 +3,20 @@
 import { Server } from "socket.io";
 import cookie from "cookie";
 import type { AuthenticatedSocket, Player } from "../../shared/types";
-import { handleJoinRoom, handleShoot } from "../../shared/redisControllers";
+import { handleMatchmaking, handleShoot } from "../../shared/redisControllers";
 import { handleUpdatePositionAndCameraUpdate } from "../../shared/redisControllers";
 import axios from "axios";
 import { getRoom, leaveRoom, getPlayer } from "../../shared/redisControllers";
+import { v4 as uuidv4 } from "uuid";
+import { assign } from "three/tsl";
 
+
+function assignGuest(socket: AuthenticatedSocket) {
+  socket.userId = `guest-${uuidv4()}`;
+  socket.username = `Guest_${Math.floor(Math.random() * 10000)}`;
+  console.log("👤 Guest connected:", socket.username);
+  socket.emit("userId", socket.userId);
+}
 
 
 export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSocket) => {
@@ -17,11 +26,31 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   const rawCookie = socket.handshake.headers.cookie;
 
-  if (!rawCookie) {
-    console.log("🚫 No cookies sent with socket handshake.");
-    socket.disconnect();
-    return;
+  if (rawCookie) {
+
+    const cookies = cookie.parse(rawCookie);
+    console.log("cookies: ", cookies);
+    const sessionId = cookies["session_id"];
+    console.log("Session iD: ", sessionId)
+
+
+    if (sessionId) {
+      validateSession(sessionId)
+        .then((user) => {
+          socket.userId = user.id;
+          socket.username = user.username;
+          console.log("User validated:", user);
+          socket.emit("userId", user.id);
+        })
+        .catch((error) => {
+          console.error("Error validating session:", error);
+          assignGuest(socket);
+        });
+        return;
+    }
   }
+
+  assignGuest(socket);
 
   async function validateSession(sessionId: string) {
     const response = await axios.get("http://localhost:3001/auth/me", {
@@ -34,27 +63,9 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   }
 
 
-  const cookies = cookie.parse(rawCookie);
-  console.log("cookies: ", cookies);
-  const sessionId = cookies["session_id"];
-  console.log("Session iD: ", sessionId)
 
-  if (sessionId) {
-    validateSession(sessionId)
-      .then((user) => {
-        socket.userId = user.id;
-        socket.username = user.username;
-        console.log("User validated:", user);
-        socket.emit("userId", user.id);
-      })
-      .catch((error) => {
-        console.error("Error validating session:", error);
-        socket.disconnect();
-      });
-  } else {
-    console.warn("No session ID provided. Disconnecting.");
-    socket.disconnect();
-  }
+
+
 
 
 
@@ -62,7 +73,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
     socket.emit("pong-check", clientTime)
   })
 
-  socket.on("joinRoom", (userId) => handleJoinRoom(userId, socket));
+  socket.on("joinRoom", (userId) => handleMatchmaking(socket, io));
   socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCameraUpdate(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
 
