@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import { 
   Play, 
   Users, 
@@ -34,6 +33,8 @@ import { useThemeConfig } from "./theme-provider";
 import { getRadiusClass } from "@/lib/theme-config";
 import { redirect } from "next/navigation";
 
+import socket from "@/lib/socket";
+
 export default function GameLoadoutMenu() {
   const { theme: configTheme } = useThemeConfig();
   const [mounted, setMounted] = useState(false);
@@ -56,6 +57,16 @@ export default function GameLoadoutMenu() {
     friendRequests: true
   });
 
+  // ================= RECIEVE SOCKET EVENTS ==========================
+
+  useEffect(() => {
+    socket.on("roomAssigned", ({ roomId }) => {
+      redirect(`forest/${roomId}`);
+    })
+  })
+
+  // ==================================================================
+
   // Mock data for leaderboard and friends
   const [leaderboardData] = useState([
     { rank: 1, name: "DragonSlayer", level: 89, wins: 2847, winRate: 94.2, points: 15420 },
@@ -73,8 +84,8 @@ export default function GameLoadoutMenu() {
     { id: 5, name: "FrostBite", status: "online", level: 58, activity: "Training" }
   ]);
 
-  const handleQuickPlay = () => {
-    redirect("/forest");
+  const handleMatchmaking = () => {
+    socket.emit("requestMatchmaking");
   };
 
   const updateSetting = (key: string, value: any) => {
@@ -527,7 +538,7 @@ export default function GameLoadoutMenu() {
             {/* Primary Action */}
             <div className="text-center">
               <Button 
-                onClick={handleQuickPlay}
+                onClick={handleMatchmaking}
                 className="w-64 h-16 bg-gray-900 hover:bg-gray-800 text-white text-lg font-light tracking-wider rounded-none border-0 transition-all duration-300 hover:scale-105"
               >
                 FIND MATCH

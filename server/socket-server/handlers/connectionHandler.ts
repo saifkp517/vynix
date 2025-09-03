@@ -2,11 +2,11 @@
 
 import { Server } from "socket.io";
 import cookie from "cookie";
-import type { AuthenticatedSocket, Player } from "../../shared/types";
-import { handleMatchmaking, handleShoot } from "../../shared/redisControllers";
-import { handleUpdatePositionAndCameraUpdate } from "../../shared/redisControllers";
+import type { AuthenticatedSocket } from "../../redis/types";
+import { handleMatchmaking, handleShoot } from "../../redis/redisControllers";
+import { handleUpdatePositionAndCameraUpdate } from "../../redis/redisControllers";
 import axios from "axios";
-import { getRoom, leaveRoom, getPlayer } from "../../shared/redisControllers";
+import { leaveRoom } from "../../redis/redisControllers";
 import { v4 as uuidv4 } from "uuid";
 import { assign } from "three/tsl";
 
@@ -73,14 +73,9 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
     socket.emit("pong-check", clientTime)
   })
 
-  socket.on("joinRoom", (userId) => handleMatchmaking(socket, io));
+  socket.on("requestMatchmaking", (userId) => handleMatchmaking(socket, io));
   socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCameraUpdate(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
-
-
-  socket.on("requestVegetationPositions", ({ roomId }) => {
-    getRoom(roomId, socket);
-  });
 
   socket.on("sendMessage", ({ roomId, userId, message }) => {
     console.log(`Message from ${userId} in room ${roomId}: ${message}`);

@@ -1,6 +1,6 @@
 // /socket-server/index.ts
 import { Server, Socket } from "socket.io";
-import { allowedOrigins } from "../shared/redisControllers";
+import { allowedOrigins } from "../redis/redisControllers";
 import { createServer } from "http";
 import express from "express";
 import { socketConnectionHandler } from "./handlers/connectionHandler";

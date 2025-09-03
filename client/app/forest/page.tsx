@@ -6,15 +6,14 @@ import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls } from '@react-three/drei';
 import { Stats } from '@react-three/drei';
 
+
+//local libs & components
 import { useWhyDidYouUpdate } from '@/lib/utils';
 import Player from '@/components/game-components/player/TPP';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
-
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
-import BotOpponents from '@/components/game-components/opponents/ParentBotOpponents';
-
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
@@ -38,7 +37,6 @@ const Game: React.FC = () => {
   const obstacles = useRef<Mesh[]>([]);
   const isPlayerDead = useRef(false);
   const [roomId, setRoomId] = useState<string | null>(null);
-  const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
   const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
   const [localPlayerId, setLocalPlayerId] = useState("");
   const controlsRef = useRef<any>(null);
@@ -65,7 +63,9 @@ const Game: React.FC = () => {
   //local player audio listener
   const listenerRef = useRef<AudioListener>(null as unknown as AudioListener);
 
+  // ============================ set positions of room trees ======================
 
+  const vegetationPositions = useRef<any[]>([]);
 
   const handleComponentStatusChange = (
     componentName: string,
@@ -83,11 +83,6 @@ const Game: React.FC = () => {
       console.log('Ground is loaded! Starting minimal scene actions...');
       // Perform actions assuming Ground is enough for basic functionality
     }
-  };
-
-  const handleAllComponentsLoaded = () => {
-    console.log('All components loaded! Starting full scene actions...');
-    // Perform actions requiring all components (e.g., full game loop)
   };
 
   //set page to fullscreen
@@ -116,12 +111,10 @@ const Game: React.FC = () => {
     const handleConnect = () => {
       if (!hasJoinedRoom.current) {
         hasJoinedRoom.current = true;
-        socket.emit("joinRoom", socket.id);
         setLocalPlayerId(socket.id || "124");
       }
     };
 
-    socket.on("connect", handleConnect);
     socket.on("roomSnapshot", (roomPlayers: any) => {
       useRoomStore.getState().setPlayers(roomPlayers);
       console.log(roomPlayers)
@@ -134,11 +127,9 @@ const Game: React.FC = () => {
       handleConnect();
     }
 
-    socket.on("roomAssigned", ({ roomId, vegetationPos }: any) => {
+    socket.on("roomAssigned", ({ roomId }: any) => {
       console.log(`Assigned to room: ${roomId}`);
       setRoomId(roomId);
-      console.log("Vegetation: ", vegetationPos)
-      vegetationPositions.current = vegetationPos
     });
 
     socket.on("youDied", () => {
@@ -260,8 +251,9 @@ const Game: React.FC = () => {
     addObstacleRef,
     vegetationPositions: vegetationPositions.current,
     onComponentStatusChange: handleComponentStatusChange,
-    onAllComponentsLoaded: handleAllComponentsLoaded
-  }), [addObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded]);
+  }), [addObstacleRef, handleComponentStatusChange]);
+
+  console.log(groundProps)
 
 
   const isReady =

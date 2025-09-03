@@ -4,6 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls } from '@react-three/drei';
+import { useParams } from 'next/navigation';
 import { Stats } from '@react-three/drei';
 
 import { useWhyDidYouUpdate } from '@/lib/utils';
@@ -13,7 +14,6 @@ import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
 
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
-import BotOpponents from '@/components/game-components/opponents/ParentBotOpponents';
 
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
@@ -65,6 +65,8 @@ const Game: React.FC = () => {
   //local player audio listener
   const listenerRef = useRef<AudioListener>(null as unknown as AudioListener);
 
+  const params = useParams<{ tag: string; id: string }>()
+
 
 
   const handleComponentStatusChange = (
@@ -90,7 +92,7 @@ const Game: React.FC = () => {
     // Perform actions requiring all components (e.g., full game loop)
   };
 
-  //set page to fullscreen
+  // ================== set page to fullscreen =============================
   useEffect(() => {
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen();
@@ -111,12 +113,23 @@ const Game: React.FC = () => {
 
   }, []);
 
-  // Player connection handling
+  // ==================== Player connection handling ====================
+
+
   useEffect(() => {
-    const handleConnect = () => {
+    fetch('/api/data')
+      .then(res => res.json())
+      .then(data => {
+        console.log("pos", data)
+        vegetationPositions.current = data;
+      });
+  }, []);
+
+  useEffect(() => {
+    const handleConnect = async () => {
       if (!hasJoinedRoom.current) {
         hasJoinedRoom.current = true;
-        socket.emit("joinRoom", socket.id);
+        setRoomId(params.id)
         setLocalPlayerId(socket.id || "124");
       }
     };
@@ -133,13 +146,6 @@ const Game: React.FC = () => {
     if (socket.connected) {
       handleConnect();
     }
-
-    socket.on("roomAssigned", ({ roomId, vegetationPos }: any) => {
-      console.log(`Assigned to room: ${roomId}`);
-      setRoomId(roomId);
-      console.log("Vegetation: ", vegetationPos)
-      vegetationPositions.current = vegetationPos
-    });
 
     socket.on("youDied", () => {
       isPlayerDead.current = true;
@@ -158,7 +164,6 @@ const Game: React.FC = () => {
 
     return () => {
       socket.off("connect", handleConnect);
-      socket.off("roomAssigned");
       socket.off("disconnect");
       socket.off("joinedRoom");
       window.removeEventListener("beforeunload", handleBeforeUnload);
