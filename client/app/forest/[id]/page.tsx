@@ -1,221 +1,195 @@
 'use client'
+
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
-import { PointerLockControls } from '@react-three/drei';
+import { PointerLockControls, Stats } from '@react-three/drei';
 import { useParams } from 'next/navigation';
-import { Stats } from '@react-three/drei';
 
 import { useWhyDidYouUpdate } from '@/lib/utils';
 import Player from '@/components/game-components/player/TPP';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import socket from '@/lib/socket';
-
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
-
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
+import { useRoomStore } from '@/hooks/useRoomStore';
 import type { Vegetation } from '../../types/types';
 
-//hooks
-import { useRoomStore } from '@/hooks/useRoomStore';
-
-type Player = {
+interface Player {
   id: string;
   team?: string;
   position?: Vector3;
   velocity?: Vector3;
 }
 
+interface ComponentStatus {
+  name: string;
+  status: 'loading' | 'loaded' | 'failed' | 'unloaded';
+  details?: { loadTime?: number; error?: string };
+}
 
-
-// Main game component
 const Game: React.FC = () => {
-
+  // Refs
   const obstacles = useRef<Mesh[]>([]);
   const isPlayerDead = useRef(false);
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const vegetationPositions = useRef<Vegetation[] | undefined>(undefined);
-  const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>({});
-  const [localPlayerId, setLocalPlayerId] = useState("");
-  const controlsRef = useRef<any>(null);
-
-  const playerCenterRef = useRef<Vector3>(new Vector3())
+  const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 } }>({});
+  const playerCenterRef = useRef<Vector3>(new Vector3());
+  const cameraDirectionRef = useRef<Vector3>(new Vector3(0, 0, 1));
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
-
   const grenadeCoolDownRef = useRef(false);
-  const CrosshairRef = useRef(null);
-
-  const hasJoinedRoom = useRef(false);
-
-  const killFeedRef = useRef<{ id: number; name: any }[]>([]);
-  const listenersRef = useRef<((list: any[]) => void)[]>([]);
-
-  // Optimized settings (fixed)
-  const resolutionScale = 1.0;
-  const currentFov = 105;
+  const crosshairRef = useRef(null);
+  const controlsRef = useRef<any>(null);
+  const listenerRef = useRef<AudioListener>(new AudioListener());
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const killFeedRef = useRef<{ id: number; name: string }[]>([]);
+  const listenersRef = useRef<((list: { id: number; name: string }[]) => void)[]>([]);
+  const toastIdRef = useRef(0);
+  const vegetationPositionsRef = useRef<Vegetation[] | undefined>(undefined);
 
+  // State
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [localPlayerId, setLocalPlayerId] = useState<string>('');
   const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
-
-  //local player audio listener
-  const listenerRef = useRef<AudioListener>(null as unknown as AudioListener);
-
-  const params = useParams<{ tag: string; id: string }>()
+  const [vegetationPositions, setVegetationPositions] = useState<Vegetation[] | undefined>(undefined);
 
 
+  // Constants
+  const RESOLUTION_SCALE = 1.0;
+  const FOV = 105;
+  const PING_CHECK_INTERVAL = 1000;
+  const RESPAWN_TIMEOUT = 5000;
+  const TOAST_TIMEOUT = 3000;
 
-  const handleComponentStatusChange = (
-    componentName: string,
-    status: 'loading' | 'loaded' | 'failed' | 'unloaded',
-    details?: { loadTime?: number; error?: string }
-  ) => {
+  const params = useParams<{ tag: string; id: string }>();
+
+  // Handlers
+  const handleComponentStatusChange = useCallback((componentName: string, status: ComponentStatus['status'], details?: ComponentStatus['details']) => {
     console.log(`Component ${componentName} is ${status}`, details);
-    setLoadedComponents((prev) => {
-      const newMap = new Map(prev);
-      newMap.set(componentName, status);
-      return newMap;
-    });
-    // Act when Ground is loaded
+    setLoadedComponents(prev => new Map(prev).set(componentName, status));
     if (componentName === 'Ground' && status === 'loaded') {
       console.log('Ground is loaded! Starting minimal scene actions...');
-      // Perform actions assuming Ground is enough for basic functionality
     }
-  };
+  }, []);
 
-  const handleAllComponentsLoaded = () => {
+  const handleAllComponentsLoaded = useCallback(() => {
     console.log('All components loaded! Starting full scene actions...');
-    // Perform actions requiring all components (e.g., full game loop)
-  };
+  }, []);
 
-  // ================== set page to fullscreen =============================
-  useEffect(() => {
-    if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen();
+  const handlePlayerCenterUpdate = useCallback((center: Vector3, cameraDirection: Vector3) => {
+    playerCenterRef.current = center.clone();
+    cameraDirectionRef.current = cameraDirection.clone();
+  }, []);
+
+  const showKillToast = useCallback((name: string) => {
+    const id = toastIdRef.current++;
+    killFeedRef.current.push({ id, name });
+    listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
+    setTimeout(() => {
+      killFeedRef.current = killFeedRef.current.filter(item => item.id !== id);
+      listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
+    }, TOAST_TIMEOUT);
+  }, []);
+
+  const calculatePing = useCallback(() => {
+    const startTime = Date.now();
+    socket.emit('ping-check', startTime);
+    socket.on('pong-check', (clientTime: number) => {
+      const pingValue = Date.now() - clientTime;
+      pingRef.current = pingValue;
+      const maxPing = 500;
+      const minFactor = 0.5;
+      const maxFactor = 10;
+      const clampedPing = Math.min(Math.max(pingValue, 0), maxPing);
+      smoothnessRef.current = maxFactor - (clampedPing / maxPing) * (maxFactor - minFactor);
+    });
+  }, []);
+
+  const addObstacleRef = useCallback((ref: Mesh | null) => {
+    if (ref && !obstacles.current.includes(ref)) {
+      obstacles.current.push(ref);
     }
-  })
+  }, []);
 
-  //redirect user to login page after refresh
+
+
+  // Effects
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.();
+  }, []);
+
   useEffect(() => {
     if (sessionStorage.getItem('justRefreshed')) {
       sessionStorage.removeItem('justRefreshed');
-
-      // Disconnect socket manually (if it exists)
       socket.disconnect();
-
-      // Redirect
       window.location.href = '/';
     }
-
   }, []);
-
-  // ==================== Player connection handling ====================
-
 
   useEffect(() => {
     fetch('/api/data')
       .then(res => res.json())
       .then(data => {
-        console.log("pos", data)
-        vegetationPositions.current = data;
+        setVegetationPositions(data);
+        vegetationPositionsRef.current = data;
       });
   }, []);
 
   useEffect(() => {
+    const hasJoinedRoom = { current: false };
+
     const handleConnect = async () => {
       if (!hasJoinedRoom.current) {
         hasJoinedRoom.current = true;
-        setRoomId(params.id)
-        setLocalPlayerId(socket.id || "124");
+        setRoomId(params.id);
+        setLocalPlayerId(socket.id || '124');
       }
     };
 
-    socket.on("connect", handleConnect);
-    socket.on("roomSnapshot", (roomPlayers: any) => {
+    socket.on('connect', handleConnect);
+    socket.on('roomSnapshot', (roomPlayers: any) => {
       useRoomStore.getState().setPlayers(roomPlayers);
-      console.log(roomPlayers)
+      console.log(roomPlayers);
     });
-    socket.on("playerJoined", (player: any) => {
+    socket.on('playerJoined', (player: any) => {
       useRoomStore.getState().addPlayers([player]);
+    });
+    socket.on('youDied', () => {
+      isPlayerDead.current = true;
+      setTimeout(() => {
+        isPlayerDead.current = false;
+      }, RESPAWN_TIMEOUT);
     });
 
     if (socket.connected) {
       handleConnect();
     }
 
-    socket.on("youDied", () => {
-      isPlayerDead.current = true;
-      setTimeout(() => {
-        isPlayerDead.current = false;
-      }, 5000);
-    });
-
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       sessionStorage.setItem('justRefreshed', 'true');
     };
 
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
-      socket.off("connect", handleConnect);
-      socket.off("disconnect");
-      socket.off("joinedRoom");
-      window.removeEventListener("beforeunload", handleBeforeUnload);
+      socket.off('connect', handleConnect);
+      socket.off('roomSnapshot');
+      socket.off('playerJoined');
+      socket.off('youDied');
+      socket.off('pong-check');
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, []);
-
-  function calculatePing() {
-    const startTime = Date.now();
-
-    socket.emit("ping-check", startTime);
-
-    socket.on("pong-check", (clientTime: any) => {
-      const endTime = Date.now();
-      const pingValue = endTime - clientTime;
-      pingRef.current = pingValue;
-
-      const minFactor = 0.5;
-      const maxFactor = 10;
-      const maxPing = 500;
-
-      const ping = pingRef.current || 0;
-      const clampedPing = Math.min(Math.max(ping, 0), maxPing);
-      const interpolationFactor = maxFactor - (clampedPing / maxPing) * (maxFactor - minFactor);
-
-      smoothnessRef.current = interpolationFactor;
-    })
-  }
-
-  let toastId = 0;
-
-  function handlePlayerCenterUpdate(center: Vector3) {
-    playerCenterRef.current = center.clone();
-  }
-
-  function showKillToast(name: string) {
-    const id = toastId++;
-    killFeedRef.current.push({ id, name });
-    listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
-
-    setTimeout(() => {
-      killFeedRef.current = killFeedRef.current.filter(item => item.id !== id);
-      listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
-    }, 3000);
-  }
+  }, [params.id]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      calculatePing();
-    }, 1000);
-
+    const interval = setInterval(calculatePing, PING_CHECK_INTERVAL);
     return () => clearInterval(interval);
-  }, []);
+  }, [calculatePing]);
 
   useEffect(() => {
     obstacles.current = [];
@@ -234,165 +208,119 @@ const Game: React.FC = () => {
     };
   }, []);
 
-  const addObstacleRef = useCallback((ref: Mesh | null) => {
-    if (ref && !obstacles.current.includes(ref)) {
-      obstacles.current.push(ref);
-    }
-  }, []);
 
-  const PlayerWithGroundHeight = React.memo((props: any) => {
-    const getGroundHeight = useGroundHeight();
 
-    return (
-      <Player
-        {...props}
-        onCenterUpdate={handlePlayerCenterUpdate}
-        playerDeadRef={isPlayerDead}
-        playerCenterRef={playerCenterRef}
-        controlsRef={controlsRef}
-        crosshairRef={CrosshairRef}
-        userId={localPlayerId}
-        grenadeCoolDownRef={grenadeCoolDownRef}
-        pingRef={pingRef}
-        getGroundHeight={getGroundHeight}
-      />
-    );
-  });
+  // Memoized Components and Props
+  const PlayerWithGroundHeight = useMemo(() => {
+    const Component: React.FC<any> = (props) => {
+      const getGroundHeight = useGroundHeight();
+      return (
+        <Player
+          {...props}
+          onCenterUpdate={handlePlayerCenterUpdate}
+          playerDeadRef={isPlayerDead}
+          playerCenterRef={playerCenterRef}
+          controlsRef={controlsRef}
+          crosshairRef={crosshairRef}
+          userId={localPlayerId}
+          grenadeCoolDownRef={grenadeCoolDownRef}
+          pingRef={pingRef}
+          getGroundHeight={getGroundHeight}
+        />
+      );
+    };
+    return React.memo(Component);
+  }, [handlePlayerCenterUpdate, localPlayerId]);
+  //
 
-  // Memoize groundProps to prevent unnecessary re-renders
   const groundProps = useMemo(() => ({
     playerCenterRef,
     addObstacleRef,
-    vegetationPositions: vegetationPositions.current,
+    vegetationPositions: vegetationPositionsRef.current,
     onComponentStatusChange: handleComponentStatusChange,
-    onAllComponentsLoaded: handleAllComponentsLoaded
-  }), [addObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded]);
+    onAllComponentsLoaded: handleAllComponentsLoaded,
+  }), [addObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded, vegetationPositions]);
 
+  console.log(groundProps)
 
-  const isReady =
-    typeof roomId === "string" &&
-    Array.isArray(vegetationPositions.current) &&
-    vegetationPositions.current.length > 0;
-
-  useWhyDidYouUpdate("Game", {
-    roomId,
-    localPlayerId,
-    vegetationPositions,
-  });
-
-
-
-  // Calculate actual canvas dimensions based on scale
-  const canvasWidth = Math.floor(window.innerWidth * resolutionScale);
-  const canvasHeight = Math.floor(window.innerHeight * resolutionScale);
-  const scaleTransform = 1 / resolutionScale;
-
+  // Calculated Values
+  const canvasWidth = Math.floor(window.innerWidth * RESOLUTION_SCALE);
+  const canvasHeight = Math.floor(window.innerHeight * RESOLUTION_SCALE);
+  const scaleTransform = 1 / RESOLUTION_SCALE;
+  const isReady = roomId && Array.isArray(vegetationPositions) && vegetationPositions.length > 0;
   const isGroundLoaded = loadedComponents.get('Ground') === 'loaded';
 
+  useWhyDidYouUpdate('Game', { roomId, localPlayerId, vegetationPositions });
+
   return (
-    <>
+    <div className="w-full h-screen relative flex justify-center items-center" style={{ overflow: 'hidden' }}>
       {!isGroundLoaded && (
         <div className="fixed inset-0 z-50">
           <GameLoading />
         </div>
       )}
-
-      <div
-        className="w-full h-screen relative"
-        style={{ overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-      >
-
-
-        <KillFeedRenderer subscribe={(cb) => listenersRef.current.push(cb)} />
-
-        {isReady ? (
-          <>
-            <Stats />
-            <GameInfo
-              roomId={roomId}
-              grenadeCoolDownRef={grenadeCoolDownRef}
-              controlsRef={controlsRef}
-              userid={localPlayerId}
-              bulletsAvailable={30}
-              explosionTimeout={3000}
-              kills={0}
-              pingRef={pingRef}
-              isPlayerDead={isPlayerDead}
-            />
-            <Crosshair ref={CrosshairRef} />
-
-            {/* Canvas container with scaling */}
-            <div
-              ref={canvasContainerRef}
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <div style={{
-                width: `${canvasWidth}px`,
-                height: `${canvasHeight}px`,
-                transform: `scale(${scaleTransform})`,
-                transformOrigin: 'center center'
-              }}>
-                <Canvas
-                  gl={{
-                    antialias: false, // Disable AA for better performance
-                    alpha: false,
-                    powerPreference: "high-performance",
-                    preserveDrawingBuffer: false,
-                    failIfMajorPerformanceCaveat: false,
-                    outputColorSpace: SRGBColorSpace,
-                  }}
-                  dpr={0.5} // Force device pixel ratio to 1
-                  style={{
-                    width: `${canvasWidth}px`,
-                    height: `${canvasHeight}px`,
-                    imageRendering: 'pixelated'
-                    // resolutionScale < 1 ? 'pixelated' : 'auto'
-                  }}
-                  camera={{ position: [0, 0.1, 0], fov: currentFov, near: 0.1, far: 1000 }}
-                >
-                  <ambientLight intensity={0.5} />
-                  <pointLight position={[10, 10, 10]} intensity={1} />
-                  <Ground {...groundProps}>
-                    <PointerLockControls ref={controlsRef} />
-                    <PlayerWithGroundHeight
-                      addObstacleRef={addObstacleRef}
-                      obstacles={obstacles.current}
-                      otherPlayers={playerDataRef}
-                      listenerRef={listenerRef}
-                    />
-                    <RemoteOpponents
-                      addObstacleRef={addObstacleRef}
-                      smoothnessRef={smoothnessRef}
-                      playerDataRef={playerDataRef}
-                      showKillToast={showKillToast}
-                      listenerRef={listenerRef}
-                    />
-                    {/*                     <BotOpponents
-                      addObstacleRef={addObstacleRef}
-                      smoothnessRef={smoothnessRef}
-                      playerDataRef={playerDataRef}
-                      showKillToast={showKillToast}
-                      listenerRef={listenerRef}
-                      numBots={10}
-                    /> */}
-                  </Ground>
-                </Canvas>
-              </div>
+      <KillFeedRenderer subscribe={(cb: (list: { id: number; name: string }[]) => void) => listenersRef.current.push(cb)} />
+      {isReady ? (
+        <>
+          <Stats />
+          <GameInfo
+            roomId={roomId}
+            grenadeCoolDownRef={grenadeCoolDownRef}
+            playerCenterRef={playerCenterRef}
+            cameraDirectionRef={cameraDirectionRef}
+            playerDataRef={playerDataRef}
+            controlsRef={controlsRef}
+            userid={localPlayerId}
+            bulletsAvailable={30}
+            explosionTimeout={3000}
+            kills={0}
+            pingRef={pingRef}
+            isPlayerDead={isPlayerDead}
+          />
+          <Crosshair ref={crosshairRef} />
+          <div
+            ref={canvasContainerRef}
+            style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <div style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px`, transform: `scale(${scaleTransform})`, transformOrigin: 'center center' }}>
+              <Canvas
+                gl={{
+                  antialias: false,
+                  alpha: false,
+                  powerPreference: 'high-performance',
+                  preserveDrawingBuffer: false,
+                  failIfMajorPerformanceCaveat: false,
+                  outputColorSpace: SRGBColorSpace,
+                }}
+                dpr={0.5}
+                style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px`, imageRendering: 'pixelated' }}
+                camera={{ position: [0, 0.1, 0], fov: FOV, near: 0.1, far: 1000 }}
+              >
+                <ambientLight intensity={0.5} />
+                <pointLight position={[10, 10, 10]} intensity={1} />
+                <Ground {...groundProps}>
+                  <PointerLockControls ref={controlsRef} />
+                  <PlayerWithGroundHeight
+                    obstacles={obstacles.current}
+                    otherPlayers={playerDataRef}
+                    listenerRef={listenerRef}
+                  />
+                  <RemoteOpponents
+                    addObstacleRef={addObstacleRef}
+                    smoothnessRef={smoothnessRef}
+                    playerDataRef={playerDataRef}
+                    showKillToast={showKillToast}
+                    listenerRef={listenerRef}
+                  />
+                </Ground>
+              </Canvas>
             </div>
-          </>
-        ) : (
-          <div className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-            Joining room...
           </div>
-        )}
-      </div>
-    </>
+        </>
+      ) : (
+        <div className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">Joining room...</div>
+      )}
+    </div>
   );
 };
 

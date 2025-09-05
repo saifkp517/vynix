@@ -85,14 +85,16 @@ export const createRoom = async (socket: AuthenticatedSocket): Promise<string> =
 
         if (player) {
 
-          await prisma.user.update({
-            where: { id: player.userId },
-            data: {
-              totalKills: { increment: player.kills },
-              totalDeaths: { increment: player.deaths },
-              totalMatches: { increment: 1 }
-            }
-          })
+          if (!player.userId.startsWith("guest-")) {
+            await prisma.user.update({
+              where: { id: player.userId },
+              data: {
+                totalKills: { increment: player.kills },
+                totalDeaths: { increment: player.deaths },
+                totalMatches: { increment: 1 }
+              }
+            })
+          }
         }
       }
 
