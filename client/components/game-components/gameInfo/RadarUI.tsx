@@ -1,12 +1,6 @@
 import React, { RefObject, useEffect, useState } from "react";
 import { Vector3 } from "three";
 
-interface PlayerData {
-  playerId: string;
-  // Add any other player data you need
-  [key: string]: any;
-}
-
 interface RadarUIProps {
   myPlayerId: string;
   myPosition: Vector3;
@@ -101,7 +95,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
         style={{ width: radarSize, height: radarSize }}
       >
         {/* Radar sweep effect */}
-        <div
+        <div 
           className="absolute inset-0 rounded-full animate-radar-sweep"
           style={{
             background: `conic-gradient(from 0deg, 
