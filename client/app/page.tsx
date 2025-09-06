@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  Play, 
-  Users, 
-  Trophy, 
+import {
+  Play,
+  Users,
+  Trophy,
   Settings,
   Circle,
   X,
@@ -36,10 +36,12 @@ import { redirect } from "next/navigation";
 import socket from "@/lib/socket";
 
 export default function GameLoadoutMenu() {
-  const { theme: configTheme } = useThemeConfig();
   const [mounted, setMounted] = useState(false);
-  const [selectedMode, setSelectedMode] = useState(0);
+  const [matchmakingStatus, setMatchmakingStatus] = useState("Find Match");
+  const [isMatchMaking, setIsMatchmaking] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [findMatchHover, setFindMatchHover] = useState(false);
+
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -61,9 +63,15 @@ export default function GameLoadoutMenu() {
 
   useEffect(() => {
     socket.on("roomAssigned", ({ roomId }) => {
+      setMatchmakingStatus("Match Found!!")
       redirect(`forest/${roomId}`);
     })
-  })
+
+    socket.on("cancelledMatchmaking", () => {
+      setMatchmakingStatus("Find Match")
+      setIsMatchmaking(false);
+    })
+  }, [socket])
 
   // ==================================================================
 
@@ -85,8 +93,25 @@ export default function GameLoadoutMenu() {
   ]);
 
   const handleMatchmaking = () => {
-    socket.emit("requestMatchmaking");
+
+
+    if (isMatchMaking) {
+
+      socket.emit("cancelMatchmaking");
+      setIsMatchmaking(false);
+      setMatchmakingStatus("Cancelling MatchMaking....")
+
+    } else {
+
+      socket.emit("requestMatchmaking");
+      setIsMatchmaking(true);
+      setMatchmakingStatus("Matchmaking...")
+
+    }
+
   };
+
+
 
   const updateSetting = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -107,9 +132,9 @@ export default function GameLoadoutMenu() {
             <Trophy className="h-6 w-6 text-yellow-500" />
             GLOBAL LEADERBOARD
           </CardTitle>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setActiveSection(null)}
             className="text-gray-400 hover:text-white"
           >
@@ -120,19 +145,17 @@ export default function GameLoadoutMenu() {
       <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
         <div className="space-y-3">
           {leaderboardData.map((player) => (
-            <div 
-              key={player.rank} 
-              className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 hover:bg-gray-800/50 ${
-                player.name === "WarriorKing" ? "bg-gray-800/70 border border-gray-600" : "bg-gray-800/30"
-              }`}
+            <div
+              key={player.rank}
+              className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 hover:bg-gray-800/50 ${player.name === "WarriorKing" ? "bg-gray-800/70 border border-gray-600" : "bg-gray-800/30"
+                }`}
             >
               <div className="flex items-center gap-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                  player.rank === 1 ? "bg-yellow-500 text-black" :
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${player.rank === 1 ? "bg-yellow-500 text-black" :
                   player.rank === 2 ? "bg-gray-300 text-black" :
-                  player.rank === 3 ? "bg-yellow-600 text-white" :
-                  "bg-gray-600 text-white"
-                }`}>
+                    player.rank === 3 ? "bg-yellow-600 text-white" :
+                      "bg-gray-600 text-white"
+                  }`}>
                   {player.rank <= 3 ? <Crown className="h-4 w-4" /> : player.rank}
                 </div>
                 <div>
@@ -171,16 +194,16 @@ export default function GameLoadoutMenu() {
             FRIENDS & ALLIES
           </CardTitle>
           <div className="flex gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="text-gray-400 hover:text-white"
             >
               <UserPlus className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveSection(null)}
               className="text-gray-400 hover:text-white"
             >
@@ -191,13 +214,13 @@ export default function GameLoadoutMenu() {
       </CardHeader>
       <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
         <div className="space-y-3">
-          <Input 
-            placeholder="Search friends..." 
+          <Input
+            placeholder="Search friends..."
             className="bg-gray-800/30 border-gray-600 text-white placeholder-gray-400 rounded-lg p-4 text-sm"
           />
           {friendsData.map((friend) => (
-            <div 
-              key={friend.id} 
+            <div
+              key={friend.id}
               className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50"
             >
               <div className="flex items-center gap-4">
@@ -205,11 +228,10 @@ export default function GameLoadoutMenu() {
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold bg-gray-600 text-white`}>
                     <Sword className="h-4 w-4" />
                   </div>
-                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-900 ${
-                    friend.status === "online" ? "bg-green-500" :
+                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-900 ${friend.status === "online" ? "bg-green-500" :
                     friend.status === "away" ? "bg-yellow-600" :
-                    "bg-gray-300"
-                  }`}></div>
+                      "bg-gray-300"
+                    }`}></div>
                 </div>
                 <div>
                   <div className="font-medium">{friend.name}</div>
@@ -219,9 +241,9 @@ export default function GameLoadoutMenu() {
               <div className="flex items-center gap-6 text-sm">
                 <div className="text-center">
                   {friend.status === "online" ? (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="text-gray-400 hover:text-white"
                     >
                       <MessageCircle className="h-4 w-4" />
@@ -231,9 +253,9 @@ export default function GameLoadoutMenu() {
                   )}
                 </div>
                 <div className="text-center">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="text-gray-400 hover:text-white"
                   >
                     <MoreVertical className="h-4 w-4" />
@@ -256,9 +278,9 @@ export default function GameLoadoutMenu() {
             <Settings className="h-6 w-6 text-yellow-500" />
             GAME SETTINGS
           </CardTitle>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setActiveSection(null)}
             className="text-gray-400 hover:text-white"
           >
@@ -284,8 +306,8 @@ export default function GameLoadoutMenu() {
             <div className="space-y-3 ml-12">
               <div className="flex items-center justify-between">
                 <div className="font-medium">Mute All</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.muteAll}
                   onChange={(e) => updateSetting("muteAll", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -370,8 +392,8 @@ export default function GameLoadoutMenu() {
             <div className="space-y-3 ml-12">
               <div className="flex items-center justify-between">
                 <div className="font-medium">Fullscreen Mode</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.fullscreen}
                   onChange={(e) => updateSetting("fullscreen", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -379,8 +401,8 @@ export default function GameLoadoutMenu() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="font-medium">V-Sync</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.vsync}
                   onChange={(e) => updateSetting("vsync", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -388,8 +410,8 @@ export default function GameLoadoutMenu() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="font-medium">Show FPS Counter</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.showFPS}
                   onChange={(e) => updateSetting("showFPS", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -414,8 +436,8 @@ export default function GameLoadoutMenu() {
             <div className="space-y-3 ml-12">
               <div className="flex items-center justify-between">
                 <div className="font-medium">Auto-Save</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.autoSave}
                   onChange={(e) => updateSetting("autoSave", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -423,8 +445,8 @@ export default function GameLoadoutMenu() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="font-medium">Notifications</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.notifications}
                   onChange={(e) => updateSetting("notifications", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -432,8 +454,8 @@ export default function GameLoadoutMenu() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="font-medium">Chat Enabled</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.chatEnabled}
                   onChange={(e) => updateSetting("chatEnabled", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -441,8 +463,8 @@ export default function GameLoadoutMenu() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="font-medium">Friend Requests</div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={settings.friendRequests}
                   onChange={(e) => updateSetting("friendRequests", e.target.checked)}
                   className="w-4 h-4 accent-white rounded"
@@ -463,8 +485,8 @@ export default function GameLoadoutMenu() {
               </div>
             </div>
             <div className="flex items-center gap-6 text-sm">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 className="text-gray-400 hover:text-white"
               >
                 Reset
@@ -481,16 +503,16 @@ export default function GameLoadoutMenu() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-8 relative overflow-hidden">
-      
+
       {/* Background Image + Blur + Overlay */}
       <div className="absolute inset-0 z-0">
-        <div 
-          className="absolute inset-0 bg-cover bg-center blur-xs" 
-          style={{ backgroundImage: "url('/images/background.png')" }} 
+        <div
+          className="absolute inset-0 bg-cover bg-center blur-xs"
+          style={{ backgroundImage: "url('/images/background.png')" }}
         />
         <div className="absolute inset-0 bg-black/10 backdrop-blur-xs" />
       </div>
-      
+
       {/* Overlay for active sections */}
       {activeSection && (
         <div className="fixed inset-0 bg-black/50 z-20 flex items-center justify-center p-4">
@@ -499,10 +521,10 @@ export default function GameLoadoutMenu() {
           {activeSection === "settings" && <SettingsSection />}
         </div>
       )}
-      
+
       {/* Main Container */}
       <div className="w-full max-w-4xl relative z-10">
-        
+
         {/* Header */}
         <div className="text-center mb-16">
           <h1 className="text-6xl font-bold text-black tracking-wider mb-4">
@@ -513,19 +535,19 @@ export default function GameLoadoutMenu() {
 
         {/* Content Grid */}
         <div className="grid grid-cols-12 gap-8 items-center">
-          
+
           {/* Left - Player Info */}
           <div className="col-span-3 space-y-8">
             <div className="text-right">
               <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Player</div>
               <div className="text-xl text-white font-medium">WarriorKing</div>
             </div>
-            
+
             <div className="text-right">
               <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Level</div>
               <div className="text-xl text-white font-medium">47</div>
             </div>
-            
+
             <div className="text-right">
               <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Rank</div>
               <div className="text-xl text-white font-medium">Diamond III</div>
@@ -534,14 +556,18 @@ export default function GameLoadoutMenu() {
 
           {/* Center - Main Actions */}
           <div className="col-span-6 space-y-12">
-            
+
             {/* Primary Action */}
             <div className="text-center">
-              <Button 
+              <Button
                 onClick={handleMatchmaking}
                 className="w-64 h-16 bg-gray-900 hover:bg-gray-800 text-white text-lg font-light tracking-wider rounded-none border-0 transition-all duration-300 hover:scale-105"
+                onMouseEnter={() => setFindMatchHover(true)}
+                onMouseLeave={() => setFindMatchHover(false)}
               >
-                FIND MATCH
+                {findMatchHover && isMatchMaking
+                  ? "Cancel Matchmaking"
+                  : matchmakingStatus}
               </Button>
             </div>
           </div>
@@ -552,12 +578,12 @@ export default function GameLoadoutMenu() {
               <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Online</div>
               <div className="text-xl text-white font-medium">12,847</div>
             </div>
-            
+
             <div>
               <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Win Rate</div>
               <div className="text-xl text-white font-medium">74.7%</div>
             </div>
-            
+
             <div>
               <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Best Streak</div>
               <div className="text-xl text-white font-medium">12</div>
