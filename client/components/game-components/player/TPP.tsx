@@ -17,7 +17,7 @@ import { usePlayerInput } from '@/hooks/usePlayerInput';
 
 interface PlayerProps {
     obstacles: any;
-    onCenterUpdate: (center: Vector3) => void;
+    onCenterUpdate: (center: Vector3, cameraDirection: Vector3) => void;
     playerCenterRef: RefObject<Vector3>;
     pingRef: RefObject<number>;
     crosshairRef: RefObject<{ triggerHit: () => void }>;
@@ -195,7 +195,7 @@ const Player: React.FC<PlayerProps> = ({
             (cameraAngles.current as CameraAngles).vertical += event.movementY * sensitivity;
 
             // Clamp vertical angle
-            const maxVerticalAngle: number = Math.PI / 3;
+            const maxVerticalAngle: number = Math.PI * 3;
             const minVerticalAngle: number = -Math.PI / 6;
             (cameraAngles.current as CameraAngles).vertical = Math.max(
                 minVerticalAngle,
@@ -321,7 +321,7 @@ const Player: React.FC<PlayerProps> = ({
         } else {
             // Third-person as before
             const cameraDistance = 6;
-            const cameraHeight = 2;
+            const cameraHeight = 0;
             const smoothingFactor = 0.5;
 
             const horizontalAngle = cameraAngles.current.horizontal;
@@ -453,7 +453,7 @@ const Player: React.FC<PlayerProps> = ({
             camera.getWorldDirection(cameraDirection);
 
             handlePositionAndCameraChange(playerPosition.current.clone(), playerVelocity.current.clone(), cameraDirection);
-            onCenterUpdate(playerPosition.current.clone());
+            onCenterUpdate(playerPosition.current.clone(), cameraDirection.clone());
 
             lastUpdateTime.current = currentTime;
         }

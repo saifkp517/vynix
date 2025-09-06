@@ -315,12 +315,6 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
       logger.logStatus('Socket Connection', 'loaded');
     });
 
-    socket.on("receiveVegetationPositions", ({ roomId, vegetationPositions }) => {
-      console.log("recieved tree pos")
-      vegetationPositions.current = vegetationPositions;
-      // treeCache.set(roomId, vegetationPositions);
-    });
-
     return () => {
       socket.off("updateForest", ({ id, position }: any) => {
         setTargetPosition([position.x, position.y, position.z]);

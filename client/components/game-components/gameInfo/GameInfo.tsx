@@ -19,6 +19,9 @@ interface GameInfoProps {
   explosionTimeout: number | null;
   kills: number;
   pingRef: RefObject<number>;
+  playerCenterRef: RefObject<Vector3>;
+  cameraDirectionRef: RefObject<Vector3>;
+  playerDataRef?: RefObject<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>;
   isPlayerDead?: RefObject<boolean>;
 }
 
@@ -53,7 +56,7 @@ interface DamageIndicator {
 }
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, controlsRef, bulletsAvailable, kills, pingRef, isPlayerDead }) => {
+  ({ roomId, userid, controlsRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef }) => {
 
     const healthRef = useRef(100);
     const [pingInfo, setPingInfo] = useState(0);
@@ -463,6 +466,14 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
         {/* Network Status - Top Right */}
         <div className="fixed top-2 right-2 z-30">
+          {playerDataRef && (
+            <RadarUI
+              myPlayerId={userid!}
+              myPosition={playerCenterRef.current}
+              playerDataRef={playerDataRef}
+              cameraDirection={cameraDirectionRef.current}
+            />
+          )}
           <div className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
             <div className="flex items-end space-x-0.5">
               {getPingBars(pingInfo)}
