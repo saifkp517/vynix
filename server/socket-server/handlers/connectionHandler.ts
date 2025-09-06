@@ -3,7 +3,7 @@
 import { Server } from "socket.io";
 import cookie from "cookie";
 import type { AuthenticatedSocket } from "../../redis/types";
-import { handleMatchmaking, handleShoot } from "../../redis/redisControllers";
+import { handleMatchmaking, cancelMatchmaking, handleShoot } from "../../redis/redisControllers";
 import { handleUpdatePositionAndCameraUpdate } from "../../redis/redisControllers";
 import axios from "axios";
 import { leaveRoom } from "../../redis/redisControllers";
@@ -74,6 +74,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
   })
 
   socket.on("requestMatchmaking", (userId) => handleMatchmaking(socket, io));
+  socket.on("cancelMatchmaking", () => cancelMatchmaking)
   socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCameraUpdate(socket, io, position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
 

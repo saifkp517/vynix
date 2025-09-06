@@ -63,7 +63,7 @@ export const deletePlayer = async (id: string) => {
 
 const ROOM_KEY = 'rooms';
 const WAITING_POOL_KEY = "waitPool";
-const MIN_PLAYERS_TO_START = 1;
+const MIN_PLAYERS_TO_START = 2;
 const MAX_PLAYERS = 50;
 
 export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
@@ -138,9 +138,15 @@ export const findAvailableRoom = async (): Promise<string | null> => {
   return null;
 }
 
+export const cancelMatchmaking = async(socket: AuthenticatedSocket, io: Server) => {
+  await redis.sRem(WAITING_POOL_KEY, socket.id);
+  socket.emit("cancelledMatchmaking");
+}
 
 export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server) => {
   await redis.sAdd(WAITING_POOL_KEY, socket.id);
+  const playerPoolCount = await redis.sCard(WAITING_POOL_KEY)
+  socket.broadcast.emit("playerPoolCount", playerPoolCount)
 
   let roomId = await findAvailableRoom();
   if (!roomId) {
