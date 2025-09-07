@@ -28,7 +28,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
   // Radar dimensions
   const radarSize = 180;
   const radius = radarSize / 2;
-  const maxWorldDistance = 50; // Max distance shown on radar
+  const maxWorldDistance = 250; // Max distance shown on radar
 
   const calculateAngleToPlayer = (playerPos: Vector3): number => {
 
@@ -167,7 +167,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
 
         {/* Camera direction pointer */}
         <div
-          className="absolute w-1 bg-yellow-400 shadow-lg animate-pulse-yellow"
+          className="absolute w-0.5 bg-yellow-400 shadow-lg animate-pulse-yellow"
           style={{
             height: radius - 10,
             left: '50%',
@@ -189,7 +189,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
 
         {/* My player (center dot) */}
         <div
-          className="absolute w-4 h-4 bg-green-400 rounded-full animate-pulse-green border border-green-200"
+          className=""
           style={{
             left: radius - 8,
             top: radius - 8,
@@ -208,7 +208,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
                   return (
                     <div
                       key={`${playerId}-${pingTime}`}
-                      className="absolute w-2 h-2 bg-red-400 rounded-full shadow-lg animate-fade-out border border-red-200"
+                      className="absolute w-1 h-1 bg-red-700 rounded-full shadow-lg animate-fade-out border border-red-200"
                       style={{
                         left: radius + x - 4,
                         top: radius + y - 4,

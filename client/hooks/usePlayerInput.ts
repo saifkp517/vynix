@@ -7,7 +7,8 @@ interface InputParams {
   onGrenade: () => void;
   onLeftMouseDown: () => void;
   onRightMouseDown: () => void;
-  onMouseUp: () => void;
+  onLeftMouseUp: () => void;
+  onRightMouseUp: () => void;
   setMoveState: (updater: (prev: MoveState) => MoveState) => void;
 }
 
@@ -25,7 +26,8 @@ export function usePlayerInput({
   onGrenade,
   onLeftMouseDown,
   onRightMouseDown,
-  onMouseUp,
+  onLeftMouseUp,
+  onRightMouseUp,
   setMoveState,
 }: InputParams) {
   useEffect(() => {
@@ -85,13 +87,21 @@ export function usePlayerInput({
       }
     };
 
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 0) {
+        // Left mouse
+        onLeftMouseUp();
+      } else if (e.button === 2) {
+        // Right mouse
+        onRightMouseUp();
+      }
+    }
 
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mouseup', onMouseUp);
-    window.addEventListener('blur', onMouseUp); // fallback if window loses focus
+    window.addEventListener('mouseup', handleMouseUp);
 
     // Prevent browser right-click context menu so right mouse works smoothly
     window.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -100,8 +110,7 @@ export function usePlayerInput({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mouseup', onMouseUp);
-      window.removeEventListener('blur', onMouseUp);
+      window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [
     onJump,
@@ -110,7 +119,6 @@ export function usePlayerInput({
     onGrenade,
     onLeftMouseDown,
     onRightMouseDown,
-    onMouseUp,
     setMoveState,
   ]);
 }

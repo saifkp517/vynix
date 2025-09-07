@@ -275,7 +275,8 @@ const Gun: React.FC<GunProps> = ({
     onGrenade: () => { },
     onLeftMouseDown: () => { isTriggerHeld.current = true },
     onRightMouseDown: () => { },
-    onMouseUp: () => { isTriggerHeld.current = false },
+    onLeftMouseUp: () => { isTriggerHeld.current = false },
+    onRightMouseUp: () => { },
     setMoveState: () => { },
   });
 

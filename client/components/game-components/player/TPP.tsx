@@ -163,10 +163,11 @@ const Player: React.FC<PlayerProps> = ({
         onRightMouseDown: () => {
             setIsFPS(true);
         },
-        onLeftMouseDown: () => { },
-        onMouseUp: () => {
-            setIsFPS(false);
+        onRightMouseUp: () => {
+            setIsFPS(false)
         },
+        onLeftMouseDown() {},
+        onLeftMouseUp() {},
         setMoveState,
     });
 
@@ -194,7 +195,7 @@ const Player: React.FC<PlayerProps> = ({
             (cameraAngles.current as CameraAngles).horizontal -= event.movementX * sensitivity;
             (cameraAngles.current as CameraAngles).vertical += event.movementY * sensitivity;
 
-            // Clamp vertical angle
+            // Clamp vertical angle(to prevent the tpp camera from coming in front of the player.)
             const maxVerticalAngle: number = Math.PI * 3;
             const minVerticalAngle: number = -Math.PI / 6;
             (cameraAngles.current as CameraAngles).vertical = Math.max(
@@ -221,8 +222,8 @@ const Player: React.FC<PlayerProps> = ({
                 // Player just respawned
                 const otherPlayerList = Object.values(otherPlayers.current);
                 console.log("Respawning player, other players:", otherPlayerList);
-                const MIN_DISTANCE = 20;
-                const MAX_DISTANCE = 50;
+                const MIN_DISTANCE = 200;
+                const MAX_DISTANCE = 500;
                 const MAX_ATTEMPTS = 30;
 
                 const getValidSpawn = () => {
