@@ -5,6 +5,9 @@
     - handles camera positioning calculations
     - sends out camera direction as a socket event (mostly for radar ui)
     - takes obstacles as props for collision detection
+
+
+    (DONT USE)
 */
 
 import React, { useRef, useEffect, useState } from "react"
@@ -13,17 +16,21 @@ import * as THREE from "three";
 
 import { usePlayerInput } from "@/hooks/usePlayerInput";
 
+interface CameraControllerProps {
+    playerHeadPosition: THREE.Vector3;
+    obstacles: any;
+    onCameraDirectionChange?: (direction: THREE.Vector3) => void; // Optional callback
+}
 
-const CameraController: React.FC<any> = ({
+const CameraController: React.FC<CameraControllerProps> = ({
     playerHeadPosition,
-    obstacles
+    obstacles,
+    onCameraDirectionChange
 }) => {
 
     // ====================== Camera State Management ===========================
 
-
     const cameraAngles = useRef({ horizontal: 0, vertical: 0 });
-
 
     // Simple third-person mouse controls - always active, no locking
     useEffect(() => {
@@ -81,13 +88,11 @@ const CameraController: React.FC<any> = ({
     });
 
     // camera positioning logic
-
     const { camera } = useThree();
+    const lastDirectionUpdate = useRef(0);
 
     useFrame((_, delta) => {
         if (isFPS) {
-
-
             const horizontalAngle = cameraAngles.current.horizontal;
             const verticalAngle = cameraAngles.current.vertical;
 
@@ -107,7 +112,6 @@ const CameraController: React.FC<any> = ({
 
             // Look direction
             camera.lookAt(eye.clone().add(forward));
-
 
         } else {
             // Third-person as before
@@ -144,11 +148,18 @@ const CameraController: React.FC<any> = ({
 
             camera.lookAt(playerHeadPosition);
         }
-    })
 
-    return (
-        <></>
-    );
-}
+        // Send camera direction callback periodically (for networking)
+        const currentTime = performance.now();
+        if (onCameraDirectionChange && currentTime - lastDirectionUpdate.current >= 100) {
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            onCameraDirectionChange(direction);
+            lastDirectionUpdate.current = currentTime;
+        }
+    });
 
+    return <></>;
+};
 
+export default CameraController;

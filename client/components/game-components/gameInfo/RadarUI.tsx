@@ -165,27 +165,8 @@ export const RadarUI: React.FC<RadarUIProps> = ({
           E
         </div>
 
-        {/* Camera direction pointer */}
-        <div
-          className="absolute w-0.5 bg-yellow-400 shadow-lg animate-pulse-yellow"
-          style={{
-            height: radius - 10,
-            left: '50%',
-            top: 10,
-            transformOrigin: '50% 80px',
-            transform: `translateX(-50%) rotate(0deg)`,
-          }}
-        />
 
-        {/* Camera direction arrow tip */}
-        <div
-          className="absolute w-0 h-0 border-l-2 border-r-2 border-b-4 border-l-transparent border-r-transparent border-b-yellow-400 animate-pulse-yellow"
-          style={{
-            left: '50%',
-            top: 8,
-            transform: 'translateX(-50%)',
-          }}
-        />
+
 
         {/* My player (center dot) */}
         <div
@@ -235,11 +216,6 @@ export const RadarUI: React.FC<RadarUIProps> = ({
               70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
               100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
             }
-            @keyframes pulse-yellow {
-              0% { opacity: 1; }
-              50% { opacity: 0.6; }
-              100% { opacity: 1; }
-            }
             @keyframes fade-out {
               0% { opacity: 1; transform: scale(1); }
               100% { opacity: 0; transform: scale(1.3); }
@@ -250,9 +226,6 @@ export const RadarUI: React.FC<RadarUIProps> = ({
             }
             .animate-pulse-green {
               animation: pulse-green 2s ease-in-out infinite;
-            }
-            .animate-pulse-yellow {
-              animation: pulse-yellow 1s ease-in-out infinite;
             }
             .animate-fade-out {
               animation: fade-out 2s linear forwards;

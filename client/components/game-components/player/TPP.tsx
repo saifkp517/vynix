@@ -196,8 +196,8 @@ const Player: React.FC<PlayerProps> = ({
             (cameraAngles.current as CameraAngles).vertical += event.movementY * sensitivity;
 
             // Clamp vertical angle(to prevent the tpp camera from coming in front of the player.)
-            const maxVerticalAngle: number = Math.PI * 3;
-            const minVerticalAngle: number = -Math.PI / 6;
+            const maxVerticalAngle: number = Math.PI / 2;
+            const minVerticalAngle: number = -Math.PI / 2;
             (cameraAngles.current as CameraAngles).vertical = Math.max(
                 minVerticalAngle,
                 Math.min(maxVerticalAngle, (cameraAngles.current as CameraAngles).vertical)
