@@ -7,7 +7,7 @@
     - takes obstacles as props for collision detection
 
 
-    (DONT USE)
+    (DONT USE yet...)
 */
 
 import React, { useRef, useEffect, useState } from "react"

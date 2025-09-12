@@ -15,6 +15,7 @@ import { ComponentLoadingTracker } from "@/components/class/ComponentLoadingTrac
 import type { Vegetation } from "@/app/types/types";
 
 
+
 // Global logger instance
 const logger = ComponentLoadingTracker.getInstance();
 
@@ -417,6 +418,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
   }, []);
 
+  const sunMeshRef = useRef<THREE.Mesh>(null);
   const sunPosition = useMemo(() => new THREE.Vector3(100, 1000, 100), []);
 
   // Terrain deformation with logging
@@ -540,6 +542,8 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         args={["#1a237e", "#0d3b66", 0.2]}
         position={[0, 200, 0]}
       />
+
+      
 
       {/* Enhanced Rain Effect */}
       <EnhancedRainEffect

@@ -262,7 +262,7 @@ const Game: React.FC = () => {
       <KillFeedRenderer subscribe={(cb: (list: { id: number; name: string }[]) => void) => listenersRef.current.push(cb)} />
       {isReady ? (
         <>
-          <Stats />
+          {/* <Stats /> */}
           <GameInfo
             roomId={roomId}
             grenadeCoolDownRef={grenadeCoolDownRef}

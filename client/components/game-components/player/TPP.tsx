@@ -222,8 +222,8 @@ const Player: React.FC<PlayerProps> = ({
                 // Player just respawned
                 const otherPlayerList = Object.values(otherPlayers.current);
                 console.log("Respawning player, other players:", otherPlayerList);
-                const MIN_DISTANCE = 200;
-                const MAX_DISTANCE = 500;
+                const MIN_DISTANCE = 100;
+                const MAX_DISTANCE = 200;
                 const MAX_ATTEMPTS = 30;
 
                 const getValidSpawn = () => {
