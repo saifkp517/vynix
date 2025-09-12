@@ -224,7 +224,7 @@ const EnhancedLoot = memo((props: any) => {
 // Main Ground component implementation
 const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   children,
-  fogDistance = 15,
+  fogDistance = 25,
   vegetationPositions,
   fogColor = "#A8B8D0",
   addObstacleRef,
@@ -567,21 +567,21 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
 
 
       {/* Enhanced Tall Grass */}
-      <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
+      {/* <Suspense fallback={<LoadingFallback componentName="TallGrass" />}>
         <EnhancedTallGrass
           getGroundHeight={getGroundHeight}
           playerCenterRef={playerCenterRef}
         />
-      </Suspense>
+      </Suspense> */}
 
       {/* Enhanced Forest */}
-      {vegetationPositions ? (
+      {/* {vegetationPositions ? (
         <Suspense fallback={<LoadingFallback componentName="Forest" />}>
           <ForestWrapper {...forestProps} />
         </Suspense>
       ) : (
         <LoadingFallback componentName="Forest (No Vegetation)" />
-      )}
+      )} */}
 
 
       {children}

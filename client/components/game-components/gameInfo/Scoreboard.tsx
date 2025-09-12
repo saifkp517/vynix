@@ -1,36 +1,47 @@
-import React, { RefObject } from 'react';
-import { Users, X } from 'lucide-react';
+import React, { RefObject, useEffect, useState } from 'react';
+import { Users, X, Skull } from 'lucide-react';
 import { Vector3 } from 'three';
 
-export interface Player {
-  socketId: string;
-  userId: string;
-  room: string;
-  username: string;
-  position: Vector3;
-  velocity: Vector3;
-  health: number;
-  isDead: boolean;
-  kills: number;
-  deaths: number;
-  cameraDirection: Vector3;
-}
+import socket from '@/lib/socket';
+import { useRoomStore } from '@/hooks/useRoomStore';
 
 interface ScoreboardProps {
-  players: Player[];
+  roomId: string | null;
   currentUserId: string | null;
   isVisible: boolean;
   onToggle: () => void;
   onClose: () => void;
 }
 
+interface Player {
+  socketId: string;
+  userId: string;
+  room: string;
+  position: Vector3;
+  velocity: Vector3;
+  cameraDirection: Vector3;
+  username: string;
+  isDead: boolean;
+  kills: number;
+  deaths: number;
+  health: number;
+}
+
+interface KillFeedItem {
+  id: string;
+  killer: string;
+  victim: string;
+  timestamp: number;
+}
+
 const Scoreboard: React.FC<ScoreboardProps> = ({
-  players,
+  roomId,
   currentUserId,
   isVisible,
   onToggle,
   onClose,
 }) => {
+  const [killFeed, setKillFeed] = useState<KillFeedItem[]>([]);
 
   const handleToggle = () => {
     onToggle();
@@ -40,7 +51,59 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
     onClose();
   };
 
+  // ========== handle recieve socket events ============
+
+  useEffect(() => {
+    socket.on('playerDead', ({killer, victim}) => {
+      console.log(`player ${killer} killed ${victim}`);
+      
+      // Add to kill feed
+      const newKillFeedItem: KillFeedItem = {
+        id: `${killer}-${victim}-${Date.now()}`,
+        killer,
+        victim,
+        timestamp: Date.now()
+      };
+      
+      setKillFeed(prev => {
+        const updated = [newKillFeedItem, ...prev];
+        // Keep only the last 8 kills
+        return updated.slice(0, 8);
+      });
+    });
+
+    socket.on('playerJoined', (player: any) => {
+      console.log("player joined");
+      useRoomStore.getState().addPlayers([player]);
+    });
+
+    return () => {
+      socket.off('roomSnapshot', (snapshot) => {
+        console.log("got snapshot", snapshot);
+      });
+
+      socket.off('playerJoined', (player: any) => {
+        useRoomStore.getState().addPlayers([player]);
+      });
+
+      socket.off('playerDead');
+    };
+  }, [socket]);
+
+  // Auto-remove old kill feed items after 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setKillFeed(prev => prev.filter(item => now - item.timestamp < 10000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ====================================================
+
   // Sort players by kills (descending), then by deaths (ascending)
+  const players = useRoomStore.getState().players;
   const sortedPlayers = [...players].sort((a, b) => {
     if (b.kills !== a.kills) {
       return b.kills - a.kills;
@@ -56,7 +119,7 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
 
   // Get player status color
   const getStatusColor = (player: Player): string => {
-    if (player.isDead) return 'bg-red-400';
+    if (player.health <= 0) return 'bg-red-400';
     if (player.health > 75) return 'bg-green-400';
     if (player.health > 50) return 'bg-yellow-400';
     if (player.health > 25) return 'bg-orange-400';
@@ -73,6 +136,31 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
         >
           <Users size={16} className="text-white/70" />
         </button>
+      </div>
+
+      {/* Kill Feed - Right Side */}
+      <div className="fixed right-4 top-4 z-30 w-64">
+        <div className="space-y-1">
+          {killFeed.map((kill, index) => (
+            <div
+              key={kill.id}
+              className="bg-black/40 backdrop-blur-sm rounded-lg p-2 border border-red-500/20 animate-in slide-in-from-right-2 fade-in-0 duration-300"
+              style={{
+                opacity: Math.max(0.3, 1 - (index * 0.15)), // Fade older items
+              }}
+            >
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`font-medium truncate max-w-20 ${kill.killer === currentUserId ? 'text-blue-300' : 'text-gray-300'}`}>
+                  {kill.killer}
+                </span>
+                <Skull size={12} className="text-red-400 flex-shrink-0" />
+                <span className={`font-medium truncate max-w-20 ${kill.victim === currentUserId ? 'text-blue-300' : 'text-gray-300'}`}>
+                  {kill.victim}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Scoreboard Panel */}
@@ -106,39 +194,36 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
             {/* Player List */}
             <div className="space-y-1 max-h-[calc(100vh-160px)] overflow-y-auto">
               {sortedPlayers.map((player, index) => {
-                const isCurrentPlayer = player.userId === currentUserId;
+                const isCurrentPlayer = player.socketId === currentUserId;
                 const kdRatio = getKDRatio(player.kills, player.deaths);
 
                 return (
                   <div
                     key={player.socketId}
-                    className={`grid grid-cols-12 gap-2 items-center p-2 rounded text-xs transition-colors ${
-                      isCurrentPlayer 
-                        ? 'bg-blue-500/20 border border-blue-500/30' 
-                        : 'bg-black/20 hover:bg-black/30'
-                    }`}
+                    className={`grid grid-cols-12 gap-2 items-center p-2 rounded text-xs transition-colors ${isCurrentPlayer
+                      ? 'bg-blue-500/20 border border-blue-500/30'
+                      : 'bg-black/20 hover:bg-black/30'
+                      }`}
                   >
                     {/* Rank */}
                     <div className="col-span-1">
-                      <span className={`font-medium ${
-                        index === 0 ? 'text-yellow-400' :
+                      <span className={`font-medium ${index === 0 ? 'text-yellow-400' :
                         index === 1 ? 'text-gray-300' :
-                        index === 2 ? 'text-amber-600' :
-                        'text-gray-500'
-                      }`}>
+                          index === 2 ? 'text-amber-600' :
+                            'text-gray-500'
+                        }`}>
                         {index + 1}
                       </span>
                     </div>
 
                     {/* Player Name & Status */}
                     <div className="col-span-5 flex items-center gap-2">
-                      <div 
+                      <div
                         className={`w-2 h-2 rounded-full ${getStatusColor(player)}`}
-                        title={player.isDead ? 'Dead' : `Health: ${player.health}%`}
+                        title={player.health <= 0 ? 'Dead' : `Health: ${player.health}%`}
                       />
-                      <span className={`truncate font-medium ${
-                        isCurrentPlayer ? 'text-blue-300' : 'text-gray-300'
-                      }`}>
+                      <span className={`truncate font-medium ${isCurrentPlayer ? 'text-blue-300' : 'text-gray-300'
+                        }`}>
                         {player.username}
                       </span>
                       {isCurrentPlayer && (
@@ -146,7 +231,7 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
                           YOU
                         </span>
                       )}
-                      {player.isDead && (
+                      {player.health <= 0 && (
                         <span className="text-[10px] bg-red-500/30 text-red-300 px-1 py-0.5 rounded">
                           DEAD
                         </span>
@@ -162,35 +247,32 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
 
                     {/* K/D Ratio */}
                     <div className="col-span-2 text-center">
-                      <span className={`font-medium ${
-                        parseFloat(kdRatio) >= 2.0 ? 'text-green-400' :
+                      <span className={`font-medium ${parseFloat(kdRatio) >= 2.0 ? 'text-green-400' :
                         parseFloat(kdRatio) >= 1.0 ? 'text-yellow-400' :
-                        'text-gray-400'
-                      }`}>
+                          'text-gray-400'
+                        }`}>
                         {kdRatio}
                       </span>
                     </div>
 
                     {/* Health */}
                     <div className="col-span-2">
-                      {player.isDead ? (
+                      {player.health <= 0 ? (
                         <span className="text-red-400 text-center block">—</span>
                       ) : (
                         <div className="flex items-center gap-1">
                           <div className="flex-1 bg-black/40 rounded-full h-1.5">
                             <div
-                              className={`h-1.5 rounded-full transition-all ${
-                                player.health > 75 ? 'bg-green-400' :
+                              className={`h-1.5 rounded-full transition-all ${player.health > 75 ? 'bg-green-400' :
                                 player.health > 50 ? 'bg-yellow-400' :
-                                player.health > 25 ? 'bg-orange-400' :
-                                'bg-red-400'
-                              }`}
+                                  player.health > 25 ? 'bg-orange-400' :
+                                    'bg-red-400'
+                                }`}
                               style={{ width: `${Math.max(0, player.health)}%` }}
                             />
                           </div>
-                          <span className={`text-[10px] font-medium tabular-nums ${
-                            player.health > 50 ? 'text-gray-300' : 'text-red-300'
-                          }`}>
+                          <span className={`text-[10px] font-medium tabular-nums ${player.health > 50 ? 'text-gray-300' : 'text-red-300'
+                            }`}>
                             {player.health}
                           </span>
                         </div>
@@ -204,8 +286,8 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
             {/* Footer Stats */}
             <div className="mt-4 pt-3 border-t border-white/10 text-xs text-gray-500">
               <div className="flex justify-between">
-                <span>Alive: {players.filter(p => !p.isDead).length}</span>
-                <span>Dead: {players.filter(p => p.isDead).length}</span>
+                <span>Alive: {players.filter(p => p.health > 0).length}</span>
+                <span>Dead: {players.filter(p => p.health <= 0).length}</span>
               </div>
               <div className="mt-1">
                 <span>Total Kills: {players.reduce((sum, p) => sum + p.kills, 0)}</span>

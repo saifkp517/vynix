@@ -81,14 +81,12 @@ const RemoteOpponents: React.FC<Props> = ({
     updatePlayerIds(playerIdsRef.current.filter((pid) => pid !== id));
   };
 
-  const handlePlayerDead = ({ userId, playerId }: { userId: string; playerId: string }) => {
+  const handlePlayerDead = ({ killer, victim }: { killer: string; victim: string }) => {
 
-    const user = playerDataRef.current[playerId]?.user;
-
-    showKillToast(userId);
-    deadPlayers.current.add(playerId);
-    delete playerDataRef.current[playerId];
-    updatePlayerIds(playerIdsRef.current.filter((id) => id !== playerId));
+    showKillToast(killer);
+    deadPlayers.current.add(victim);
+    delete playerDataRef.current[victim];
+    updatePlayerIds(playerIdsRef.current.filter((id) => id !== victim));
   };
 
   const handlePlayerShot = ({

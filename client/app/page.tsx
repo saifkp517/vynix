@@ -35,6 +35,8 @@ import { redirect } from "next/navigation";
 
 import socket from "@/lib/socket";
 
+import { useRoomStore } from "@/hooks/useRoomStore";
+
 export default function GameLoadoutMenu() {
   const [mounted, setMounted] = useState(false);
   const [matchmakingStatus, setMatchmakingStatus] = useState("Find Match");
@@ -565,7 +567,7 @@ export default function GameLoadoutMenu() {
                 onMouseEnter={() => setFindMatchHover(true)}
                 onMouseLeave={() => setFindMatchHover(false)}
               >
-                {findMatchHover && isMatchMaking
+                {findMatchHover && isMatchMaking && matchmakingStatus
                   ? "Cancel Matchmaking"
                   : matchmakingStatus}
               </Button>

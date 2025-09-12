@@ -1,6 +1,19 @@
 import { create } from "zustand";
-import type { Player } from "@/app/types/types";
+import { Vector3 } from "three";
 
+export interface Player {
+    socketId: string;
+    userId: string;
+    room: string;
+    position: Vector3;
+    velocity: Vector3;
+    cameraDirection: Vector3;
+    username: string;
+    isDead: boolean;
+    kills: number;
+    deaths: number;
+    health: number;
+}
 
 interface RoomStore {
     players: Player[];
@@ -12,6 +25,14 @@ interface RoomStore {
 export const useRoomStore = create<RoomStore>((set) => ({
     players: [],
     setPlayers: (list) => set({ players: list }),
-    addPlayers: (player) => set((state) => ({ players: [...state.players, ...player] })),
-    removePlayer: (id) => set((state) => ({ players: state.players.filter((p) => p.id !== id) })),
+    addPlayers: (newPlayers) =>
+        set((state) => {
+            const combined = [...state.players, ...newPlayers];
+            const unique = combined.filter(
+                (player, index, self) =>
+                    index === self.findIndex((p) => p.socketId === player.socketId)
+            );
+            return { players: unique };
+        }),
+    removePlayer: (id) => set((state) => ({ players: state.players.filter((p) => p.socketId !== id) })),
 }));

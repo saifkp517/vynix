@@ -151,13 +151,7 @@ const Game: React.FC = () => {
     };
 
     socket.on('connect', handleConnect);
-    socket.on('roomSnapshot', (roomPlayers: any) => {
-      useRoomStore.getState().setPlayers(roomPlayers);
-      console.log(roomPlayers);
-    });
-    socket.on('playerJoined', (player: any) => {
-      useRoomStore.getState().addPlayers([player]);
-    });
+
     socket.on('youDied', () => {
       isPlayerDead.current = true;
       setTimeout(() => {

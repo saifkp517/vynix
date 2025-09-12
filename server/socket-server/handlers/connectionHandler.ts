@@ -89,6 +89,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
     leaveRoom(socket.id);
 
     io.emit('playerDisconnected', socket.id);
+    
   });
 
   socket.on('playerWalking', ({ userId }) => {

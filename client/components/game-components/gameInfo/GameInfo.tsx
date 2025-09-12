@@ -10,17 +10,17 @@ import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { useRoomStore } from '@/hooks/useRoomStore';
 
 interface Player {
-    socketId: string;
-    userId: string;
-    room: string;
-    username: string;
-    position: Vector3;
-    velocity: Vector3;
-    health: number;
-    isDead: boolean;
-    kills: number;
-    deaths: number;
-    cameraDirection: Vector3
+  socketId: string;
+  userId: string;
+  room: string;
+  username: string;
+  position: Vector3;
+  velocity: Vector3;
+  health: number;
+  isDead: boolean;
+  kills: number;
+  deaths: number;
+  cameraDirection: Vector3
 }
 
 interface GameInfoProps {
@@ -63,6 +63,39 @@ interface DamageIndicator {
 const GameInfo: React.FC<GameInfoProps> = React.memo(
   ({ roomId, userid, controlsRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef }) => {
 
+
+    // ======================= handle recieve socket events ===============
+
+    useEffect(() => {
+
+      const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
+        console.log('Received message:', userId, message);
+        chatMessages.current.push({
+          id: `${userId}-${Date.now()}`,
+          playerName: userId,
+          message,
+          timestamp: new Date(),
+        });
+        forceUpdate({});
+      };
+
+      const handleHit = ({ rayOrigin }: { rayOrigin: Vector3 }) => {
+        healthRef.current -= 10;
+        createHitEffect(rayOrigin);
+      };
+
+      socket.on("hit", handleHit);
+      socket.on("gameOver", () => alert("gameover"));
+      socket.on("receiveMessage", handleReceiveMessage);
+
+      return () => {
+        socket.off('receiveMessage', handleReceiveMessage);
+        socket.off("hit", handleHit);
+      };
+    }, [socket]);
+
+    // ====================================================================
+
     const healthRef = useRef(100);
     const [pingInfo, setPingInfo] = useState(0);
     const [showScoreboard, setShowScoreboard] = useState(false);
@@ -73,22 +106,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
 
     const ammo = useGameInfoStore((state) => state.ammo);
-
-    // Get players data from store and convert to proper format
-    const playersFromStore = useRoomStore.getState().players;
-    const players: Player[] = playersFromStore.map(player => ({
-      socketId: player.id, // Assuming id maps to socketId
-      userId: player.id,
-      room: roomId || '',
-      username: player.username,
-      position: new Vector3(0, 0, 0), // You might need to get this from playerDataRef
-      velocity: new Vector3(0, 0, 0),
-      health: player.health,
-      isDead: player.health <= 0,
-      kills: player.kills,
-      deaths: player.deaths,
-      cameraDirection: new Vector3(0, 0, 0)
-    }));
 
     const chatMessages = useRef<ChatMessage[]>([]);
     const [, forceUpdate] = useState({});
@@ -139,32 +156,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       }, newHitEffect.duration);
     };
 
-    useEffect(() => {
-      const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
-        console.log('Received message:', userId, message);
-        chatMessages.current.push({
-          id: `${userId}-${Date.now()}`,
-          playerName: userId,
-          message,
-          timestamp: new Date(),
-        });
-        forceUpdate({});
-      };
 
-      const handleHit = ({ rayOrigin }: { rayOrigin: Vector3 }) => {
-        healthRef.current -= 10;
-        createHitEffect(rayOrigin);
-      };
-
-      socket.on("hit", handleHit);
-      socket.on("gameOver", () => alert("gameover"));
-      socket.on("receiveMessage", handleReceiveMessage);
-
-      return () => {
-        socket.off('receiveMessage', handleReceiveMessage);
-        socket.off("hit", handleHit);
-      };
-    }, []);
 
     useEffect(() => {
       const interval = setInterval(() => {
@@ -319,7 +311,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       <>
         {/* Scoreboard Component */}
         <Scoreboard
-          players={players}
+          roomId={roomId}
           currentUserId={userid}
           isVisible={showScoreboard}
           onToggle={() => setShowScoreboard(!showScoreboard)}

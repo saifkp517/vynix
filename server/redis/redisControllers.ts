@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import { Vector2, Vector3 } from "three";
 import type { AuthenticatedSocket, Player, ShootObject } from "./types";
 import { PrismaClient } from "@prisma/client";
 import { Server } from "socket.io";
@@ -48,7 +48,7 @@ export const getAllPlayers = async (): Promise<Record<string, Player>> => {
 };
 
 export const deletePlayer = async (id: string) => {
-  await redis.hDel(`${PLAYER_KEY}:${id}`, id);
+  await redis.hDel(PLAYER_KEY, id);
 };
 
 
@@ -138,96 +138,163 @@ export const findAvailableRoom = async (): Promise<string | null> => {
   return null;
 }
 
-export const cancelMatchmaking = async(socket: AuthenticatedSocket, io: Server) => {
+export const cancelMatchmaking = async (socket: AuthenticatedSocket, io: Server) => {
   await redis.sRem(WAITING_POOL_KEY, socket.id);
   socket.emit("cancelledMatchmaking");
 }
 
 export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server) => {
-  await redis.sAdd(WAITING_POOL_KEY, socket.id);
-  const playerPoolCount = await redis.sCard(WAITING_POOL_KEY)
-  socket.broadcast.emit("playerPoolCount", playerPoolCount)
 
   let roomId = await findAvailableRoom();
-  if (!roomId) {
-    console.log("no room")
-    roomId = await createRoom(socket); // return roomId
-  }
 
-  const poolCount = await redis.sCard(WAITING_POOL_KEY);
+  const roomKey = `roomPlayers:${roomId}`;
 
-  if (poolCount >= MIN_PLAYERS_TO_START) {
-    console.log("poolCount >= MIN_PLAYERS_TO_START")
+  if (roomId) {
 
-    const players = await redis.sPopCount(WAITING_POOL_KEY, poolCount);
-    console.log(players)
+    console.log("foudn room")
 
-    if (!players) return;
-
-    // Create a new room
-    const roomKey = `roomPlayers:${roomId}`;
-
-    // Store them in Redis under that room
-    await redis.sAdd(roomKey, players);
-
-    // Move sockets into the room
-    players.forEach(async (playerId) => {
-      const socket = io.sockets.sockets.get(playerId) as AuthenticatedSocket; // if playerId = socket.id
-      if (socket) {
-        //set player globally
-
-        const player: Player = {
-          socketId: playerId,
-          userId: socket.userId,
-          room: roomId,
-          position: new Vector3(0, 0, 0),
-          velocity: new Vector3(0, 0, 0),
-          cameraDirection: new Vector3(0, 0, 0),
-          username: socket.username,
-          isDead: false,
-          kills: 0,
-          deaths: 0,
-          health: 100,
-        }
+    const player: Player = {
+      socketId: socket.id,
+      userId: socket.userId,
+      room: roomId,
+      position: new Vector3(0, 0, 0),
+      velocity: new Vector3(0, 0, 0),
+      cameraDirection: new Vector3(0, 0, 0),
+      username: socket.username,
+      isDead: false,
+      kills: 0,
+      deaths: 0,
+      health: 100,
+    }
 
 
-        await setPlayer(playerId, player);
-        await redis.set(`playerRoom:${playerId}`, roomId);
+    await setPlayer(socket.id, player);
+    await redis.set(`playerRoom:${socket.id}`, roomId);
 
+    socket.join(roomId);
+    socket.emit('roomAssigned', { roomId, });
 
-        socket.join(roomId);
-        socket.emit('roomAssigned', { roomId });
+    const memberIds = await redis.sMembers(roomKey); // only this room's players
+    const playersArray = await Promise.all(memberIds.map(async (id) => {
+      const p = await getPlayer(id);
+      // getPlayer returns Player | null — filter nulls later
+      return p;
+    }));
 
-        socket.to(roomId).emit('playerJoined', {
-          id: playerId,
-          username: socket.username,
-          position: player.position,
-          velocity: player.velocity,
-          health: player.health,
-          kills: player.kills,
-          deaths: player.deaths,
-          isDead: player.isDead
-        });
+    const snapshot = playersArray.filter(Boolean);
+    io.to(socket.id).emit('roomSnapshot', snapshot);
 
-      }
+    socket.to(roomId).emit('playerJoined', {
+      id: socket.id,
+      username: socket.username,
+      position: new Vector3(0, 0, 0),
+      velocity: new Vector3(0, 0, 0),
+      health: 100,
+      kills: 0,
+      deaths: 0,
+      isDead: false,
     });
-
-
-
 
   } else {
 
-    console.log("matchmaking")
+    console.log("in matchmaking")
+
+    await redis.sAdd(WAITING_POOL_KEY, socket.id);
+    const playerPoolCount = await redis.sCard(WAITING_POOL_KEY)
+    socket.broadcast.emit("playerPoolCount", playerPoolCount)
+
+    let roomId = await createRoom(socket); // return roomId
+    const roomKey = `roomPlayers:${roomId}`;
+
+    const poolCount = await redis.sCard(WAITING_POOL_KEY);
+
+    if (poolCount >= MIN_PLAYERS_TO_START) {
+      console.log("poolCount >= MIN_PLAYERS_TO_START")
+
+      const players = await redis.sPopCount(WAITING_POOL_KEY, poolCount);
+      console.log(players)
+
+      if (!players) return;
+
+      // Create a new room
+
+      // Store them in Redis under that room
+      await redis.sAdd(roomKey, players);
+
+      // Move sockets into the room
+      players.forEach(async (playerId) => {
+        const socket = io.sockets.sockets.get(playerId) as AuthenticatedSocket; // if playerId = socket.id
+        if (socket) {
+          //set player globally
+
+          const player: Player = {
+            socketId: playerId,
+            userId: socket.userId,
+            room: roomId,
+            position: new Vector3(0, 0, 0),
+            velocity: new Vector3(0, 0, 0),
+            cameraDirection: new Vector3(0, 0, 0),
+            username: socket.username,
+            isDead: false,
+            kills: 0,
+            deaths: 0,
+            health: 100,
+          }
 
 
-    socket.emit("waitingForPlayers", {
-      count: poolCount
-    });
+          await setPlayer(playerId, player);
+          await redis.set(`playerRoom:${playerId}`, roomId);
 
 
-    return null;
+          socket.join(roomId);
+          socket.emit('roomAssigned', { roomId });
 
+          socket.to(roomId).emit('playerJoined', {
+            id: playerId,
+            username: socket.username,
+            position: player.position,
+            velocity: player.velocity,
+            health: player.health,
+            kills: player.kills,
+            deaths: player.deaths,
+            isDead: player.isDead
+          });
+
+
+
+        }
+      });
+
+      const memberIds = await redis.sMembers(roomKey); // only this room's players
+      const playersArray = await Promise.all(memberIds.map(async (id) => {
+        const p = await getPlayer(id);
+        // getPlayer returns Player | null — filter nulls later
+        return p;
+      }));
+
+      // filter out any nulls and emit snapshot to everyone in the room
+      const snapshot = playersArray.filter(Boolean);
+      io.to(socket.id).emit('roomSnapshot', snapshot);
+
+
+
+
+    } else {
+
+      console.log("matchmaking")
+
+
+      socket.emit("waitingForPlayers", {
+        count: poolCount
+      });
+
+
+      return null;
+
+    }
   }
+
+
 }
 
 export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
@@ -324,20 +391,13 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
           if (typeof hitPlayer.health === "number") {
             // ================= if player dies =======================
 
-            if (hitPlayer.health <= 0) {
+            if (hitPlayer.health === 0) {
 
               //userId is attacker
               //playerId is the victim
               hitPlayer.isDead = true;
               io.to(playerId).emit("youDied", { message: "You are dead!" });
-              io.to(userId).emit("playerDead", { userId, playerId }); // Notify others
-
-              io.to(hitPlayer.room).emit("playerUpdate", {
-                id: hitPlayer.socketId,
-                isDead: hitPlayer.isDead,
-                health: hitPlayer.health
-              })
-
+              io.to(hitPlayer.room).emit("playerDead", { killer: userId, victim: playerId }); // Notify others
 
               //respawn after 5 seconds
 
@@ -345,11 +405,11 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
                 hitPlayer.isDead = false;
                 hitPlayer.health = 100;
 
-                io.to(hitPlayer.room).emit("playerUpdate", {
-                  id: hitPlayer.socketId,
-                  isDead: hitPlayer.isDead,
-                  health: hitPlayer.health
-                })
+                // io.to(hitPlayer.room).emit("playerUpdate", {
+                //   id: hitPlayer.socketId,
+                //   isDead: hitPlayer.isDead,
+                //   health: hitPlayer.health
+                // })
 
                 await setPlayer(playerId, hitPlayer);
 
@@ -361,11 +421,16 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
               await setPlayer(playerId, hitPlayer);
             }
 
-            io.to(hitPlayer.room).emit("playerUpdate", {
-              id: hitPlayer.socketId,
-              isDead: hitPlayer.isDead,
-              health: hitPlayer.health
-            })
+            /**
+             * commented out cuz currently it's taking too much processing powe
+             * would later uncomment if needed to show health enemy bars
+             */
+
+            // io.to(hitPlayer.room).emit("playerUpdate", {
+            //   id: hitPlayer.socketId,
+            //   isDead: hitPlayer.isDead,
+            //   health: hitPlayer.health
+            // })
 
 
           }
