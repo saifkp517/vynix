@@ -54,9 +54,10 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
   // ========== handle recieve socket events ============
 
   useEffect(() => {
-    socket.on('playerDead', ({killer, victim}) => {
+
+    socket.on('playerDead', ({ killer, victim }) => {
       console.log(`player ${killer} killed ${victim}`);
-      
+
       // Add to kill feed
       const newKillFeedItem: KillFeedItem = {
         id: `${killer}-${victim}-${Date.now()}`,
@@ -64,7 +65,7 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
         victim,
         timestamp: Date.now()
       };
-      
+
       setKillFeed(prev => {
         const updated = [newKillFeedItem, ...prev];
         // Keep only the last 8 kills
@@ -78,9 +79,6 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
     });
 
     return () => {
-      socket.off('roomSnapshot', (snapshot) => {
-        console.log("got snapshot", snapshot);
-      });
 
       socket.off('playerJoined', (player: any) => {
         useRoomStore.getState().addPlayers([player]);

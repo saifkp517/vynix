@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { useThemeConfig } from "./theme-provider";
 import { getRadiusClass } from "@/lib/theme-config";
 import { redirect } from "next/navigation";
+import { Player } from "@/hooks/useRoomStore";
 
 import socket from "@/lib/socket";
 
@@ -64,6 +65,13 @@ export default function GameLoadoutMenu() {
   // ================= RECIEVE SOCKET EVENTS ==========================
 
   useEffect(() => {
+
+    socket.on("roomSnapshot", ({ roomPlayers }: { roomPlayers: Record<string, Player> }) => {
+      const playersArray = Object.values(roomPlayers);
+      console.log("current room players", roomPlayers, playersArray);
+      useRoomStore.getState().setPlayers([...playersArray]);
+    });
+
     socket.on("roomAssigned", ({ roomId }) => {
       setMatchmakingStatus("Match Found!!")
       redirect(`forest/${roomId}`);

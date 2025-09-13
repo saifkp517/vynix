@@ -397,7 +397,6 @@ const Player: React.FC<PlayerProps> = ({
         }
 
         const currentSpeed = horizontalVelocity.current.length();
-        console.log(currentSpeed)
 
         if (desiredVelocity.length() > 0) {
             // We want to move

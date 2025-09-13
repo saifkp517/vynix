@@ -158,7 +158,7 @@ export const deleteOnlinePlayer = async (id: string) => {
 
 const ROOM_KEY = 'rooms';
 const WAITING_POOL_KEY = "waitPool";
-const MIN_PLAYERS_TO_START = 2;
+const MIN_PLAYERS_TO_START = 1;
 const MAX_PLAYERS = 50;
 
 export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
@@ -262,11 +262,15 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
       health: 100,
     }
 
-
     await setOnlinePlayer(player.socketId);
     await setPlayerInRoom(socket, roomId, player);
+    const roomPlayers = await getAllPlayersFromRoom(roomId);
+    if(roomPlayers) {
+socket.emit('roomSnapshot', { roomPlayers })
+    }
 
-    socket.emit('roomAssigned', { roomId, });
+    
+    socket.emit('roomAssigned', { roomId });
 
     // const memberIds = await redis.sMembers(roomKey); // only this room's players
     // const playersArray = await Promise.all(memberIds.map(async (id) => {

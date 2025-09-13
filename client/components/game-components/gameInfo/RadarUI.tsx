@@ -19,7 +19,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
   // Radar dimensions
   const radarSize = 180;
   const radius = radarSize / 2;
-  const maxWorldDistance = 50; // Max distance shown on radar
+  const maxWorldDistance = 250; // Max distance shown on radar
 
   const calculateAngleToPlayer = (playerPos: Vector3): number => {
 
