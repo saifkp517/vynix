@@ -4,7 +4,7 @@ import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { type ThemeProviderProps } from "next-themes";
 import { createContext, useContext, useState, useEffect } from "react";
-import { ThemeConfig } from "@/types/theme";
+import { ThemeConfig } from "@/types/types";
 import { defaultTheme, getGameModeClass, getUIStyleClass } from "@/lib/theme-config";
 
 type ThemeConfigContextType = {

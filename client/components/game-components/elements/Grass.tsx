@@ -25,7 +25,6 @@ const TallGrass = memo(({
 
     if (!playerCenterRef?.current) return null;
 
-    console.log("grass test rendered")
 
     const centerRef = useRef<THREE.Vector3>(playerCenterRef.current.clone() ?? new THREE.Vector3());
     const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);

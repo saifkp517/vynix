@@ -79,6 +79,15 @@ const Player: React.FC<PlayerProps> = ({
     const gravity = -9.8 * 4;
     const jumpStrength = 25;
 
+    const horizontalVelocity = useRef<Vector3>(new Vector3(0, 0, 0));
+
+    // Movement constants
+    const BASE_SPEED = 6;
+    const SPRINT_SPEED = 30;
+    const ACCELERATION = 30; // How fast you accelerate to target speed
+    const DECELERATION = 80; // How fast you decelerate when stopping
+    const DIRECTION_CHANGE_DECELERATION = 120;
+
     const keysPressedRef = useRef<{ [key: string]: boolean }>({
         KeyW: false,
         KeyA: false,
@@ -151,8 +160,8 @@ const Player: React.FC<PlayerProps> = ({
     // Handle keyboard input
     usePlayerInput({
         onJump: () => { jumpRequested.current = true; },
-        onSprintStart: () => { keysPressedRef.current.ShiftLeft = true; playerSpeed.current = 18; },
-        onSprintEnd: () => { keysPressedRef.current.ShiftLeft = false; playerSpeed.current = 6; },
+        onSprintStart: () => { keysPressedRef.current.ShiftLeft = true; },
+        onSprintEnd: () => { keysPressedRef.current.ShiftLeft = false; },
         onGrenade: () => {
             if (!grenadeCoolDownRef.current) {
                 handleFireballShoot();
@@ -166,8 +175,8 @@ const Player: React.FC<PlayerProps> = ({
         onRightMouseUp: () => {
             setIsFPS(false)
         },
-        onLeftMouseDown() {},
-        onLeftMouseUp() {},
+        onLeftMouseDown() { },
+        onLeftMouseUp() { },
         setMoveState,
     });
 
@@ -376,12 +385,55 @@ const Player: React.FC<PlayerProps> = ({
         moveVector.addScaledVector(rightDirection, direction.current.x); // left/right
         moveVector.normalize();
 
-        const horizontalMove = moveVector.multiplyScalar(playerSpeed.current * delta);
+        const targetSpeed = keysPressedRef.current.ShiftLeft ? SPRINT_SPEED : BASE_SPEED;
+
+        const desiredVelocity = new Vector3();
+        if (moveVector.length() > 0) {
+            moveVector.normalize();
+            desiredVelocity.copy(moveVector).multiplyScalar(targetSpeed);
+        }
+
+        const currentSpeed = horizontalVelocity.current.length();
+        console.log(currentSpeed)
+
+        if (desiredVelocity.length() > 0) {
+            // We want to move
+            if (currentSpeed > 0) {
+                // Check if we're changing direction
+                const currentDirection = horizontalVelocity.current.clone().normalize();
+                const desiredDirection = desiredVelocity.clone().normalize();
+                const dot = currentDirection.dot(desiredDirection);
+
+                // If dot product is negative, we're going in opposite direction
+                if (dot < 0.2) {
+                    // Apply strong deceleration for direction changes
+                    const decelerationRate = DIRECTION_CHANGE_DECELERATION * delta;
+                    horizontalVelocity.current.multiplyScalar(Math.max(0, 1 - decelerationRate));
+                }
+            }
+
+            // Apply acceleration toward desired velocity
+            const velocityDiff = desiredVelocity.clone().sub(horizontalVelocity.current);
+            const accelerationAmount = ACCELERATION * delta;
+
+            if (velocityDiff.length() > accelerationAmount) {
+                velocityDiff.normalize().multiplyScalar(accelerationAmount);
+            }
+
+            horizontalVelocity.current.add(velocityDiff);
+        } else {
+            // No input - apply deceleration
+            const decelerationRate = DECELERATION * delta;
+            horizontalVelocity.current.multiplyScalar(Math.max(0, 1 - decelerationRate));
+        }
 
         // Apply horizontal movement to player position
         const previousPosition = playerPosition.current.clone();
-        playerPosition.current.x += horizontalMove.x;
-        playerPosition.current.z += horizontalMove.z;
+        playerPosition.current.x += horizontalVelocity.current.x * delta
+        playerPosition.current.z += horizontalVelocity.current.z * delta;
+
+        const horizontalMove = moveVector.multiplyScalar(playerSpeed.current * delta);
+
 
 
         // Handle gravity and jumping

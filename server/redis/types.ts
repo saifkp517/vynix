@@ -51,3 +51,4 @@ export interface AuthenticatedSocket extends Socket {
     username: string;
 }
 
+export const PLAYER_RADIUS = 1;

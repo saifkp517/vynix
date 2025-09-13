@@ -6,3 +6,5 @@ export interface ThemeConfig {
   gameMode?: "casual" | "competitive" | "tournament";
   uiStyle?: "minimal" | "standard" | "intense";
 }
+
+export const PLAYER_RADIUS = 1;

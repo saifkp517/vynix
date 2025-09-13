@@ -3,9 +3,13 @@ import * as THREE from 'three';
 import { Howl } from 'howler';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, Vector3, Mesh, Group } from 'three';
+
+
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 import socket from '@/lib/socket';
+
+import { PLAYER_RADIUS } from "@/types/types";
 
 interface GunProps {
   camera: THREE.Camera;
@@ -323,12 +327,11 @@ const Gun: React.FC<GunProps> = ({
         const players = Object.values(otherPlayers.current || {});
         players.forEach(player => {
           const playerPosition = player.position.clone().add(new Vector3(0, -1.5, 0));
-          const playerRadius = 0.5;
           const { hit, distance } = rayIntersectsSphere(
             playerCenterRef.current!,
             hitDirection,
             playerPosition,
-            playerRadius
+            PLAYER_RADIUS
           );
           if (hit) crosshairRef.current?.triggerHit();
         });

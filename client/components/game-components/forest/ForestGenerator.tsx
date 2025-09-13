@@ -108,7 +108,6 @@ export const Forest: React.FC<ForestProps> = ({
 
     if (now - lastCheckRef.current >= checkInterval) {
       const distance = playerCenterRef.current.distanceTo(newCenterRef.current);
-      console.log("Distance:", distance);
 
       if (distance > innerRadius) {
         newCenterRef.current.copy(playerCenterRef.current);

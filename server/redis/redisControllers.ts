@@ -3,10 +3,13 @@ import type { AuthenticatedSocket, Player, ShootObject } from "./types";
 import { PrismaClient } from "@prisma/client";
 import { Server } from "socket.io";
 import { MAX, v4 as uuidv4 } from "uuid"
+
 import { redis } from "./redisClient";
 
 import { getCellKey, broadcastToNearbyPlayers, generateTreePositions, rayIntersectsSphere } from "./utils";
-import { createBrotliDecompress } from "zlib";
+
+import { PLAYER_RADIUS } from "./types";
+
 
 export const CELL_SIZE = 100;
 export type Grid = Map<string, Set<string>>;
@@ -63,7 +66,7 @@ export const deletePlayer = async (id: string) => {
 
 const ROOM_KEY = 'rooms';
 const WAITING_POOL_KEY = "waitPool";
-const MIN_PLAYERS_TO_START = 1;
+const MIN_PLAYERS_TO_START = 2;
 const MAX_PLAYERS = 50;
 
 export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
@@ -378,7 +381,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
 
       // Try values that are "near" the ray
 
-      const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, 0.5);
+      const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, PLAYER_RADIUS);
 
       console.log(`[Check] playerId: ${playerId}, hit: ${hit}, distance: ${distance.toFixed(3)} units`);
 
@@ -391,7 +394,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
           if (typeof hitPlayer.health === "number") {
             // ================= if player dies =======================
 
-            if (hitPlayer.health === 0) {
+            if (hitPlayer.health <= 0 && !hitPlayer.isDead) {
 
               //userId is attacker
               //playerId is the victim

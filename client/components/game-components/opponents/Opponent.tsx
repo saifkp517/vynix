@@ -2,7 +2,10 @@ import { RefObject, useEffect, useRef } from "react";
 import { useFrame, useThree, useLoader } from "@react-three/fiber";
 import { PositionalAudio, AudioListener, AudioLoader, Group, Mesh, Vector3, Color } from 'three';
 import { EventEmitter } from "events";
+
+import { PLAYER_RADIUS } from "@/types/types";
 import OpponentGun from "./OpGun"
+
 
 const RED = new Color("red");
 const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
@@ -104,7 +107,7 @@ export const Opponent = ({
   return (
     <group ref={group} position={[0, 0, 0]}>
       <mesh ref={sphereRef} position={[0, -1.5, 0]}>
-        <sphereGeometry args={[0.5]} />
+        <sphereGeometry args={[PLAYER_RADIUS]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
       <OpponentGun
