@@ -218,6 +218,7 @@ const Game: React.FC = () => {
           crosshairRef={crosshairRef}
           userId={localPlayerId}
           grenadeCoolDownRef={grenadeCoolDownRef}
+          roomId={roomId}
           pingRef={pingRef}
           getGroundHeight={getGroundHeight}
         />

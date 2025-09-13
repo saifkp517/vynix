@@ -12,6 +12,7 @@ import socket from '@/lib/socket';
 import { PLAYER_RADIUS } from "@/types/types";
 
 interface GunProps {
+  roomId: string;
   camera: THREE.Camera;
   userId: string;
   obstacles: any;
@@ -22,6 +23,7 @@ interface GunProps {
 }
 
 const Gun: React.FC<GunProps> = ({
+  roomId,
   camera,
   userId,
   obstacles,
@@ -343,7 +345,7 @@ const Gun: React.FC<GunProps> = ({
       }
     }
 
-    socket.emit('shoot', { userId, shootObject });
+    socket.emit('shoot', { userId, shootObject, roomId });
 
     // visuals and sound
     if (gunRef.current) {

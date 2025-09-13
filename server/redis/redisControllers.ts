@@ -9,6 +9,8 @@ import { redis } from "./redisClient";
 import { getCellKey, broadcastToNearbyPlayers, generateTreePositions, rayIntersectsSphere } from "./utils";
 
 import { PLAYER_RADIUS } from "./types";
+import { socketConnectionHandler } from "../socket-server/handlers/connectionHandler";
+import { idText } from "typescript";
 
 
 export const CELL_SIZE = 100;
@@ -24,34 +26,124 @@ export const allowedOrigins = [
 
 // ================== SHARED PLAYERS ============================ 
 
-const PLAYER_KEY = 'player';
-export const setPlayer = async (id: string, player: Player) => {
-  await redis.hSet(PLAYER_KEY, id, JSON.stringify(player));
+const ONLINE_PLAYERS_KEY = 'onlinePlayers';
+export const getRoomKey = (roomId: string) => `roomPlayers:${roomId}`; // set
+
+export const setOnlinePlayer = async (playerSocketId: string) => {
+  await redis.lPush(ONLINE_PLAYERS_KEY, playerSocketId);
 }
 
-export const getPlayer = async (id: string): Promise<Player | null> => {
-  const data = await redis.hGet(PLAYER_KEY, id);
-  if (!data) return null;
+export const setPlayerInRoom = async (
+  socket: AuthenticatedSocket,
+  roomId: string,
+  player: Player
+) => {
+  // 1. Add userId to the room set
+  await redis.sAdd(getRoomKey(roomId), player.socketId);
 
-  const parsed = JSON.parse(data);
+  // 2. Prepare player data (strings only!)
+  const redisPlayer = {
+    socketId: player.socketId,
+    userId: player.userId,
+    room: roomId,
+    position: JSON.stringify(new Vector3(0, 0, 0)),  // stringify Vector3
+    velocity: JSON.stringify(new Vector3(0, 0, 0)),
+    cameraDirection: JSON.stringify(new Vector3(0, 0, 0)),
+    username: socket.username,
+    isDead: "false",   // store as string
+    kills: "0",
+    deaths: "0",
+    health: "100",
+  };
+
+  // 3. Store as a hash
+  await redis.hSet(`player:${roomId}:${player.socketId}`, redisPlayer);
+
+  // 4. Join socket.io room
+  socket.join(roomId);
+
+  console.log("joined room")
+};
+
+export const updatePlayerInRoom = async (
+  roomId: string,
+  socketId: string,
+  updates: Partial<Player>
+): Promise<void> => {
+  const key = `player:${roomId}:${socketId}`;
+
+  // Convert fields into strings (since Redis stores strings only)
+  const redisUpdates: Record<string, string> = {};
+
+  for (const [field, value] of Object.entries(updates)) {
+    if (value === undefined) continue;
+
+    if (
+      field === "position" ||
+      field === "velocity" ||
+      field === "cameraDirection"
+    ) {
+      redisUpdates[field] = JSON.stringify(value); // Vector3
+    } else if (typeof value === "boolean") {
+      redisUpdates[field] = value ? "true" : "false";
+    } else {
+      redisUpdates[field] = String(value);
+    }
+  }
+
+  if (Object.keys(redisUpdates).length > 0) {
+    await redis.hSet(key, redisUpdates);
+  }
+};
+
+
+export const getPlayerFromRoom = async (
+  roomId: string,
+  socketId: string
+): Promise<Player | null> => {
+  const key = `player:${roomId}:${socketId}`;
+  const data = await redis.hGetAll(key);
+
+  if (!data || Object.keys(data).length === 0) {
+    return null; // player not found
+  }
+
+  const pos = JSON.parse(data.position);
+  const vel = JSON.parse(data.velocity);
+  const cam = JSON.parse(data.cameraDirection);
+
   return {
-    ...parsed,
-    position: new Vector3(parsed.position.x, parsed.position.y, parsed.position.z),
-    velocity: new Vector3(parsed.velocity.x, parsed.velocity.y, parsed.velocity.z)
+    socketId: data.socketId,
+    userId: data.userId,
+    room: data.room,
+    position: new Vector3(pos.x, pos.y, pos.z),
+    velocity: new Vector3(vel.x, vel.y, vel.z),
+    cameraDirection: new Vector3(cam.x, cam.y, cam.z),
+    username: data.username,
+    isDead: data.isDead === "true",
+    kills: Number(data.kills),
+    deaths: Number(data.deaths),
+    health: Number(data.health),
   };
 };
 
-export const getAllPlayers = async (): Promise<Record<string, Player>> => {
-  const all = await redis.hGetAll(PLAYER_KEY);
-  const result: Record<string, Player> = {};
-  for (const [id, json] of Object.entries(all)) {
-    result[id] = JSON.parse(json);
+export const getAllPlayersFromRoom = async (roomId: string): Promise<Record<string, Player>> => {
+  const players: Record<string, Player> = {};
+
+  const roomPlayerIds = await redis.sMembers(getRoomKey(roomId));
+  for (const socketId of roomPlayerIds) {
+    const player = await getPlayerFromRoom(roomId, socketId);
+    if (player) {
+      players[socketId] = player
+    }
   }
-  return result;
+
+  return players;
+
 };
 
-export const deletePlayer = async (id: string) => {
-  await redis.hDel(PLAYER_KEY, id);
+export const deleteOnlinePlayer = async (id: string) => {
+  await redis.lPop(ONLINE_PLAYERS_KEY);
 };
 
 
@@ -84,7 +176,7 @@ export const createRoom = async (socket: AuthenticatedSocket): Promise<string> =
       const playerIds = await redis.sMembers(`roomPlayers:${roomId}`);
 
       for (const playerId of playerIds) {
-        const player = await getPlayer(playerId);
+        const player = await getPlayerFromRoom(roomId, playerId);
 
         if (player) {
 
@@ -133,7 +225,7 @@ export const findAvailableRoom = async (): Promise<string | null> => {
 
   for (const roomId of roomIds) {
     const playerCount = await redis.sCard(`roomPlayers:${roomId}`);
-    if (playerCount < MAX_PLAYERS) {
+    if (playerCount < MAX_PLAYERS && playerCount !== 0) {
       return roomId;
     }
   }
@@ -171,21 +263,20 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
     }
 
 
-    await setPlayer(socket.id, player);
-    await redis.set(`playerRoom:${socket.id}`, roomId);
+    await setOnlinePlayer(player.socketId);
+    await setPlayerInRoom(socket, roomId, player);
 
-    socket.join(roomId);
     socket.emit('roomAssigned', { roomId, });
 
-    const memberIds = await redis.sMembers(roomKey); // only this room's players
-    const playersArray = await Promise.all(memberIds.map(async (id) => {
-      const p = await getPlayer(id);
-      // getPlayer returns Player | null — filter nulls later
-      return p;
-    }));
+    // const memberIds = await redis.sMembers(roomKey); // only this room's players
+    // const playersArray = await Promise.all(memberIds.map(async (id) => {
+    //   const p = await getPlayer(id);
+    //   // getPlayer returns Player | null — filter nulls later
+    //   return p;
+    // }));
 
-    const snapshot = playersArray.filter(Boolean);
-    io.to(socket.id).emit('roomSnapshot', snapshot);
+    // const snapshot = playersArray.filter(Boolean);
+    // io.to(socket.id).emit('roomSnapshot', snapshot);
 
     socket.to(roomId).emit('playerJoined', {
       id: socket.id,
@@ -245,11 +336,9 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
           }
 
 
-          await setPlayer(playerId, player);
-          await redis.set(`playerRoom:${playerId}`, roomId);
+          await setOnlinePlayer(playerId);
+          await setPlayerInRoom(socket, roomId, player);
 
-
-          socket.join(roomId);
           socket.emit('roomAssigned', { roomId });
 
           socket.to(roomId).emit('playerJoined', {
@@ -268,16 +357,16 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
         }
       });
 
-      const memberIds = await redis.sMembers(roomKey); // only this room's players
-      const playersArray = await Promise.all(memberIds.map(async (id) => {
-        const p = await getPlayer(id);
-        // getPlayer returns Player | null — filter nulls later
-        return p;
-      }));
+      // const memberIds = await redis.sMembers(roomKey); // only this room's players
+      // const playersArray = await Promise.all(memberIds.map(async (id) => {
+      //   const p = await getPlayer(id);
+      //   // getPlayer returns Player | null — filter nulls later
+      //   return p;
+      // }));
 
-      // filter out any nulls and emit snapshot to everyone in the room
-      const snapshot = playersArray.filter(Boolean);
-      io.to(socket.id).emit('roomSnapshot', snapshot);
+      // // filter out any nulls and emit snapshot to everyone in the room
+      // const snapshot = playersArray.filter(Boolean);
+      // io.to(socket.id).emit('roomSnapshot', snapshot);
 
 
 
@@ -300,35 +389,28 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
 
 }
 
-export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedSocket, io: Server, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
+export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedSocket, io: Server, roomId: string, position: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
 
-  const userId = socket.id;
+  const player = await getPlayerFromRoom(roomId, socket.id);
+  if (!player) return;
 
-  const getPlayer = await redis.hGet(PLAYER_KEY, userId);
-  if (!getPlayer) return;
-
-  const player = JSON.parse(getPlayer);
-
-  const updatedPlayer: Player = {
-    ...player,
+  await updatePlayerInRoom(roomId, socket.id, {
     position,
     velocity,
     cameraDirection
-  }
-
-  await redis.hSet(PLAYER_KEY, userId, JSON.stringify(updatedPlayer));
+  })
 
 
   const cellKey = getCellKey(position);
 
   //remove player from old cell
   for (const [key, set] of grid.entries()) {
-    if (set.has(userId)) set.delete(userId);
+    if (set.has(socket.id)) set.delete(socket.id);
   }
 
   //add player to new cell
   if (!grid.has(cellKey)) grid.set(cellKey, new Set());
-  grid.get(cellKey)?.add(userId);
+  grid.get(cellKey)?.add(socket.id);
 
   broadcastToNearbyPlayers(socket, cellKey, {
     event: 'playerMoved',
@@ -343,8 +425,8 @@ export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedS
 
 }
 
-export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userId: string, shootObject: ShootObject) => {
-  const players = await getAllPlayers();
+export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userId: string, shootObject: ShootObject, roomId: string) => {
+  const players = await getAllPlayersFromRoom(roomId);
 
   if (players) {
     Object.entries(players).forEach(async ([playerId, player]) => {
@@ -414,14 +496,11 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
                 //   health: hitPlayer.health
                 // })
 
-                await setPlayer(playerId, hitPlayer);
-
               }, 5000);
             } else {
               console.log("Before hit:", hitPlayer.health);
               hitPlayer.health -= 10;
               console.log("After hit:", hitPlayer.health);
-              await setPlayer(playerId, hitPlayer);
             }
 
             /**
@@ -439,7 +518,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
           }
         }
 
-        await setPlayer(playerId, hitPlayer);
+        await updatePlayerInRoom(roomId, playerId, hitPlayer);
 
 
 
@@ -457,6 +536,6 @@ export const leaveRoom = async (playerId: string) => {
 
   await redis.sRem(`roomPlayers:${roomId}`, playerId); // Fixed: added 's'
   await redis.del(`playerRoom:${playerId}`);
-  await deletePlayer(playerId); // Also remove from main player hash
+  await deleteOnlinePlayer(playerId); // Also remove from main player hash
 }
 // ============================================================== 

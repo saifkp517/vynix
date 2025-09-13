@@ -38,7 +38,7 @@ interface Vegetation {
 }
 
 const generateTreePositions = () => {
-  const radius = 1000;
+  const radius = 800;
   const densityFactor = 0.002;
   const center = [0, 0, 0];
   const treeCount = Math.floor(Math.PI * radius * radius * densityFactor);

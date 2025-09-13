@@ -14,6 +14,8 @@ import { CollisionType } from './checkCollision';
 import { useAudioListener } from '@/hooks/useAudioListener';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 
+import { PLAYER_RADIUS } from '@/types/types';
+
 
 interface PlayerProps {
     obstacles: any;
@@ -26,6 +28,7 @@ interface PlayerProps {
     otherPlayers: RefObject<{ [playerId: string]: { position: Vector3; velocity: Vector3 } }>;
     controlsRef: RefObject<any>;
     playerDeadRef: RefObject<boolean>;
+    roomId: string;
     userId: string;
     listenerRef: RefObject<AudioListener | null>;
 }
@@ -45,7 +48,7 @@ const Player: React.FC<PlayerProps> = ({
     getGroundHeight,
     grenadeCoolDownRef,
     otherPlayers,
-    pingRef,
+    roomId,
     userId,
     listenerRef
 }) => {
@@ -107,7 +110,7 @@ const Player: React.FC<PlayerProps> = ({
 
 
     const handlePositionAndCameraChange = React.useCallback((pos: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
-        socket.emit("updatePositionAndCamera", pos, velocity, cameraDirection);
+        socket.emit("updatePositionAndCamera", pos, velocity, cameraDirection, roomId);
     }, []);
 
 
@@ -508,8 +511,11 @@ const Player: React.FC<PlayerProps> = ({
             handlePositionAndCameraChange(playerPosition.current.clone(), playerVelocity.current.clone(), cameraDirection);
             onCenterUpdate(playerPosition.current.clone(), cameraDirection.clone());
 
+
             lastUpdateTime.current = currentTime;
         }
+
+
 
         //walk sound logic
 
@@ -571,13 +577,14 @@ const Player: React.FC<PlayerProps> = ({
             <group ref={playerRef} position={playerPosition.current}>
                 {/* Player body */}
                 <mesh position={[0, -1.5, 0]}>
-                    <sphereGeometry args={[0.5]} />
+                    <sphereGeometry args={[PLAYER_RADIUS]} />
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
 
 
                 {/* Gun (attached to player's right hand) */}
                 <Gun
+                    roomId={roomId}
                     camera={camera}
                     userId={userId}
                     obstacles={obstacles}

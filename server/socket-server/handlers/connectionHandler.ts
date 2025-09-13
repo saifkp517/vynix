@@ -12,8 +12,10 @@ import { assign } from "three/tsl";
 
 
 function assignGuest(socket: AuthenticatedSocket) {
-  socket.userId = `guest-${uuidv4()}`;
-  socket.username = `Guest_${Math.floor(Math.random() * 10000)}`;
+
+  const uuid = uuidv4()
+  socket.userId = `guest-${uuid}`;
+  socket.username = `Guest_${uuid}`;
   console.log("👤 Guest connected:", socket.username);
   socket.emit("userId", socket.userId);
 }
@@ -75,8 +77,8 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   socket.on("requestMatchmaking", (userId) => handleMatchmaking(socket, io));
   socket.on("cancelMatchmaking", () => cancelMatchmaking)
-  socket.on("updatePositionAndCamera", (position, velocity, cameraDirection) => handleUpdatePositionAndCameraUpdate(socket, io, position, velocity, cameraDirection));
-  socket.on("shoot", ({ userId, shootObject }) => handleShoot(socket, io, userId, shootObject));
+  socket.on("updatePositionAndCamera", (position, velocity, cameraDirection, roomId) => handleUpdatePositionAndCameraUpdate(socket, io, roomId,  position, velocity, cameraDirection));
+  socket.on("shoot", ({ userId, shootObject, roomId }) => handleShoot(socket, io, userId, shootObject, roomId));
 
   socket.on("sendMessage", ({ roomId, userId, message }) => {
     console.log(`Message from ${userId} in room ${roomId}: ${message}`);

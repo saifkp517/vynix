@@ -1,4 +1,4 @@
-import React, { RefObject, useEffect, useState } from "react";
+import React, { RefObject, useMemo } from "react";
 import { Vector3 } from "three";
 
 interface RadarUIProps {
@@ -14,21 +14,12 @@ export const RadarUI: React.FC<RadarUIProps> = ({
   playerDataRef,
   cameraDirection
 }) => {
-  const [pingTime, setPingTime] = useState(0);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Update ping time for animation reset
-      setPingTime(Date.now());
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Radar dimensions
   const radarSize = 180;
   const radius = radarSize / 2;
-  const maxWorldDistance = 250; // Max distance shown on radar
+  const maxWorldDistance = 50; // Max distance shown on radar
 
   const calculateAngleToPlayer = (playerPos: Vector3): number => {
 
@@ -85,6 +76,26 @@ export const RadarUI: React.FC<RadarUIProps> = ({
 
     return { x, y };
   };
+  
+
+  const radarPlayers = useMemo(() => {
+    if (!playerDataRef.current) return [];
+
+    return Object.entries(playerDataRef.current)
+      .filter(([playerId]) => playerId !== myPlayerId)
+      .map(([playerId, data]: [string, { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 }]) => {
+        const angle = calculateAngleToPlayer(data.position);
+        const distance = calculateDistanceToPlayer(data.position);
+        const { x, y } = angleDistanceToRadarCoords(angle, distance);
+
+        return {
+          playerId,
+          x,
+          y,
+          distance
+        };
+      });
+  }, [myPlayerId, myPosition, cameraDirection, playerDataRef.current]);
 
   return (
     <div className="fixed bottom-4 right-4 select-none">
@@ -95,7 +106,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
         style={{ width: radarSize, height: radarSize }}
       >
         {/* Radar sweep effect */}
-        <div 
+        <div
           className="absolute inset-0 rounded-full animate-radar-sweep"
           style={{
             background: `conic-gradient(from 0deg, 
@@ -178,27 +189,16 @@ export const RadarUI: React.FC<RadarUIProps> = ({
         />
 
         {/* Other players */}
-        {(playerDataRef.current
-          ? Object.entries(playerDataRef.current)
-              .filter(([playerId]) => playerId !== myPlayerId)
-              .map(([playerId, data]: [string, { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 }]) => {
-                  const angle = calculateAngleToPlayer(data.position);
-                  const distance = calculateDistanceToPlayer(data.position);
-                  const { x, y } = angleDistanceToRadarCoords(angle, distance);
-
-                  return (
-                    <div
-                      key={`${playerId}-${pingTime}`}
-                      className="absolute w-1 h-1 bg-red-700 rounded-full shadow-lg animate-fade-out border border-red-200"
-                      style={{
-                        left: radius + x - 4,
-                        top: radius + y - 4,
-                      }}
-                    />
-                  );
-              })
-          : null
-        )}
+        {radarPlayers.map(({ playerId, x, y }) => (
+          <div
+            key={playerId} // Remove pingTime from key
+            className="absolute w-2 h-2 bg-red-500 rounded-full border border-red-300 transition-all duration-75" // Add smooth transition
+            style={{
+              left: radius + x - 4,
+              top: radius + y - 4,
+            }}
+          />
+        ))}
 
         {/* Range indicator */}
         <div
