@@ -14,8 +14,8 @@ type TallGrassProps = {
 };
 
 const TallGrass = memo(({
-    count = 80000,
-    radius = 100,
+    count = 60000,
+    radius = 120,
     playerCenterRef,
     windStrength = 0.15,
     windSpeed = 0.3,
@@ -269,6 +269,7 @@ const TallGrass = memo(({
     }, []);
 
     useFrame((state) => {
+
         if (!instancedMeshRef.current || !playerCenterRef.current) return;
 
         time.current += state.clock.elapsedTime * 0.0002;
@@ -301,6 +302,8 @@ const TallGrass = memo(({
 
         // Check if redistribution is needed
         if (!isRedistributing && lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15) {
+            console.log("distribution needed")
+
             scheduleRedistribution();
         }
 

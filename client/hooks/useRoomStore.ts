@@ -16,6 +16,8 @@ export interface Player {
 }
 
 interface RoomStore {
+    spawnPoint: Vector3;
+    setSpawnPoint: (spawnPoint: Vector3) => void;
     players: Player[];
     setPlayers: (list: Player[]) => void;
     addPlayers: (player: Player[]) => void;
@@ -23,6 +25,8 @@ interface RoomStore {
 }
 
 export const useRoomStore = create<RoomStore>((set) => ({
+    spawnPoint: new Vector3(0, 0, 0),
+    setSpawnPoint: (spawnPoint) => set({ spawnPoint }),
     players: [],
     setPlayers: (list) => set({ players: list }),
     addPlayers: (newPlayers) =>

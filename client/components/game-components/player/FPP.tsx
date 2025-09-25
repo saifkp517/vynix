@@ -13,7 +13,7 @@
 
 // interface PlayerProps {
 //     obstacles: any;
-//     onCenterUpdate: (center: THREE.Vector3) => void;
+//     handlePlayerCenterUpdate: (center: THREE.Vector3) => void;
 //     playerCenterRef: RefObject<THREE.Vector3>;
 //     pingRef: RefObject<number>;
 //     crosshairRef: RefObject<{ triggerHit: () => void }>;
@@ -105,7 +105,7 @@
 
 // const Player: React.FC<PlayerProps> = ({
 //     obstacles,
-//     onCenterUpdate,
+//     handlePlayerCenterUpdate,
 //     playerCenterRef,
 //     controlsRef,
 //     crosshairRef,
@@ -229,7 +229,7 @@
 //         //update player center every 10 seconds
 //         if (playerBox && playerCenterRef) {
 //             playerCenterRef.current = playerCenter;
-//             onCenterUpdate(playerCenter.clone())
+//             handlePlayerCenterUpdate(playerCenter.clone())
 //         }
 
 //         // Check collision with each obstacle

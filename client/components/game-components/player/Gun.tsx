@@ -32,7 +32,7 @@ const Gun: React.FC<GunProps> = ({
   otherPlayers,
   crosshairRef,
 }) => {
-  const maxAmmo = 30;
+  const maxAmmo = 80;
   const gunRef = useRef<THREE.Group>(null!);
   const muzzleFlash = useRef(false);
   const isReloading = useRef(false);
@@ -83,7 +83,7 @@ const Gun: React.FC<GunProps> = ({
   //these vars are used to prevent infinite shoot loop
   const isTriggerHeld = useRef(false);
   const lastFireTime = useRef(0);
-  const fireRateMs = 150;
+  const fireRateMs = 120;
 
 
   //get live barrel position
@@ -310,7 +310,14 @@ const Gun: React.FC<GunProps> = ({
     let shootObject = {
       // ensure these are plain Vector3 copies, not refs
       rayOrigin: barrelWorldPos.clone(),
-      rayDirection: shootDirection.clone(),
+      rayDirection: (() => {
+        const spread = 0.05;
+        const randomDirection = shootDirection.clone();
+        randomDirection.x += (Math.random() - 0.5) * spread;
+        randomDirection.y += (Math.random() - 0.5) * spread;
+        randomDirection.z += (Math.random() - 0.5) * spread;
+        return randomDirection.normalize();
+      })(),
       timestamp: Date.now(),
     };
 

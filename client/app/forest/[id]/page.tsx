@@ -7,17 +7,20 @@ import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls, Stats } from '@react-three/drei';
 import { useParams } from 'next/navigation';
 
+import type { Vegetation } from '../../types/types';
+
+
 import { useWhyDidYouUpdate } from '@/lib/utils';
+import socket from '@/lib/socket';
+
+
 import Player from '@/components/game-components/player/TPP';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
-import socket from '@/lib/socket';
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
-import { useRoomStore } from '@/hooks/useRoomStore';
-import type { Vegetation } from '../../types/types';
 
 interface Player {
   id: string;
@@ -56,7 +59,7 @@ const Game: React.FC = () => {
   const [localPlayerId, setLocalPlayerId] = useState<string>('');
   const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
   const [vegetationPositions, setVegetationPositions] = useState<Vegetation[] | undefined>(undefined);
-
+  const [spawnPoint, setSpawnPoint] = useState<Vector3>();
 
   // Constants
   const RESOLUTION_SCALE = 1.0;
@@ -152,6 +155,8 @@ const Game: React.FC = () => {
 
     socket.on('connect', handleConnect);
 
+
+
     socket.on('youDied', () => {
       isPlayerDead.current = true;
       setTimeout(() => {
@@ -211,7 +216,8 @@ const Game: React.FC = () => {
       return (
         <Player
           {...props}
-          onCenterUpdate={handlePlayerCenterUpdate}
+          spawnPoint={spawnPoint}
+          handlePlayerCenterUpdate={handlePlayerCenterUpdate}
           playerDeadRef={isPlayerDead}
           playerCenterRef={playerCenterRef}
           controlsRef={controlsRef}

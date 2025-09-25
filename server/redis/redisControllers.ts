@@ -6,7 +6,7 @@ import { MAX, v4 as uuidv4 } from "uuid"
 
 import { redis } from "./redisClient";
 
-import { getCellKey, broadcastToNearbyPlayers, generateTreePositions, rayIntersectsSphere } from "./utils";
+import { getCellKey, broadcastToNearbyPlayers, generateTreePositions, rayIntersectsSphere, getRandomPosition } from "./utils";
 
 import { PLAYER_RADIUS } from "./types";
 import { socketConnectionHandler } from "../socket-server/handlers/connectionHandler";
@@ -24,6 +24,51 @@ export const allowedOrigins = [
   "https://vynix-kohl.vercel.app",
 ];
 
+function distance3D(a: Vector3, b: Vector3) {
+  return Math.sqrt(
+    (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z)
+  )
+}
+
+function randomSpawnPoint(bounds: any) {
+  return new Vector3(
+    Math.random() * (bounds.maxX - bounds.minX) + bounds.minX,
+    0, // y fixed at ground
+    Math.random() * (bounds.maxZ - bounds.minZ) + bounds.minZ
+  );
+}
+
+async function getSafeSpawnLocation(roomId: string) {
+
+  const bounds = { minX: -100, maxX: 100, minZ: -100, maxZ: 100 };
+
+  const roomPlayers = await getAllPlayersFromRoom(roomId);
+
+  const otherPlayerList = Object.values(roomPlayers);
+
+  const MIN_DISTANCE = 50;
+  const MAX_DISTANCE = 100;
+  const MAX_ATTEMPTS = 30;
+
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const candidate = randomSpawnPoint(bounds);
+
+    let safe = true;
+
+    for (const player of otherPlayerList) {
+      const dist = distance3D(candidate, player.position)
+      if (dist > MIN_DISTANCE && dist < MAX_DISTANCE) {
+        safe = false;
+        break;
+      }
+    }
+
+    if (safe) return candidate;
+  }
+
+  return randomSpawnPoint(bounds);
+}
+
 // ================== SHARED PLAYERS ============================ 
 
 const ONLINE_PLAYERS_KEY = 'onlinePlayers';
@@ -36,17 +81,18 @@ export const setOnlinePlayer = async (playerSocketId: string) => {
 export const setPlayerInRoom = async (
   socket: AuthenticatedSocket,
   roomId: string,
-  player: Player
 ) => {
   // 1. Add userId to the room set
-  await redis.sAdd(getRoomKey(roomId), player.socketId);
+  await redis.sAdd(getRoomKey(roomId), socket.id);
+
+  const spawnPoint = await getSafeSpawnLocation(roomId);
 
   // 2. Prepare player data (strings only!)
   const redisPlayer = {
-    socketId: player.socketId,
-    userId: player.userId,
+    socketId: socket.id,
+    userId: socket.userId,
     room: roomId,
-    position: JSON.stringify(new Vector3(0, 0, 0)),  // stringify Vector3
+    position: JSON.stringify(spawnPoint),  // stringify Vector3
     velocity: JSON.stringify(new Vector3(0, 0, 0)),
     cameraDirection: JSON.stringify(new Vector3(0, 0, 0)),
     username: socket.username,
@@ -57,10 +103,12 @@ export const setPlayerInRoom = async (
   };
 
   // 3. Store as a hash
-  await redis.hSet(`player:${roomId}:${player.socketId}`, redisPlayer);
+  await redis.hSet(`player:${roomId}:${socket.id}`, redisPlayer);
 
   // 4. Join socket.io room
   socket.join(roomId);
+
+  socket.emit("spawnPoint", spawnPoint)
 
   console.log("joined room")
 };
@@ -158,7 +206,7 @@ export const deleteOnlinePlayer = async (id: string) => {
 
 const ROOM_KEY = 'rooms';
 const WAITING_POOL_KEY = "waitPool";
-const MIN_PLAYERS_TO_START = 1;
+const MIN_PLAYERS_TO_START = 2;
 const MAX_PLAYERS = 50;
 
 export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
@@ -167,7 +215,7 @@ export const createRoom = async (socket: AuthenticatedSocket): Promise<string> =
   await redis.sAdd(ROOM_KEY, roomId);
   //game over room deletion logic
 
-  const GAME_DURATION = 60 * 1000;
+  const GAME_DURATION = 10 * 60 * 1000;
 
 
   setTimeout(async () => {
@@ -197,6 +245,7 @@ export const createRoom = async (socket: AuthenticatedSocket): Promise<string> =
 
       await redis.sRem(ROOM_KEY, roomId);
       await redis.del(`roomPlayers:${roomId}`);
+      socket.leave(roomId);
 
       console.log("gameOver");
 
@@ -242,8 +291,6 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
 
   let roomId = await findAvailableRoom();
 
-  const roomKey = `roomPlayers:${roomId}`;
-
   if (roomId) {
 
     console.log("foudn room")
@@ -263,13 +310,12 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
     }
 
     await setOnlinePlayer(player.socketId);
-    await setPlayerInRoom(socket, roomId, player);
-    const roomPlayers = await getAllPlayersFromRoom(roomId);
-    if(roomPlayers) {
-socket.emit('roomSnapshot', { roomPlayers })
-    }
+    await setPlayerInRoom(socket, roomId);
 
-    
+    const roomPlayers = await getAllPlayersFromRoom(roomId);
+    if (roomPlayers) {
+      socket.emit('roomSnapshot', { roomPlayers })
+    }
     socket.emit('roomAssigned', { roomId });
 
     // const memberIds = await redis.sMembers(roomKey); // only this room's players
@@ -341,8 +387,12 @@ socket.emit('roomSnapshot', { roomPlayers })
 
 
           await setOnlinePlayer(playerId);
-          await setPlayerInRoom(socket, roomId, player);
+          await setPlayerInRoom(socket, roomId);
 
+          const roomPlayers = await getAllPlayersFromRoom(roomId);
+          if (roomPlayers) {
+            socket.emit('roomSnapshot', { roomPlayers })
+          }
           socket.emit('roomAssigned', { roomId });
 
           socket.to(roomId).emit('playerJoined', {
@@ -433,8 +483,8 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
   const players = await getAllPlayersFromRoom(roomId);
 
   if (players) {
-    Object.entries(players).forEach(async ([playerId, player]) => {
-      if (playerId == userId) return; // Skip the current player
+    for (const [playerId, player] of Object.entries(players)) {
+      if (playerId === userId) continue; // Skip the shooter
 
       const rayOrigin = new Vector3(
         shootObject.rayOrigin.x,
@@ -445,8 +495,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
         shootObject.rayDirection.x,
         shootObject.rayDirection.y,
         shootObject.rayDirection.z
-      ).normalize(); // Always normalize the direction vector
-
+      ).normalize();
 
       const playerCenter = new Vector3(
         player.position.x,
@@ -465,73 +514,86 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
         },
       }, io);
 
-      // Try values that are "near" the ray
-
       const { hit, distance } = rayIntersectsSphere(rayOrigin, rayDirection, playerCenter, PLAYER_RADIUS);
 
       console.log(`[Check] playerId: ${playerId}, hit: ${hit}, distance: ${distance.toFixed(3)} units`);
 
       if (hit) {
         console.log(`--> User-id(${playerId}) is hit!`);
-        io.to(playerId).emit("hit", { rayOrigin })
-        // Handle hit logic here, e.g., reduce health, notify players, etc.
-        let hitPlayer = players[playerId];
-        if (hitPlayer) {
-          if (typeof hitPlayer.health === "number") {
-            // ================= if player dies =======================
+        io.to(playerId).emit("hit", { rayOrigin });
 
-            if (hitPlayer.health <= 0 && !hitPlayer.isDead) {
+        const key = `player:${roomId}:${playerId}`;
 
-              //userId is attacker
-              //playerId is the victim
-              hitPlayer.isDead = true;
-              io.to(playerId).emit("youDied", { message: "You are dead!" });
-              io.to(hitPlayer.room).emit("playerDead", { killer: userId, victim: playerId }); // Notify others
+        // Apply damage atomically
+        await redis.hIncrBy(key, 'health', -10);
 
-              //respawn after 5 seconds
+        const newHealthStr = await redis.hGet(key, 'health');
+        const newHealth = Number(newHealthStr);
 
-              setTimeout(async () => {
-                hitPlayer.isDead = false;
-                hitPlayer.health = 100;
-
-                // io.to(hitPlayer.room).emit("playerUpdate", {
-                //   id: hitPlayer.socketId,
-                //   isDead: hitPlayer.isDead,
-                //   health: hitPlayer.health
-                // })
-
-              }, 5000);
-            } else {
-              console.log("Before hit:", hitPlayer.health);
-              hitPlayer.health -= 10;
-              console.log("After hit:", hitPlayer.health);
-            }
-
-            /**
-             * commented out cuz currently it's taking too much processing powe
-             * would later uncomment if needed to show health enemy bars
-             */
-
-            // io.to(hitPlayer.room).emit("playerUpdate", {
-            //   id: hitPlayer.socketId,
-            //   isDead: hitPlayer.isDead,
-            //   health: hitPlayer.health
-            // })
-
-
-          }
+        if (newHealth > 0) {
+          // Non-fatal hit: Optionally emit health update here if needed
+          // io.to(roomId).emit("playerUpdate", { id: playerId, health: newHealth });
+          continue;
         }
 
-        await updatePlayerInRoom(roomId, playerId, hitPlayer);
+        // Potential death: Use WATCH for atomic check-and-set
+        let attempts = 0;
+        let killed = false;
+        while (attempts < 3 && !killed) { // Retry up to 3 times on conflict
+          await redis.watch(key);
 
+          const isDeadStr = await redis.hGet(key, 'isDead');
+          const isDead = isDeadStr === 'true';
 
+          if (isDead) {
+            await redis.unwatch();
+            break; // Already dead, no need to schedule respawn
+          }
 
+          // Not dead: Attempt to kill atomically
+          const multi = redis.multi();
+          multi.hSet(key, 'isDead', 'true');
+          const execResult = await multi.exec();
+
+          if (execResult === null) {
+            // Transaction failed (conflict), retry
+            attempts++;
+            continue;
+          }
+
+          // Success: This caller "won" the race
+          killed = true;
+          await redis.unwatch();
+
+          // Emit death events
+          io.to(playerId).emit("youDied", { message: "You are dead!" });
+          io.to(roomId).emit("playerDead", { killer: userId, victim: playerId });
+
+          // Schedule single background respawn
+          setTimeout(async () => {
+            // Optional: Re-check state to be safe (e.g., if game ended)
+            const currentIsDead = (await redis.hGet(key, 'isDead')) === 'true';
+            if (!currentIsDead) return;
+
+            const newPos = await getSafeSpawnLocation(roomId);
+
+            await redis.hSet(key, {
+              isDead: 'false',
+              health: '100',
+              position: JSON.stringify(newPos),
+            });
+
+            // Emit respawn to the player (and optionally to room for updates)
+            io.to(playerId).emit("spawnPoint", newPos);
+            io.to(roomId).emit("playerRespawned", { id: playerId, position: newPos });
+          }, 5000);
+        }
       } else {
         console.log(`--> User-id(${playerId}) missed by ${distance.toFixed(3)} units`);
       }
-    })
+    }
   }
-}
+};
 
 
 export const leaveRoom = async (playerId: string) => {

@@ -81,6 +81,29 @@ export default function GameLoadoutMenu() {
       setMatchmakingStatus("Find Match")
       setIsMatchmaking(false);
     })
+
+    socket.on("spawnPoint", (spawnPoint) => {
+      console.log("got spawn point: ", spawnPoint)
+      useRoomStore.getState().setSpawnPoint(spawnPoint)
+    })
+
+    return () => {
+      socket.off("roomSnapshot", ({ roomPlayers }: { roomPlayers: Record<string, Player> }) => {
+        const playersArray = Object.values(roomPlayers);
+        console.log("current room players", roomPlayers, playersArray);
+        useRoomStore.getState().setPlayers([...playersArray]);
+      });
+
+      socket.off("roomAssigned", ({ roomId }) => {
+        setMatchmakingStatus("Match Found!!")
+        redirect(`forest/${roomId}`);
+      })
+
+      socket.off("cancelledMatchmaking", () => {
+        setMatchmakingStatus("Find Match")
+        setIsMatchmaking(false);
+      })
+    };
   }, [socket])
 
   // ==================================================================

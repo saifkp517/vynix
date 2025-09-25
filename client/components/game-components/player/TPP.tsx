@@ -9,17 +9,17 @@ import { Vector3, Mesh, Camera, Raycaster, AudioListener } from 'three';
 import { checkCollisions } from './checkCollision';
 import { CollisionType } from './checkCollision';
 
-
 //hooks
 import { useAudioListener } from '@/hooks/useAudioListener';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
+import { useRoomStore } from '@/hooks/useRoomStore';
 
 import { PLAYER_RADIUS } from '@/types/types';
 
 
 interface PlayerProps {
     obstacles: any;
-    onCenterUpdate: (center: Vector3, cameraDirection: Vector3) => void;
+    handlePlayerCenterUpdate: (center: Vector3, cameraDirection: Vector3) => void;
     playerCenterRef: RefObject<Vector3>;
     pingRef: RefObject<number>;
     crosshairRef: RefObject<{ triggerHit: () => void }>;
@@ -41,7 +41,7 @@ type GunProps = {
 
 const Player: React.FC<PlayerProps> = ({
     obstacles,
-    onCenterUpdate,
+    handlePlayerCenterUpdate,
     playerCenterRef,
     playerDeadRef, controlsRef,
     crosshairRef,
@@ -75,7 +75,11 @@ const Player: React.FC<PlayerProps> = ({
 
     const rand = () => Math.random() * 100 + 100;
 
-    const playerPosition = useRef<Vector3>(new Vector3(0, 0, 0));
+    const spawnPoint = useRoomStore.getState().spawnPoint;
+
+    const playerPosition = useRef<Vector3>(
+        spawnPoint ? new Vector3(spawnPoint.x, spawnPoint.y, spawnPoint.z) : new Vector3(0, 0, 0)
+    );
     const playerVelocity = useRef<Vector3>(new Vector3());
     const playerSpeed = useRef(10);
     const playerHeight = 3;
@@ -87,8 +91,8 @@ const Player: React.FC<PlayerProps> = ({
     // Movement constants
     const BASE_SPEED = 6;
     const SPRINT_SPEED = 30;
-    const ACCELERATION = 30; // How fast you accelerate to target speed
-    const DECELERATION = 80; // How fast you decelerate when stopping
+    const ACCELERATION = 50; // How fast you accelerate to target speed
+    const DECELERATION = 70; // How fast you decelerate when stopping
     const DIRECTION_CHANGE_DECELERATION = 120;
 
     const keysPressedRef = useRef<{ [key: string]: boolean }>({
@@ -481,7 +485,7 @@ const Player: React.FC<PlayerProps> = ({
                 // Handle side collisions
                 playerPosition.current.copy(previousPosition);
                 const slideVector = horizontalMove.clone().projectOnPlane(normal);
-                const pushDistance = 0.001;
+                const pushDistance = 0.01;
                 playerPosition.current.addScaledVector(normal, pushDistance);
                 playerPosition.current.add(slideVector);
             }
@@ -499,16 +503,19 @@ const Player: React.FC<PlayerProps> = ({
             }
         }
 
+
         // Update player position for networking
         const cameraDirection = new Vector3();
 
+
         const currentTime = performance.now();
-        if (currentTime - lastUpdateTime.current >= 100) {
+        if (currentTime - lastUpdateTime.current >= 0) {
 
             camera.getWorldDirection(cameraDirection);
 
+
             handlePositionAndCameraChange(playerPosition.current.clone(), playerVelocity.current.clone(), cameraDirection);
-            onCenterUpdate(playerPosition.current.clone(), cameraDirection.clone());
+            handlePlayerCenterUpdate(playerPosition.current.clone(), cameraDirection.clone());
 
 
             lastUpdateTime.current = currentTime;

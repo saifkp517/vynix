@@ -1,5 +1,6 @@
-import React, { RefObject, useMemo } from "react";
+import React, { RefObject, useEffect, useState } from "react";
 import { Vector3 } from "three";
+
 
 interface RadarUIProps {
   myPlayerId: string;
@@ -7,6 +8,7 @@ interface RadarUIProps {
   playerDataRef: RefObject<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 } }>;
   cameraDirection: Vector3;
 }
+interface player { playerId: string; x: number; y: number; distance: number; }
 
 export const RadarUI: React.FC<RadarUIProps> = ({
   myPlayerId,
@@ -15,11 +17,10 @@ export const RadarUI: React.FC<RadarUIProps> = ({
   cameraDirection
 }) => {
 
-
   // Radar dimensions
   const radarSize = 180;
   const radius = radarSize / 2;
-  const maxWorldDistance = 250; // Max distance shown on radar
+  const maxWorldDistance = 500; // Max distance shown on radar
 
   const calculateAngleToPlayer = (playerPos: Vector3): number => {
 
@@ -76,26 +77,25 @@ export const RadarUI: React.FC<RadarUIProps> = ({
 
     return { x, y };
   };
-  
 
-  const radarPlayers = useMemo(() => {
-    if (!playerDataRef.current) return [];
+  const [radarPlayers, setRadarPlayers] = useState<player[]>([]);
 
-    return Object.entries(playerDataRef.current)
-      .filter(([playerId]) => playerId !== myPlayerId)
-      .map(([playerId, data]: [string, { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 }]) => {
+  useEffect(() => {
+    if (!playerDataRef.current) return;
+
+    const players = Object.entries(playerDataRef.current)
+      .filter(([id]) => id !== myPlayerId)
+      .map(([id, data]) => {
         const angle = calculateAngleToPlayer(data.position);
         const distance = calculateDistanceToPlayer(data.position);
         const { x, y } = angleDistanceToRadarCoords(angle, distance);
-
-        return {
-          playerId,
-          x,
-          y,
-          distance
-        };
+        return { playerId: id, x, y, distance };
       });
+
+    setRadarPlayers(players);
   }, [myPlayerId, myPosition, cameraDirection, playerDataRef.current]);
+
+
 
   return (
     <div className="fixed bottom-4 right-4 select-none">
@@ -191,13 +191,19 @@ export const RadarUI: React.FC<RadarUIProps> = ({
         {/* Other players */}
         {radarPlayers.map(({ playerId, x, y }) => (
           <div
-            key={playerId} // Remove pingTime from key
-            className="absolute w-2 h-2 bg-red-500 rounded-full border border-red-300 transition-all duration-75" // Add smooth transition
+            key={playerId}
+            className="absolute w-0.5 h-0.5 bg-red-500 rounded-full border border-red-300 
+           shadow-[0_0_15px_5px_rgba(255,0,0,0.9),0_0_30px_10px_rgba(255,0,0,0.6),0_0_45px_15px_rgba(255,0,0,0.3)] 
+           animate-pulse transition-all duration-1000 
+           before:absolute before:inset-0 before:rounded-full before:bg-red-500 
+           before:shadow-[0_0_20px_8px_rgba(255,0,0,0.8)] before:animate-ping"
             style={{
-              left: radius + x - 4,
-              top: radius + y - 4,
+              left: radius + x - 6,
+              top: radius + y - 6,
             }}
           />
+
+
         ))}
 
         {/* Range indicator */}
