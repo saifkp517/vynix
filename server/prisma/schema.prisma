@@ -1,0 +1,86 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MatchPlayer {
+  id         String @id @default(uuid())
+  match      Match  @relation(fields: [matchId], references: [id])
+  matchId    String
+  player     User   @relation(fields: [playerId], references: [id])
+  playerId   String
+  killCount  Int    @default(0)
+  deathCount Int    @default(0)
+  kd         Int
+}
+
+model Friendship {
+  id          String   @id @default(uuid())
+  requester   User     @relation("FriendRequester", fields: [requesterId], references: [id])
+  requesterId String
+  recipient   User     @relation("FriendRecipient", fields: [recipientId], references: [id])
+  recipientId String
+  status FriendStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([requesterId, recipientId])
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  username     String?
+  email        String        @unique
+  password     String?
+  image        String?
+  provider     String
+  createdAt    DateTime      @default(now())
+  rank         Rank          @default(UNRANKED)
+  // Core progression/economy
+  xp           Int           @default(0)
+  level        Int           @default(1)
+  coins        Int           @default(0)
+  // Lifetime aggregates for fast reads/leaderboards
+  totalKills   Int           @default(0)
+  totalDeaths  Int           @default(0)
+  totalMatches Int           @default(0)
+  winCount     Int           @default(0)
+  sessions     Session[]
+  matchPlayers MatchPlayer[]
+  friendshipsRequested   Friendship[] @relation("FriendRequester")
+  friendshipsAccepted     Friendship[] @relation("FriendRecipient")
+}
+
+model Match {
+  id       String        @id @default(uuid())
+  winnerId String?
+  stats    MatchPlayer[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+enum Rank {
+  UNRANKED
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+  MASTER
+  GRANDMASTER
+}

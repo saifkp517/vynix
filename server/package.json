@@ -1,0 +1,43 @@
+{
+  "name": "server",
+  "module": "server.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"bun dev:rest\" \"bun dev:socket\"",
+    "dev:rest": "bun --watch run ./rest-api/index.ts",
+    "dev:socket": "bun --watch run ./socket-server/index.ts"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/bun": "latest",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/three": "^0.176.0",
+    "prisma": "6.5.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^6.5.0",
+    "@prisma/client": "6.5.0",
+    "axios": "^1.8.4",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "child_process": "^1.0.2",
+    "cookie": "^1.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.14.1",
+    "redis": "^5.6.1",
+    "simplex-noise": "^4.0.3",
+    "socket.io": "^4.8.1",
+    "three": "^0.176.0",
+    "uuid": "^11.1.0"
+  }
+}
