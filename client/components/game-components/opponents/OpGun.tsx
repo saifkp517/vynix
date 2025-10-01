@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import { useFrame, useThree } from '@react-three/fiber';
 
 interface OpponentGunProps {
-  cameraDirection: THREE.Vector3; // Direction the opponent's camera is facing
+  cameraDirection: () => THREE.Vector3 | null; // Direction the opponent's camera is facing
   shootEvent: EventEmitter; // Event emitter for playerShot events
   userId: string; // Opponent's user ID
 }
@@ -120,8 +120,14 @@ const OpponentGun: React.FC<OpponentGunProps> = ({ cameraDirection, shootEvent, 
   useFrame((state, delta) => {
     // Orient gun to match camera direction
     if (gunRef.current && cameraDirection) {
-      const targetPosition = gunRef.current.position.clone().add(cameraDirection);
-      gunRef.current.lookAt(targetPosition);
+      const camDir = cameraDirection();
+      if (camDir) {  // Only proceed if camDir is non-null
+        const effectiveDir = camDir.clone().normalize().multiplyScalar(10);  // Normalize and scale consistently
+        const worldPos = new THREE.Vector3();
+        gunRef.current.getWorldPosition(worldPos);  // Get actual world position
+        const targetDirection = worldPos.clone().add(effectiveDir);
+        gunRef.current.lookAt(targetDirection);
+      }
     }
 
     // Update tracer and trail positions

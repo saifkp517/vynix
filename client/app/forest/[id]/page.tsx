@@ -5,7 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { Howl } from 'howler';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls, Stats } from '@react-three/drei';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 import type { Vegetation } from '../../types/types';
 
@@ -19,7 +19,6 @@ import Ground, { useGroundHeight } from '@/components/game-components/ground/Gro
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
-import { Crosshair } from '@/components/game-components/crosshair/CrossHair';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
 
 interface Player {
@@ -60,6 +59,8 @@ const Game: React.FC = () => {
   const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
   const [vegetationPositions, setVegetationPositions] = useState<Vegetation[] | undefined>(undefined);
   const [spawnPoint, setSpawnPoint] = useState<Vector3>();
+  const [gameOver, setGameOver] = useState(false);
+
 
   // Constants
   const RESOLUTION_SCALE = 1.0;
@@ -69,6 +70,7 @@ const Game: React.FC = () => {
   const TOAST_TIMEOUT = 3000;
 
   const params = useParams<{ tag: string; id: string }>();
+  const router = useRouter();
 
   // Handlers
   const handleComponentStatusChange = useCallback((componentName: string, status: ComponentStatus['status'], details?: ComponentStatus['details']) => {
@@ -129,7 +131,7 @@ const Game: React.FC = () => {
     if (sessionStorage.getItem('justRefreshed')) {
       sessionStorage.removeItem('justRefreshed');
       socket.disconnect();
-      window.location.href = '/'; 
+      window.location.href = '/';
     }
   }, []);
 
@@ -153,16 +155,24 @@ const Game: React.FC = () => {
       }
     };
 
-    socket.on('connect', handleConnect);
-
-
-
-    socket.on('youDied', () => {
+    const handleYouDied = () => {
       isPlayerDead.current = true;
       setTimeout(() => {
         isPlayerDead.current = false;
       }, RESPAWN_TIMEOUT);
-    });
+    }
+
+    const handleGameOver = () => {
+      setGameOver(true);
+      setTimeout(() => {
+        socket.disconnect();
+        router.push('/');
+      }, 5000);
+    }
+
+    socket.on('connect', handleConnect);
+    socket.on('youDied', handleYouDied);
+    socket.on('gameOver', handleGameOver);
 
     if (socket.connected) {
       handleConnect();
@@ -177,9 +187,8 @@ const Game: React.FC = () => {
 
     return () => {
       socket.off('connect', handleConnect);
-      socket.off('roomSnapshot');
-      socket.off('playerJoined');
-      socket.off('youDied');
+      socket.off('youDied', handleYouDied);
+      socket.off('gameOver', handleGameOver);
       socket.off('pong-check');
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
@@ -271,14 +280,15 @@ const Game: React.FC = () => {
             cameraDirectionRef={cameraDirectionRef}
             playerDataRef={playerDataRef}
             controlsRef={controlsRef}
+            crosshairRef={crosshairRef}
             userid={localPlayerId}
             bulletsAvailable={30}
             explosionTimeout={3000}
             kills={0}
             pingRef={pingRef}
             isPlayerDead={isPlayerDead}
+            gameOver={gameOver}
           />
-          <Crosshair ref={crosshairRef} />
           <div
             ref={canvasContainerRef}
             style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}

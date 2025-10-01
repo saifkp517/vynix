@@ -5,9 +5,9 @@ import { Vector3 } from 'three';
 import socket from '@/lib/socket';
 import { RadarUI } from './RadarUI';
 import Scoreboard from './Scoreboard';
+import { Crosshair } from '../crosshair/CrossHair';
 
-import { useGameInfoStore } from '@/hooks/useGameInfoStore';
-import { useRoomStore } from '@/hooks/useRoomStore';
+import { useGameInfoStore } from '@/hooks/useGameInfoStore';;
 
 interface Player {
   socketId: string;
@@ -27,6 +27,7 @@ interface GameInfoProps {
   roomId: string | null;
   userid: string | null;
   controlsRef?: RefObject<any>;
+  crosshairRef: RefObject<any>;
   grenadeCoolDownRef: RefObject<boolean>;
   bulletsAvailable: number;
   explosionTimeout: number | null;
@@ -36,6 +37,7 @@ interface GameInfoProps {
   cameraDirectionRef: RefObject<Vector3>;
   playerDataRef?: RefObject<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3, cameraDirection: Vector3 } }>;
   isPlayerDead?: RefObject<boolean>;
+  gameOver: boolean;
 }
 
 interface ChatMessage {
@@ -61,12 +63,11 @@ interface DamageIndicator {
 }
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, controlsRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef }) => {
+  ({ roomId, userid, controlsRef, crosshairRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef, gameOver }) => {
 
-    const [gameOver, setGameOver] = useState(false);
+    //* ======================= handle recieve socket events ===============
 
-    // ======================= handle recieve socket events ===============
-
+    // ! the socket events called here can be unmounted, so make sure that the events called are only those that effect the ongoing gameplay
     useEffect(() => {
 
       const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
@@ -87,12 +88,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
 
       socket.on("hit", handleHit);
-      socket.on("gameOver", () => {
-        setGameOver(true);
-        setTimeout(() => {
-          window.location.href = '/'
-        }, 5000);
-      });
       socket.on("receiveMessage", handleReceiveMessage);
 
       return () => {
@@ -330,14 +325,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           <HitAnimation key={effect.id} effect={effect} />
         ))}
 
-        {/* Health Text - Top Left */}
-        <div className="fixed top-14 left-2 z-30">
-          <div className="flex items-center space-x-2 text-white/90">
-            <Heart size={14} className="text-red-400" />
-            <span className="text-sm font-medium tabular-nums">{healthRef.current}</span>
-          </div>
-        </div>
-
         {/* Ammo - Bottom Right Corner */}
         <div className="fixed bottom-0 right-0 p-3 z-30">
           <div className="text-right text-white/90">
@@ -351,12 +338,12 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         </div>
 
         {/* Kills Counter - Top Center */}
-        <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-30">
+        {/* <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-30">
           <div className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
             <Skull size={14} className="text-yellow-400" />
             <span className="text-sm font-medium text-white/90 tabular-nums">{kills}</span>
           </div>
-        </div>
+        </div> */}
 
         {/* Network Status - Top Right */}
         <div className="fixed top-2 right-2 z-30">
@@ -460,6 +447,14 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
             </div>
           </div>
         )}
+
+        {/* Crosshair */}
+        {
+          !gameOver && !isPlayerDead?.current && (
+            <Crosshair ref={crosshairRef} />
+          )
+        }
+
 
         {/* Room Info - Subtle Bottom Left */}
         <div className="fixed bottom-2 left-2 z-30">

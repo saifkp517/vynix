@@ -29,8 +29,10 @@ interface Player {
 
 interface KillFeedItem {
   id: string;
-  killer: string;
-  victim: string;
+  killerId: string;
+  victimId: string;
+  killerName: string;
+  victimName: string;
   timestamp: number;
 }
 
@@ -60,14 +62,16 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
       useRoomStore.getState().updatePlayer(victimId, { deaths: (useRoomStore.getState().getPlayer(victimId)?.deaths || 0) + 1 });
     }
 
-    socket.on('playerDead', ({ killer, victim }) => {
-      console.log(`player ${killer} killed ${victim}`);
+    socket.on('playerDead', ({ killerSocketId, victimSocketId, killerName, victimName }) => {
+      console.log(`player ${killerName} killed ${victimName}`);
 
       // Add to kill feed
       const newKillFeedItem: KillFeedItem = {
-        id: `${killer}-${victim}-${Date.now()}`,
-        killer,
-        victim,
+        id: `${killerName}-${victimName}-${Date.now()}`,
+        killerId: killerSocketId,
+        victimId: victimSocketId,
+        killerName,
+        victimName,
         timestamp: Date.now()
       };
 
@@ -77,7 +81,7 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
         return updated.slice(0, 8);
       });
 
-      updateScoreboard(killer, victim);
+      updateScoreboard(killerSocketId, victimSocketId);
     });
 
     socket.on('playerJoined', (player: any) => {
@@ -155,12 +159,12 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
               }}
             >
               <div className="flex items-center gap-2 text-xs">
-                <span className={`font-medium truncate max-w-20 ${kill.killer === currentUserId ? 'text-blue-300' : 'text-gray-300'}`}>
-                  {kill.killer}
+                <span className={`font-medium truncate max-w-20 ${kill.killerId === currentUserId ? 'text-blue-300' : 'text-gray-300'}`}>
+                  {kill.killerName}
                 </span>
                 <Skull size={12} className="text-red-400 flex-shrink-0" />
                 <span className={`font-medium truncate max-w-20 ${kill.victim === currentUserId ? 'text-blue-300' : 'text-gray-300'}`}>
-                  {kill.victim}
+                  {kill.victimName}
                 </span>
               </div>
             </div>

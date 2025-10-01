@@ -84,12 +84,12 @@ const RemoteOpponents: React.FC<Props> = ({
     useRoomStore.getState().removePlayer(id);
   };
 
-  const handlePlayerDead = ({ killer, victim }: { killer: string; victim: string }) => {
+  const handlePlayerDead = ({ killerSocketId, victimSocketId, killerName, victimName }: { killerSocketId: string; victimSocketId: string, killerName: string, victimName: string }) => {
 
-    showKillToast(killer);
-    deadPlayers.current.add(victim);
-    delete playerDataRef.current[victim];
-    updatePlayerIds(playerIdsRef.current.filter((id) => id !== victim));
+    showKillToast(killerName);
+    deadPlayers.current.add(victimSocketId);
+    delete playerDataRef.current[victimSocketId];
+    updatePlayerIds(playerIdsRef.current.filter((id) => id !== victimSocketId));
   };
 
   const handlePlayerShot = ({
@@ -157,9 +157,9 @@ const RemoteOpponents: React.FC<Props> = ({
         return (
           <Opponent
             key={id}
-            positionRef={() => playerDataRef.current[id]?.position || null}
-            velocityRef={() => playerDataRef.current[id]?.velocity || null}
-            cameraDirectionRef={() => playerDataRef.current[id]?.cameraDirection || null}
+            position={() => playerDataRef.current[id]?.position || null}
+            velocity={() => playerDataRef.current[id]?.velocity || null}
+            cameraDirection={() => playerDataRef.current[id]?.cameraDirection || null}
             shootEvent={shootEventEmitter.current}
             userId={id}
             isRemote={true}

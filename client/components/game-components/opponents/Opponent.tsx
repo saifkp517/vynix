@@ -11,9 +11,9 @@ const RED = new Color("red");
 const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
 
 export const Opponent = ({
-  positionRef,
-  velocityRef,
-  cameraDirectionRef,
+  position,
+  velocity,
+  cameraDirection,
   smoothnessRef,
   shootEvent,
   userId,
@@ -23,9 +23,9 @@ export const Opponent = ({
   listener,
   setAudioRef
 }: {
-  positionRef: () => Vector3 | null;
-  velocityRef: () => Vector3 | null;
-  cameraDirectionRef: () => Vector3 | null;
+  position: () => Vector3 | null;
+  velocity: () => Vector3 | null;
+  cameraDirection:() => Vector3 | null;
   smoothnessRef: RefObject<number>;
   shootEvent: EventEmitter;
   userId: string;
@@ -75,18 +75,18 @@ export const Opponent = ({
   }, [addObstacleRef]);
 
   useEffect(() => {
-    const pos = positionRef();
+    const pos = position();
     if (pos) {
       targetPosition.current.copy(pos);
       currentPosition.current.copy(pos);
     }
-  }, [positionRef]);
+  }, [position]);
 
 
   /** Code used to update the opponent's position and rotation by lerping */
   useFrame((_, delta) => {
-    const pos = positionRef();
-    const vel = velocityRef();
+    const pos = position();
+    const vel = velocity();
 
     if (pos) {
       targetPosition.current.copy(pos);
@@ -111,7 +111,7 @@ export const Opponent = ({
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
       <OpponentGun
-        cameraDirection={cameraDirectionRef() || new Vector3(0, 0, -1)}
+        cameraDirection={cameraDirection || new Vector3(0,0,1)}
         shootEvent={shootEvent}
         userId={userId}
       />

@@ -561,7 +561,7 @@ const Gun: React.FC<GunProps> = ({
   }, []);
 
   return (
-    <group frustumCulled={true} ref={gunRef} position={[0.5, -1.5, -0.5]}>
+    <group frustumCulled={true} ref={gunRef} position={[0.5, -0.3, -0.5]}>
       <mesh>
         <boxGeometry args={[0.4, 0.2, 1]} />
         <meshStandardMaterial color="gray" />
