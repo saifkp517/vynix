@@ -209,13 +209,13 @@ const WAITING_POOL_KEY = "waitPool";
 const MIN_PLAYERS_TO_START = 2;
 const MAX_PLAYERS = 50;
 
-export const createRoom = async (socket: AuthenticatedSocket): Promise<string> => {
+export const createRoom = async (socket: AuthenticatedSocket, io: Server): Promise<string> => {
   const roomId = uuidv4();
 
   await redis.sAdd(ROOM_KEY, roomId);
   //game over room deletion logic
 
-  const GAME_DURATION = 1 * 60 * 1000;
+  const GAME_DURATION = 10 * 60 * 1000;
 
 
   setTimeout(async () => {
@@ -241,7 +241,9 @@ export const createRoom = async (socket: AuthenticatedSocket): Promise<string> =
         }
       }
 
-      socket.to(roomId).emit("gameOver");
+
+
+      io.to(roomId).emit("gameOver");
 
       await redis.sRem(ROOM_KEY, roomId);
       await redis.del(`roomPlayers:${roomId}`);
@@ -348,7 +350,7 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server)
     const playerPoolCount = await redis.sCard(WAITING_POOL_KEY)
     socket.broadcast.emit("playerPoolCount", playerPoolCount)
 
-    let roomId = await createRoom(socket); // return roomId
+    let roomId = await createRoom(socket, io); // return roomId
     const roomKey = `roomPlayers:${roomId}`;
 
     const poolCount = await redis.sCard(WAITING_POOL_KEY);
@@ -568,7 +570,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
 
           // Emit death events
           io.to(playerId).emit("youDied", { message: "You are dead!" });
-          io.to(roomId).emit("playerDead", { killer: userId, victim: playerId });
+          io.to(roomId).emit("playerDead", { killerSocketId: userId, victimSocketId: playerId, killerName: socket.username, victimName: player.username  });
 
 
 
