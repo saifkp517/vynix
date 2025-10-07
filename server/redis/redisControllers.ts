@@ -74,6 +74,10 @@ async function getSafeSpawnLocation(roomId: string) {
 const ONLINE_PLAYERS_KEY = 'onlinePlayers';
 export const getRoomKey = (roomId: string) => `roomPlayers:${roomId}`; // set
 
+export const getAllOnlinePlayers = async () => {
+  return await redis.lLen(ONLINE_PLAYERS_KEY);
+}
+
 export const setOnlinePlayer = async (playerSocketId: string) => {
   await redis.lPush(ONLINE_PLAYERS_KEY, playerSocketId);
 }
@@ -617,6 +621,9 @@ export const leaveRoom = async (playerId: string, io?: Server) => {
     console.log(`No room found for player ${playerId}`);
     return;
   }
+
+  //Remove from onlinePlayers list
+  await redis.lPop(ONLINE_PLAYERS_KEY);
 
   // Remove from room set
   await redis.sRem(`roomPlayers:${roomId}`, playerId);

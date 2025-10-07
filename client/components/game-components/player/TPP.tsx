@@ -91,7 +91,7 @@ const Player: React.FC<PlayerProps> = ({
     // Movement constants
     const BASE_SPEED = 6;
     const SPRINT_SPEED = 30;
-    const ACCELERATION = 50; // How fast you accelerate to target speed
+    const ACCELERATION = 30; // How fast you accelerate to target speed
     const DECELERATION = 70; // How fast you decelerate when stopping
     const DIRECTION_CHANGE_DECELERATION = 120;
 

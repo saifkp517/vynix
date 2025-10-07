@@ -1,57 +1,21 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import {
-  Users,
-  Trophy,
-  Settings,
-  X,
-  Volume2,
-  VolumeX,
-  Monitor,
-  Gamepad2,
-  Crown,
-  Sword,
-  UserPlus,
-  MessageCircle,
-  MoreVertical,
-  Check,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import socket from "@/lib/socket";
-
+import { Users, Trophy, Settings, X, Lock, Activity } from "lucide-react";
 import { useSocketHandlers } from "@/hooks/useSocketHandlersMain";
+import socket from "@/lib/socket";
+import { useRouter } from "next/navigation";
+import axios from "axios";
 
 export default function GameLoadoutMenu() {
-  const [mounted, setMounted] = useState(false);
-  const [matchmakingStatus, setMatchmakingStatus] = useState("Find Match");
-  const [isMatchMaking, setIsMatchmaking] = useState(false);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [findMatchHover, setFindMatchHover] = useState(false);
 
   const router = useRouter();
 
-  // Settings state
-  const [settings, setSettings] = useState({
-    masterVolume: 80,
-    musicVolume: 70,
-    sfxVolume: 85,
-    voiceVolume: 60,
-    muteAll: false,
-    fullscreen: true,
-    vsync: true,
-    showFPS: false,
-    autoSave: true,
-    notifications: true,
-    chatEnabled: true,
-    friendRequests: true
-  });
+  const [matchmakingStatus, setMatchmakingStatus] = useState("Find Match");
+  const [isMatchMaking, setIsMatchmaking] = useState(false);
+  const [activeSection, setActiveSection] = useState(null);
+  const [onlinePlayers, setOnlinePlayers] = useState(12);
 
-  // ================= RECIEVE SOCKET EVENTS ==========================
   useSocketHandlers(socket, {
     setMatchmakingStatus,
     setIsMatchmaking,
@@ -62,541 +26,216 @@ export default function GameLoadoutMenu() {
   });
 
 
-  // ==================================================================
 
-  // Mock data for leaderboard and friends
-  const [leaderboardData] = useState([
-    { rank: 1, name: "DragonSlayer", level: 89, wins: 2847, winRate: 94.2, points: 15420 },
-    { rank: 2, name: "ShadowKnight", level: 82, wins: 2156, winRate: 91.8, points: 14890 },
-    { rank: 3, name: "WarriorKing", level: 47, wins: 1876, winRate: 74.7, points: 12340 },
-    { rank: 4, name: "BattleMage", level: 76, wins: 1654, winRate: 88.3, points: 11950 },
-    { rank: 5, name: "StormBreaker", level: 71, wins: 1543, winRate: 85.7, points: 11200 }
-  ]);
 
-  const [friendsData, setFriendsData] = useState([
-    { id: 1, name: "ShadowKnight", status: "online", level: 82, activity: "In Match" },
-    { id: 2, name: "BattleMage", status: "online", level: 76, activity: "Main Menu" },
-    { id: 3, name: "StormBreaker", status: "away", level: 71, activity: "Away" },
-    { id: 4, name: "IronFist", status: "offline", level: 65, activity: "Last seen 2h ago" },
-    { id: 5, name: "FrostBite", status: "online", level: 58, activity: "Training" }
-  ]);
+
+  useEffect(() => {
+    let isFetching = false;
+
+    async function fetchOnlinePlayers() {
+      if(isFetching) return; //wait until previous fetch has been completed
+      isFetching = true;
+      try {
+        const res = await axios.get(`http://localhost:3001/game/onlinePlayers`);
+        setOnlinePlayers(res.data.players)
+      } catch (err) {
+        console.error("Error fetching players:", err);
+      } finally {
+        isFetching = false;
+      }
+    }
+
+    fetchOnlinePlayers();
+
+    const interval = setInterval(fetchOnlinePlayers, 5000);
+
+    return () => clearInterval(interval)
+
+  })
+
+
+
+
+  const ComingSoonCard = ({ icon: Icon, title, description }) => (
+    <div className="bg-white/95 backdrop-blur-xl rounded-xl border border-slate-200 p-5 shadow-xl max-w-xs w-full">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-400">
+            <Icon className="h-3.5 w-3.5 text-white" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+        </div>
+        <button
+          onClick={() => setActiveSection(null)}
+          className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          <X className="h-3.5 w-3.5 text-slate-600" />
+        </button>
+      </div>
+      <div className="flex flex-col items-center justify-center py-6">
+        <div className="relative mb-2">
+          <Icon className="h-10 w-10 text-emerald-400/60" />
+          <Lock className="h-3 w-3 text-amber-500 absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow" />
+        </div>
+        <p className="text-slate-900 text-xs font-semibold mb-1">Coming Soon</p>
+        <p className="text-slate-600 text-[10px] text-center">{description}</p>
+      </div>
+    </div>
+  );
 
   const handleMatchmaking = () => {
-
-
     if (isMatchMaking) {
-
+      
       socket.emit("cancelMatchmaking");
       setIsMatchmaking(false);
-      setMatchmakingStatus("Cancelling MatchMaking....")
+      setMatchmakingStatus("Find Match");
 
     } else {
 
       socket.emit("requestMatchmaking");
-
+      setIsMatchmaking(true);
+      setMatchmakingStatus("Searching...");
+      setTimeout(() => setMatchmakingStatus("Finding opponents..."), 1500);
     }
-
   };
-
-
-
-  const updateSetting = (key: string, value: any) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  };
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
-  // Leaderboard Component
-  const LeaderboardSection = () => (
-    <Card className="w-full max-w-4xl bg-black/90 border-gray-700 text-white">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-2xl font-light tracking-wide flex items-center gap-2">
-            <Trophy className="h-6 w-6 text-yellow-500" />
-            GLOBAL LEADERBOARD
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setActiveSection(null)}
-            className="text-gray-400 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
-        <div className="space-y-3">
-          {leaderboardData.map((player) => (
-            <div
-              key={player.rank}
-              className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 hover:bg-gray-800/50 ${player.name === "WarriorKing" ? "bg-gray-800/70 border border-gray-600" : "bg-gray-800/30"
-                }`}
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${player.rank === 1 ? "bg-yellow-500 text-black" :
-                  player.rank === 2 ? "bg-gray-300 text-black" :
-                    player.rank === 3 ? "bg-yellow-600 text-white" :
-                      "bg-gray-600 text-white"
-                  }`}>
-                  {player.rank <= 3 ? <Crown className="h-4 w-4" /> : player.rank}
-                </div>
-                <div>
-                  <div className="font-medium">{player.name}</div>
-                  <div className="text-sm text-gray-400">Level {player.level}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-6 text-sm">
-                <div className="text-center">
-                  <div className="text-gray-400">Wins</div>
-                  <div className="font-medium">{player.wins.toLocaleString()}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-400">Win Rate</div>
-                  <div className="font-medium">{player.winRate}%</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-400">Points</div>
-                  <div className="font-medium text-yellow-500">{player.points.toLocaleString()}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  // Friends Section Component
-  const FriendsSection = () => (
-    <Card className="w-full max-w-4xl bg-black/90 border-gray-700 text-white">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-2xl font-light tracking-wide flex items-center gap-2">
-            <Users className="h-6 w-6 text-yellow-500" />
-            FRIENDS & ALLIES
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-400 hover:text-white"
-            >
-              <UserPlus className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveSection(null)}
-              className="text-gray-400 hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
-        <div className="space-y-3">
-          <Input
-            placeholder="Search friends..."
-            className="bg-gray-800/30 border-gray-600 text-white placeholder-gray-400 rounded-lg p-4 text-sm"
-          />
-          {friendsData.map((friend) => (
-            <div
-              key={friend.id}
-              className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50"
-            >
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold bg-gray-600 text-white`}>
-                    <Sword className="h-4 w-4" />
-                  </div>
-                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-900 ${friend.status === "online" ? "bg-green-500" :
-                    friend.status === "away" ? "bg-yellow-600" :
-                      "bg-gray-300"
-                    }`}></div>
-                </div>
-                <div>
-                  <div className="font-medium">{friend.name}</div>
-                  <div className="text-sm text-gray-400">Level {friend.level} • {friend.activity}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-6 text-sm">
-                <div className="text-center">
-                  {friend.status === "online" ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400 hover:text-white"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <div className="w-8"></div>
-                  )}
-                </div>
-                <div className="text-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  // Settings Section Component
-  const SettingsSection = () => (
-    <Card className="w-full max-w-4xl bg-black/90 border-gray-700 text-white">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-2xl font-light tracking-wide flex items-center gap-2">
-            <Settings className="h-6 w-6 text-yellow-500" />
-            GAME SETTINGS
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setActiveSection(null)}
-            className="text-gray-400 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-6 overflow-y-auto max-h-[70vh]">
-        <div className="space-y-3">
-          {/* Audio Settings */}
-          <div className="p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
-                  {settings.muteAll ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                </div>
-                <div>
-                  <div className="font-medium">Audio Settings</div>
-                  <div className="text-sm text-gray-400">Adjust sound levels</div>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-3 ml-12">
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Mute All</div>
-                <input
-                  type="checkbox"
-                  checked={settings.muteAll}
-                  onChange={(e) => updateSetting("muteAll", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Master Volume</div>
-                <div className="flex items-center gap-6">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={settings.masterVolume}
-                    onChange={(e) => updateSetting("masterVolume", parseInt(e.target.value))}
-                    disabled={settings.muteAll}
-                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
-                  />
-                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.masterVolume}%</div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Music Volume</div>
-                <div className="flex items-center gap-6">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={settings.musicVolume}
-                    onChange={(e) => updateSetting("musicVolume", parseInt(e.target.value))}
-                    disabled={settings.muteAll}
-                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
-                  />
-                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.musicVolume}%</div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">SFX Volume</div>
-                <div className="flex items-center gap-6">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={settings.sfxVolume}
-                    onChange={(e) => updateSetting("sfxVolume", parseInt(e.target.value))}
-                    disabled={settings.muteAll}
-                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
-                  />
-                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.sfxVolume}%</div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Voice Volume</div>
-                <div className="flex items-center gap-6">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={settings.voiceVolume}
-                    onChange={(e) => updateSetting("voiceVolume", parseInt(e.target.value))}
-                    disabled={settings.muteAll}
-                    className="w-24 h-2 bg-gray-600 rounded-lg appearance-none accent-white cursor-pointer disabled:opacity-50"
-                  />
-                  <div className="text-sm text-gray-400 min-w-[3rem]">{settings.voiceVolume}%</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Display Settings */}
-          <div className="p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
-                  <Monitor className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="font-medium">Display Settings</div>
-                  <div className="text-sm text-gray-400">Adjust visual options</div>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-3 ml-12">
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Fullscreen Mode</div>
-                <input
-                  type="checkbox"
-                  checked={settings.fullscreen}
-                  onChange={(e) => updateSetting("fullscreen", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">V-Sync</div>
-                <input
-                  type="checkbox"
-                  checked={settings.vsync}
-                  onChange={(e) => updateSetting("vsync", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Show FPS Counter</div>
-                <input
-                  type="checkbox"
-                  checked={settings.showFPS}
-                  onChange={(e) => updateSetting("showFPS", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Game Settings */}
-          <div className="p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
-                  <Gamepad2 className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="font-medium">Game Settings</div>
-                  <div className="text-sm text-gray-400">Adjust gameplay options</div>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-3 ml-12">
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Auto-Save</div>
-                <input
-                  type="checkbox"
-                  checked={settings.autoSave}
-                  onChange={(e) => updateSetting("autoSave", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Notifications</div>
-                <input
-                  type="checkbox"
-                  checked={settings.notifications}
-                  onChange={(e) => updateSetting("notifications", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Chat Enabled</div>
-                <input
-                  type="checkbox"
-                  checked={settings.chatEnabled}
-                  onChange={(e) => updateSetting("chatEnabled", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-medium">Friend Requests</div>
-                <input
-                  type="checkbox"
-                  checked={settings.friendRequests}
-                  onChange={(e) => updateSetting("friendRequests", e.target.checked)}
-                  className="w-4 h-4 accent-white rounded"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg transition-all duration-200 hover:bg-gray-800/50">
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600">
-                <Check className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="font-medium">Save Settings</div>
-                <div className="text-sm text-gray-400">Apply or reset changes</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-6 text-sm">
-              <Button
-                variant="ghost"
-                className="text-gray-400 hover:text-white"
-              >
-                Reset
-              </Button>
-              <Button className="text-gray-400 hover:text-white">
-                <Check className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 relative overflow-hidden">
-
-      {/* Background Image + Blur + Overlay */}
-      <div className="absolute inset-0 z-0">
+    <div className="min-h-screen relative flex items-center justify-center p-6 overflow-hidden">
+      {/* Background image with overlay */}
+      <div className="absolute inset-0">
         <div
-          className="absolute inset-0 bg-cover bg-center blur-xs"
+          className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url('/images/background.png')" }}
         />
-        <div className="absolute inset-0 bg-black/10 backdrop-blur-xs" />
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
       </div>
 
-      {/* Overlay for active sections */}
+      {/* Modal overlay */}
       {activeSection && (
-        <div className="fixed inset-0 bg-black/50 z-20 flex items-center justify-center p-4">
-          {activeSection === "leaderboard" && <LeaderboardSection />}
-          {activeSection === "friends" && <FriendsSection />}
-          {activeSection === "settings" && <SettingsSection />}
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setActiveSection(null)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            {activeSection === "leaderboard" && <ComingSoonCard icon={Trophy} title="Leaderboard" description="Global rankings launching post-beta" />}
+            {activeSection === "friends" && <ComingSoonCard icon={Users} title="Friends" description="Connect with players post-beta" />}
+            {activeSection === "settings" && <ComingSoonCard icon={Settings} title="Settings" description="Customize your experience soon" />}
+          </div>
         </div>
       )}
 
-      {/* Main Container */}
-      <div className="w-full max-w-4xl relative z-10">
-
+      {/* Main content */}
+      <div className="relative z-10 w-full max-w-2xl">
         {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-6xl font-bold text-black tracking-wider mb-4">
-            Zentra.io
+        <div className="text-center mb-8">
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-1 tracking-tight">
+            Zentra<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500">.io</span>
           </h1>
-          <div className="w-24 h-px bg-black/40 mx-auto"></div>
+          <p className="text-slate-700 text-xs font-medium">Enter the Arena</p>
         </div>
 
-        {/* Content Grid */}
-        <div className="grid grid-cols-12 gap-8 items-center">
-
-          {/* Left - Player Info */}
-          <div className="col-span-3 space-y-8">
-            <div className="text-right">
-              <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Player</div>
-              <div className="text-xl text-white font-medium">WarriorKing</div>
-            </div>
-
-            <div className="text-right">
-              <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Level</div>
-              <div className="text-xl text-white font-medium">47</div>
-            </div>
-
-            <div className="text-right">
-              <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Rank</div>
-              <div className="text-xl text-white font-medium">Diamond III</div>
+        {/* Center content */}
+        <div className="space-y-4">
+          {/* Online counter */}
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 ">
+              <Activity className="h-3 w-3 text-emerald-300 animate-pulse" />
+              <span className="text-sm font-bold text-slate-900">{onlinePlayers.toLocaleString()}</span>
+              <span className="text-sm text-slate-200 uppercase tracking-wide">Online</span>
             </div>
           </div>
 
-          {/* Center - Main Actions */}
-          <div className="col-span-6 space-y-12">
-
-            {/* Primary Action */}
-            <div className="text-center">
-              <Button
-                onClick={handleMatchmaking}
-                className="w-64 h-16 bg-gray-900 hover:bg-gray-800 text-white text-lg font-light tracking-wider rounded-none border-0 transition-all duration-300 hover:scale-105"
-                onMouseEnter={() => setFindMatchHover(true)}
-                onMouseLeave={() => setFindMatchHover(false)}
-              >
-                {findMatchHover && isMatchMaking && matchmakingStatus
-                  ? "Cancel Matchmaking"
-                  : matchmakingStatus}
-              </Button>
-            </div>
-          </div>
-
-          {/* Right - Game Stats */}
-          <div className="col-span-3 space-y-8">
-            <div>
-              <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Online</div>
-              <div className="text-xl text-white font-medium">12,847</div>
-            </div>
-
-            <div>
-              <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Win Rate</div>
-              <div className="text-xl text-white font-medium">74.7%</div>
-            </div>
-
-            <div>
-              <div className="text-sm text-white/70 uppercase tracking-wide mb-1">Best Streak</div>
-              <div className="text-xl text-white font-medium">12</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Navigation */}
-        <div className="flex justify-center space-x-16 mt-20">
-          {[
-            { icon: Trophy, label: "Leaderboard", key: "leaderboard" },
-            { icon: Users, label: "Friends", key: "friends" },
-            { icon: Settings, label: "Settings", key: "settings" }
-          ].map(({ icon: Icon, label, key }) => (
+          {/* Main CTA */}
+          <div className="max-w-sm mx-auto">
             <button
-              key={label}
-              onClick={() => setActiveSection(key)}
-              className="flex flex-col items-center space-y-2 text-gray-400 hover:text-gray-600 transition-all duration-300 group"
+              onClick={handleMatchmaking}
+              className="w-full group relative overflow-hidden rounded-lg transition-all hover:scale-[1.01] active:scale-[0.99] shadow-lg hover:shadow-xl"
             >
-              <Icon className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
-              <span className="text-xs uppercase tracking-wide font-light">{label}</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 bg-[length:200%_100%] animate-gradient" />
+              <div className="relative px-6 py-3 flex items-center justify-center gap-2">
+                {isMatchMaking ? (
+                  <>
+                    <div className="flex gap-1">
+                      <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    <span className="text-white text-sm font-bold group-hover:opacity-0 transition-opacity duration-200">{matchmakingStatus}</span>
+                    <span className="absolute left-10 right-0 mx-auto text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                      Cancel Matchmaking?
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-white text-sm font-bold">Find Match</span>
+                )}
+              </div>
             </button>
-          ))}
+          </div>
+
+          {/* Simple stats row */}
+          <div className="flex items-center justify-center gap-6 text-center">
+            <div className="group">
+              <p className="text-slate-200 text-[10px] uppercase tracking-wide mb-0.5 flex items-center justify-center gap-1">
+                <Lock className="h-2 w-2 text-amber-400" />
+                Rank
+              </p>
+              <p className="text-slate-700 text-xs font-semibold">—</p>
+            </div>
+            <div className="w-px h-6 bg-slate-300"></div>
+            <div className="group">
+              <p className="text-slate-200 text-[10px] uppercase tracking-wide mb-0.5 flex items-center justify-center gap-1">
+                <Lock className="h-2 w-2 text-amber-400" />
+                Win Rate
+              </p>
+              <p className="text-slate-700 text-xs font-semibold">—</p>
+            </div>
+            <div className="w-px h-6 bg-slate-300"></div>
+            <div className="group">
+              <p className="text-slate-200 text-[10px] uppercase tracking-wide mb-0.5 flex items-center justify-center gap-1">
+                <Lock className="h-2 w-2 text-amber-400" />
+                Level
+              </p>
+              <p className="text-slate-700 text-xs font-semibold">—</p>
+            </div>
+          </div>
+
+          {/* Bottom navigation */}
+          <div className="flex items-center justify-center gap-6 pt-2">
+            {[
+              { icon: Trophy, label: "Leaderboard", key: "leaderboard" },
+              { icon: Users, label: "Friends", key: "friends" },
+              { icon: Settings, label: "Settings", key: "settings" },
+            ].map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setActiveSection(item.key)}
+                className="relative group flex flex-col items-center gap-1 hover:scale-105 transition-transform"
+              >
+                <div className="relative">
+                  <item.icon className="h-4 w-4 text-slate-300 group-hover:text-emerald-600 transition-colors" />
+                  <Lock className="h-2 w-2 text-amber-400 absolute -top-0.5 -right-0.5 rounded-full" />
+                </div>
+                <span className="text-slate-200 text-[9px] font-semibold group-hover:text-emerald-700 transition-colors uppercase tracking-wide">
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* Footer */}
+        <div className="text-center mt-6 text-slate-500 text-[10px] font-medium">
+          <p>Beta • More features coming soon</p>
+        </div>
       </div>
+
+      <style jsx>{`
+        @keyframes gradient {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .animate-gradient {
+          animation: gradient 3s ease infinite;
+        }
+      `}</style>
     </div>
   );
 }
