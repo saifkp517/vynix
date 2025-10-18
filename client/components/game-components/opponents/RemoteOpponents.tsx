@@ -1,8 +1,7 @@
-import React, { RefObject, useEffect, useRef, useState } from 'react';
+import React, { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { Vector3, Mesh, PositionalAudio, AudioListener } from 'three';
 import { EventEmitter } from 'events';
 import { Opponent } from './Opponent';
-import { useGroundHeight } from '../ground/Ground';
 import socket from '@/lib/socket';
 
 import { useRoomStore } from '@/hooks/useRoomStore';
@@ -20,6 +19,7 @@ interface Props {
   playerDataRef: RefObject<Record<string, PlayerData>>;
   showKillToast: (name: string) => void;
   listenerRef?: RefObject<AudioListener>;
+  playerCenterRef: RefObject<Vector3>;
 }
 
 const RemoteOpponents: React.FC<Props> = ({
@@ -28,107 +28,135 @@ const RemoteOpponents: React.FC<Props> = ({
   playerDataRef,
   showKillToast,
   listenerRef,
+  playerCenterRef
 }) => {
-  const playerIdsRef = useRef<string[]>([]); // Use useRef for playerIds
-  const [renderTrigger, setRenderTrigger] = useState(0); // State to force re-render
-  const getGroundHeight = useGroundHeight();
+  // stable list for rendering
+  const [playerIds, setPlayerIds] = useState<string[]>([]);
+  const playerIdsRef = useRef<string[]>([]); // mirrors state for fast checks
+  const playerUsernamesRef = useRef<Record<string, string>>({}); // id -> username
+
   const deadPlayers = useRef<Set<string>>(new Set());
   const shootEventEmitter = useRef(new EventEmitter());
   const walkingAudioRefs = useRef<Record<string, PositionalAudio>>({});
   const shootingAudioRefs = useRef<Record<string, PositionalAudio>>({});
 
-  // Helper to update playerIds and trigger re-render
-  const updatePlayerIds = (newPlayerIds: string[]) => {
-    playerIdsRef.current = newPlayerIds;
-    setRenderTrigger((prev) => prev + 1); // Force re-render
-  };
-
-  // Socket Event Handlers
-  const handlePlayerMoved = ({
-    id,
-    userId,
-    position,
-    velocity,
-    cameraDirection,
-  }: {
-    id: string;
-    userId: string;
-    position: Vector3;
-    velocity: Vector3;
-    cameraDirection: Vector3;
-  }) => {
-    if (deadPlayers.current.has(id)) {
-      console.log(`Player ${id} respawned, removing from dead list`);
-      deadPlayers.current.delete(id);
+  // Helpers: add / remove players (keeps ref + state in sync)
+  const addPlayer = useCallback((id: string, username?: string) => {
+    if (!playerIdsRef.current.includes(id)) {
+      playerIdsRef.current.push(id);
+      if (username) playerUsernamesRef.current[id] = username;
+      setPlayerIds([...playerIdsRef.current]);
+    } else if (username) {
+      // update username if changed
+      playerUsernamesRef.current[id] = username;
+      // no rerender required for username change unless Opponent depends on it visually
+      setPlayerIds(prev => [...prev]); // small nudge if you want re-render on username change
     }
+  }, []);
 
-    playerDataRef.current[id] = {
-      user: userId,
-      position: new Vector3(position.x, position.y, position.z),
-      velocity: new Vector3(velocity.x, velocity.y, velocity.z),
-      cameraDirection: new Vector3(cameraDirection.x, cameraDirection.y, cameraDirection.z),
+  const removePlayer = useCallback((id: string) => {
+    if (playerIdsRef.current.includes(id)) {
+      playerIdsRef.current = playerIdsRef.current.filter(pid => pid !== id);
+      delete playerUsernamesRef.current[id];
+
+      // stop & cleanup audio nodes for this player if present
+      const walkAudio = walkingAudioRefs.current[id];
+      if (walkAudio) {
+        try { if (walkAudio.isPlaying) walkAudio.stop(); } catch (_) {}
+        delete walkingAudioRefs.current[id];
+      }
+      const shootAudio = shootingAudioRefs.current[id];
+      if (shootAudio) {
+        try { if (shootAudio.isPlaying) shootAudio.stop(); } catch (_) {}
+        delete shootingAudioRefs.current[id];
+      }
+
+      // remove player data
+      delete playerDataRef.current[id];
+      deadPlayers.current.delete(id);
+
+      setPlayerIds([...playerIdsRef.current]);
+    }
+  }, [playerDataRef]);
+
+  // Socket Event Handlers (created once on mount)
+  useEffect(() => {
+    const handlePlayerMoved = (payload: {
+      id: string;
+      userId?: string; // preserved for compatibility
+      username?: string;
+      position: { x: number; y: number; z: number };
+      velocity: { x: number; y: number; z: number };
+      cameraDirection: { x: number; y: number; z: number };
+    }) => {
+      const { id, username, position, velocity, cameraDirection } = payload;
+
+      if (deadPlayers.current.has(id)) {
+        // If they were marked dead but we now get movement => consider respawn
+        deadPlayers.current.delete(id);
+      }
+
+      // update player data ref (do not use setState here; heavy data in ref)
+      playerDataRef.current[id] = {
+        user: payload.userId ?? id,
+        position: new Vector3(position.x, position.y, position.z),
+        velocity: new Vector3(velocity.x, velocity.y, velocity.z),
+        cameraDirection: new Vector3(cameraDirection.x, cameraDirection.y, cameraDirection.z),
+      };
+
+      addPlayer(id, username);
     };
 
-    if (!playerIdsRef.current.includes(id)) {
-      updatePlayerIds([...playerIdsRef.current, id]);
-    }
-  };
+    const handlePlayerDisconnected = (id: string) => {
+      removePlayer(id);
 
-  const handlePlayerDisconnected = (id: string) => {
-    console.log("handle disconnected")
-    delete playerDataRef.current[id];
-    deadPlayers.current.delete(id);
-    updatePlayerIds(playerIdsRef.current.filter((pid) => pid !== id));
+      // remove from centralized room store if applicable
+      try {
+        useRoomStore.getState().removePlayer(id);
+      } catch (e) {
+        // ignore if store doesn't have removePlayer
+        // console.warn('removePlayer not available on room store', e);
+      }
+    };
 
-    //remove player from room.
-    useRoomStore.getState().removePlayer(id);
-  };
+    const handlePlayerDead = (payload: { killerSocketId: string; victimSocketId: string; killerName: string; victimName: string }) => {
+      const { killerSocketId, victimSocketId, killerName } = payload;
+      if(killerSocketId === socket.id) {
+showKillToast(killerName);
+      }
+      
+      deadPlayers.current.add(victimSocketId);
+      // remove data + visuals
+      removePlayer(victimSocketId);
+    };
 
-  const handlePlayerDead = ({ killerSocketId, victimSocketId, killerName, victimName }: { killerSocketId: string; victimSocketId: string, killerName: string, victimName: string }) => {
+    const handlePlayerShot = (payload: { id: string; rayOrigin: { x: number; y: number; z: number }; rayDirection: { x: number; y: number; z: number } }) => {
+      const { id, rayOrigin, rayDirection } = payload;
+      if (deadPlayers.current.has(id)) return;
+      shootEventEmitter.current.emit('playerShot', {
+        id,
+        rayOrigin: new Vector3(rayOrigin.x, rayOrigin.y, rayOrigin.z),
+        rayDirection: new Vector3(rayDirection.x, rayDirection.y, rayDirection.z),
+      });
+    };
 
-    showKillToast(killerName);
-    deadPlayers.current.add(victimSocketId);
-    delete playerDataRef.current[victimSocketId];
-    updatePlayerIds(playerIdsRef.current.filter((id) => id !== victimSocketId));
-  };
+    const handlePlayerWalking = (payload: { userId: string }) => {
+      const audio = walkingAudioRefs.current[payload.userId];
+      if (audio && !audio.isPlaying) {
+        audio.setMaxDistance(25);
+        audio.setLoop(true);
+        audio.setVolume(1);
+        audio.play();
+      }
+    };
 
-  const handlePlayerShot = ({
-    id,
-    rayOrigin,
-    rayDirection,
-  }: {
-    id: string;
-    rayOrigin: Vector3;
-    rayDirection: Vector3;
-  }) => {
-    if (deadPlayers.current.has(id)) return;
-    shootEventEmitter.current.emit('playerShot', {
-      id,
-      rayOrigin: new Vector3(rayOrigin.x, rayOrigin.y, rayOrigin.z),
-      rayDirection: new Vector3(rayDirection.x, rayDirection.y, rayDirection.z),
-    });
-  };
+    const handlePlayerStopped = (payload: { userId: string }) => {
+      const audio = walkingAudioRefs.current[payload.userId];
+      if (audio && audio.isPlaying) {
+        audio.stop();
+      }
+    };
 
-  const handlePlayerWalking = ({ userId }: { userId: string }) => {
-    const audio = walkingAudioRefs.current[userId];
-    if (audio && !audio.isPlaying) {
-      audio.setRefDistance(5);
-      audio.setMaxDistance(25);
-      audio.setLoop(true);
-      audio.setVolume(1);
-      audio.play();
-    }
-  };
-
-  const handlePlayerStopped = ({ userId }: { userId: string }) => {
-    const audio = walkingAudioRefs.current[userId];
-    if (audio && audio.isPlaying) {
-      audio.stop();
-    }
-  };
-
-  // Effect: Attach Socket Events
-  useEffect(() => {
     socket.on('playerMoved', handlePlayerMoved);
     socket.on('playerDisconnected', handlePlayerDisconnected);
     socket.on('playerDead', handlePlayerDead);
@@ -144,14 +172,19 @@ const RemoteOpponents: React.FC<Props> = ({
       socket.off('playerWalking', handlePlayerWalking);
       socket.off('playerStopped', handlePlayerStopped);
     };
-  }, [playerDataRef]);
+  }, [addPlayer, removePlayer, playerDataRef, showKillToast]);
 
+  // stable function to hand audio refs to Opponent children
+  const setAudioRef = useCallback((userId: string, audio: PositionalAudio) => {
+    walkingAudioRefs.current[userId] = audio;
+  }, []);
+
+  // render Opponent components for current playerIds
   return (
     <>
-      {playerIdsRef.current.map((id) => {
+      {playerIds.map((id) => {
         const data = playerDataRef.current[id];
         const isDead = deadPlayers.current.has(id);
-
         if (!data || isDead) return null;
 
         return (
@@ -162,14 +195,12 @@ const RemoteOpponents: React.FC<Props> = ({
             cameraDirection={() => playerDataRef.current[id]?.cameraDirection || null}
             shootEvent={shootEventEmitter.current}
             userId={id}
-            isRemote={true}
+            username={playerUsernamesRef.current[id] ?? ''}
             addObstacleRef={addObstacleRef}
-            getGroundHeight={getGroundHeight}
             smoothnessRef={smoothnessRef}
             listener={listenerRef?.current}
-            setAudioRef={(userId, audio) => {
-              walkingAudioRefs.current[userId] = audio;
-            }}
+            setAudioRef={setAudioRef}
+            localPlayerPositionRef={playerCenterRef}
           />
         );
       })}

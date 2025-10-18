@@ -478,6 +478,7 @@ export const handleUpdatePositionAndCameraUpdate = async (socket: AuthenticatedS
     payload: {
       id: socket.id,
       userId: socket.userId,
+      username: socket.username,
       position,
       velocity,
       cameraDirection,

@@ -322,6 +322,7 @@ const Game: React.FC = () => {
                     playerDataRef={playerDataRef}
                     showKillToast={showKillToast}
                     listenerRef={listenerRef}
+                    playerCenterRef={playerCenterRef}
                   />
                 </Ground>
               </Canvas>

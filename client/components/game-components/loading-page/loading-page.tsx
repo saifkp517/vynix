@@ -2,13 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { Trees } from "lucide-react";
-import { redirect } from "next/navigation";
-import { useAuth } from "@/app/utils/AuthContext";
 
 export default function GameLoading() {
-    const { user } = useAuth();
     const [mounted, setMounted] = useState(false);
-    const [loadingProgress, setLoadingProgress] = useState(0);
     const [loadingText, setLoadingText] = useState("Initializing");
 
     const loadingStates = [
@@ -18,34 +14,6 @@ export default function GameLoading() {
         "Preparing arena...",
         "Almost ready..."
     ];
-
-    useEffect(() => {
-        setMounted(true);
-        // Simulate loading progress
-        const interval = setInterval(() => {
-            setLoadingProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    return 100;
-                }
-                return prev + 1;
-            });
-        }, 50);
-
-        // Update loading text based on progress
-        const textInterval = setInterval(() => {
-            setLoadingProgress((current) => {
-                const stateIndex = Math.floor((current / 100) * (loadingStates.length - 1));
-                setLoadingText(loadingStates[stateIndex] || loadingStates[0]);
-                return current;
-            });
-        }, 1000);
-
-        return () => {
-            clearInterval(interval);
-            clearInterval(textInterval);
-        };
-    }, []);
 
     if (!mounted) return null;
 

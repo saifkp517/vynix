@@ -54,6 +54,13 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   assignGuest(socket);
 
+   socket.on("updateUsername", (newUsername: string) => {
+    if (!newUsername || newUsername.trim().length === 0) return;
+
+    socket.username = newUsername.trim();
+    console.log(`✏️ Username updated: ${socket.userId} → ${socket.username}`);
+  });
+
   async function validateSession(sessionId: string) {
     const response = await axios.get("http://localhost:3001/auth/me", {
       headers: {

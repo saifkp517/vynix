@@ -91,7 +91,7 @@ const Player: React.FC<PlayerProps> = ({
     // Movement constants
     const BASE_SPEED = 6;
     const SPRINT_SPEED = 30;
-    const ACCELERATION = 30; // How fast you accelerate to target speed
+    const ACCELERATION = 20; // How fast you accelerate to target speed
     const DECELERATION = 70; // How fast you decelerate when stopping
     const DIRECTION_CHANGE_DECELERATION = 120;
 
@@ -290,13 +290,12 @@ const Player: React.FC<PlayerProps> = ({
     }, []);
 
 
+    const recoilVelocity = new Vector3();
+
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
 
         if (playerDeadRef.current) return; // Skip if player is dead
-
-        // Removed the controlsRef check since PointerLockControls is disabled
-        // if (!controlsRef?.current?.isLocked) return;
 
         // Get ground height for the player
         const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
@@ -486,11 +485,28 @@ const Player: React.FC<PlayerProps> = ({
             } else {
                 // Handle side collisions
                 playerPosition.current.copy(previousPosition);
+
                 const slideVector = horizontalMove.clone().projectOnPlane(normal);
-                const pushDistance = 0.01;
-                playerPosition.current.addScaledVector(normal, pushDistance);
-                playerPosition.current.add(slideVector);
+
+                // Target rebound strength
+                const targetPushDistance = 10;
+                const lerpFactor = 0.05; // initial impulse strength
+                const damping = 0.85;    // decay per frame
+
+                // Apply a one-frame impulse along the normal
+                const pushDir = normal.clone().multiplyScalar(targetPushDistance * lerpFactor);
+                recoilVelocity.add(pushDir);
+
+                // Move the player based on recoil
+                playerPosition.current.add(recoilVelocity.clone().multiplyScalar(delta));
+
+                // Gradually reduce recoil over time
+                recoilVelocity.multiplyScalar(damping);
+
+                // Optional small slide if you want surface drift
+                // playerPosition.current.add(slideVector.multiplyScalar(0.05));
             }
+
         }
 
         // Update player position and rotation

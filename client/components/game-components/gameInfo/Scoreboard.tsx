@@ -163,7 +163,7 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
                   {kill.killerName}
                 </span>
                 <Skull size={12} className="text-red-400 flex-shrink-0" />
-                <span className={`font-medium truncate max-w-20 ${kill.victim === currentUserId ? 'text-blue-300' : 'text-gray-300'}`}>
+                <span className={`font-medium truncate max-w-20 ${kill.victimId === currentUserId ? 'text-blue-300' : 'text-gray-300'}`}>
                   {kill.victimName}
                 </span>
               </div>

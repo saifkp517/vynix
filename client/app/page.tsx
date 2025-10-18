@@ -13,8 +13,10 @@ export default function GameLoadoutMenu() {
 
   const [matchmakingStatus, setMatchmakingStatus] = useState("Find Match");
   const [isMatchMaking, setIsMatchmaking] = useState(false);
-  const [activeSection, setActiveSection] = useState(null);
+  const [activeSection, setActiveSection] = useState('');
   const [onlinePlayers, setOnlinePlayers] = useState(12);
+  const [username, setUsername] = useState("");
+  const [savedUsername, setSavedUsername] = useState("");
 
   useSocketHandlers(socket, {
     setMatchmakingStatus,
@@ -25,21 +27,34 @@ export default function GameLoadoutMenu() {
     },
   });
 
+  useEffect(() => {
+    const stored = localStorage.getItem("username");
+    if (stored) {
+      setSavedUsername(stored);
+      socket.emit("updateUsername", stored);
+    }
 
+    const handleUsernameSet = (newName: string) => setSavedUsername(newName);
+    socket.on("usernameSet", handleUsernameSet);
 
+    return () => {
+      socket.off("usernameSet", handleUsernameSet);
+    };
+  }, []);
 
 
   useEffect(() => {
     let isFetching = false;
 
     async function fetchOnlinePlayers() {
-      if(isFetching) return; //wait until previous fetch has been completed
+      if (isFetching) return; //wait until previous fetch has been completed
       isFetching = true;
       try {
         const res = await axios.get(`http://localhost:3001/game/onlinePlayers`);
         setOnlinePlayers(res.data.players)
       } catch (err) {
         console.error("Error fetching players:", err);
+        setOnlinePlayers(0)
       } finally {
         isFetching = false;
       }
@@ -51,12 +66,14 @@ export default function GameLoadoutMenu() {
 
     return () => clearInterval(interval)
 
-  })
+  }, [])
 
+  const handleUsernameChange = (value: string) => {
+    setUsername(value);
+    localStorage.setItem("username", value);
+  };
 
-
-
-  const ComingSoonCard = ({ icon: Icon, title, description }) => (
+  const ComingSoonCard = ({ icon: Icon, title, description }: any) => (
     <div className="bg-white/95 backdrop-blur-xl rounded-xl border border-slate-200 p-5 shadow-xl max-w-xs w-full">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -66,7 +83,7 @@ export default function GameLoadoutMenu() {
           <h3 className="text-sm font-bold text-slate-900">{title}</h3>
         </div>
         <button
-          onClick={() => setActiveSection(null)}
+          onClick={() => setActiveSection('')}
           className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
         >
           <X className="h-3.5 w-3.5 text-slate-600" />
@@ -85,13 +102,11 @@ export default function GameLoadoutMenu() {
 
   const handleMatchmaking = () => {
     if (isMatchMaking) {
-      
       socket.emit("cancelMatchmaking");
       setIsMatchmaking(false);
       setMatchmakingStatus("Find Match");
-
     } else {
-
+      socket.emit("updateUsername", username);
       socket.emit("requestMatchmaking");
       setIsMatchmaking(true);
       setMatchmakingStatus("Searching...");
@@ -112,7 +127,7 @@ export default function GameLoadoutMenu() {
 
       {/* Modal overlay */}
       {activeSection && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setActiveSection(null)}>
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setActiveSection('')}>
           <div onClick={(e) => e.stopPropagation()}>
             {activeSection === "leaderboard" && <ComingSoonCard icon={Trophy} title="Leaderboard" description="Global rankings launching post-beta" />}
             {activeSection === "friends" && <ComingSoonCard icon={Users} title="Friends" description="Connect with players post-beta" />}
@@ -144,11 +159,31 @@ export default function GameLoadoutMenu() {
 
           {/* Main CTA */}
           <div className="max-w-sm mx-auto">
+            {/* Set Username Form*/}
+            {/* Username input section */}
+            <div className="max-w-sm mx-auto mb-4">
+              <div className="bg-transparent backdrop-blur-xl rounded-lg border border-slate-200 shadow-md px-4 py-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter your username..."
+                  value={username}
+                  onChange={(e) => handleUsernameChange(e.target.value)}
+                  className="flex-1 text-sm text-center text-slate-200 bg-transparent focus:outline-none placeholder:text-slate-400"
+                />
+              </div>
+              {savedUsername && (
+                <p className="text-[10px] text-center text-slate-300 mt-1">
+                  Playing as <span className="font-bold text-emerald-300">{savedUsername}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Matchmaking Button */}
             <button
               onClick={handleMatchmaking}
               className="w-full group relative overflow-hidden rounded-lg transition-all hover:scale-[1.01] active:scale-[0.99] shadow-lg hover:shadow-xl"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 bg-[length:200%_100%] animate-gradient" />
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-700 to-emerald-500 bg-[length:200%_100%] animate-gradient" />
               <div className="relative px-6 py-3 flex items-center justify-center gap-2">
                 {isMatchMaking ? (
                   <>
@@ -221,7 +256,7 @@ export default function GameLoadoutMenu() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-slate-500 text-[10px] font-medium">
+        <div className="text-center mt-6 text-slate-500 text-shadow-lg text-shadow-white text-[10px] font-medium">
           <p>Beta • More features coming soon</p>
         </div>
       </div>

@@ -22,7 +22,7 @@ export function checkCollisions(
   obstacles: any
 ): CollisionResult {
   const playerBox = new Box3().setFromCenterAndSize(playerPosition, new Vector3(1, 2, 1));
-  const playerSphere = new Sphere(playerPosition.clone(), 1);
+  const playerSphere = new Sphere(playerPosition.clone(), 1.5);
 
   const playerCenter = new Vector3();
   playerBox.getCenter(playerCenter);
