@@ -62,12 +62,12 @@ const RemoteOpponents: React.FC<Props> = ({
       // stop & cleanup audio nodes for this player if present
       const walkAudio = walkingAudioRefs.current[id];
       if (walkAudio) {
-        try { if (walkAudio.isPlaying) walkAudio.stop(); } catch (_) {}
+        try { if (walkAudio.isPlaying) walkAudio.stop(); } catch (_) { }
         delete walkingAudioRefs.current[id];
       }
       const shootAudio = shootingAudioRefs.current[id];
       if (shootAudio) {
-        try { if (shootAudio.isPlaying) shootAudio.stop(); } catch (_) {}
+        try { if (shootAudio.isPlaying) shootAudio.stop(); } catch (_) { }
         delete shootingAudioRefs.current[id];
       }
 
@@ -121,10 +121,10 @@ const RemoteOpponents: React.FC<Props> = ({
 
     const handlePlayerDead = (payload: { killerSocketId: string; victimSocketId: string; killerName: string; victimName: string }) => {
       const { killerSocketId, victimSocketId, killerName } = payload;
-      if(killerSocketId === socket.id) {
-showKillToast(killerName);
+      if (killerSocketId === socket.id) {
+        showKillToast(killerName);
       }
-      
+
       deadPlayers.current.add(victimSocketId);
       // remove data + visuals
       removePlayer(victimSocketId);

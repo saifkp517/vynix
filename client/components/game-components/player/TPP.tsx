@@ -1,4 +1,5 @@
-// Player component
+// Key changes to add to your Player component:
+
 import React, { useRef, useState, useEffect, RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber'
 import socket from '@/lib/socket';
@@ -55,11 +56,6 @@ const Player: React.FC<PlayerProps> = ({
 
     const [isFPS, setIsFPS] = useState(false);
 
-
-
-
-
-
     const { camera } = useThree();
     const collidingRef = useRef(false);
     const collisionNormalRef = useRef<Vector3 | null>(null);
@@ -71,7 +67,12 @@ const Player: React.FC<PlayerProps> = ({
     const [explosions, setExplosions] = useState<{ id: number; position: Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
     const walkSoundRef = useRef<Howl | null>(null);
-    const wasWalkingRef = useRef(false); // to track last frame walking state
+    const wasWalkingRef = useRef(false);
+
+    // NEW: Rebound system refs
+    const reboundVelocity = useRef<Vector3>(new Vector3());
+    const inputBlockedUntil = useRef<number>(0);
+    const lastCollisionTime = useRef<number>(0);
 
     const rand = () => Math.random() * 100 + 100;
 
@@ -91,9 +92,15 @@ const Player: React.FC<PlayerProps> = ({
     // Movement constants
     const BASE_SPEED = 6;
     const SPRINT_SPEED = 30;
-    const ACCELERATION = 20; // How fast you accelerate to target speed
-    const DECELERATION = 70; // How fast you decelerate when stopping
+    const ACCELERATION = 20;
+    const DECELERATION = 70;
     const DIRECTION_CHANGE_DECELERATION = 120;
+
+    // NEW: Rebound constants
+    const REBOUND_STRENGTH = 30; // Initial bounce-back force
+    const REBOUND_DECAY = 0.88; // How quickly rebound loses strength (higher = slower decay)
+    const INPUT_BLOCK_DURATION = 0.4; // Seconds to block input after collision
+    const COLLISION_COOLDOWN = 0.15; // Minimum time between collision rebounds
 
     const keysPressedRef = useRef<{ [key: string]: boolean }>({
         KeyW: false,
@@ -106,18 +113,14 @@ const Player: React.FC<PlayerProps> = ({
 
     useAudioListener(camera, listenerRef);
 
-
     const result = checkCollisions(playerPosition.current, obstacles);
     collidingRef.current = result.isColliding;
     collisionNormalRef.current = result.collisionNormal;
     collisionTypeRef.current = result.collisionType;
 
-
     const handlePositionAndCameraChange = React.useCallback((pos: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
         socket.emit("updatePositionAndCamera", pos, velocity, cameraDirection, roomId);
     }, []);
-
-
 
     const handleFireballShoot = () => {
         if (!playerRef.current) return;
@@ -128,32 +131,11 @@ const Player: React.FC<PlayerProps> = ({
         camera.getWorldDirection(cameraDirection);
         const newFireball = {
             id: Date.now(),
-            position: startPosition, // Player's position
-            direction: cameraDirection, // Forward direction
+            position: startPosition,
+            direction: cameraDirection,
         };
         setFireballs((prev) => [...prev, newFireball]);
-
     };
-
-    /** Work on explosion damage synced with server */
-    // const handleExplosion = (position: Vector3) => {
-
-    //     const id = Date.now();
-    //     setFireballs((prev) => prev.slice(1)); // Remove the first fireball
-    //     setExplosions((prev) => [...prev, { id, position }]);
-
-    //     const sound = new Howl({
-    //         src: ['/sounds/explosion.mp3'],
-    //         volume: 1,
-    //     })
-    //     sound.play();
-
-    //     // Remove explosion after a second
-    //     setTimeout(() => {
-    //         setExplosions((prev) => prev.filter((exp) => exp.id !== id));
-
-    //     }, 1000);
-    // };
 
     const direction = useRef<Vector3>(new Vector3());
     const [moveState, setMoveState] = useState({
@@ -162,7 +144,6 @@ const Player: React.FC<PlayerProps> = ({
         left: false,
         right: false
     });
-
 
     // Handle keyboard input
     usePlayerInput({
@@ -187,12 +168,8 @@ const Player: React.FC<PlayerProps> = ({
         setMoveState,
     });
 
-
-
-    // Add state to track camera angles
     const cameraAngles = useRef({ horizontal: 0, vertical: 0 });
 
-    // Simple third-person mouse controls - always active, no locking
     useEffect(() => {
         interface MouseMoveEvent extends MouseEvent {
             movementX: number;
@@ -207,11 +184,9 @@ const Player: React.FC<PlayerProps> = ({
         const handleMouseMove = (event: MouseMoveEvent) => {
             const sensitivity: number = 0.004;
 
-            // Always update camera angles when mouse moves
             (cameraAngles.current as CameraAngles).horizontal -= event.movementX * sensitivity;
             (cameraAngles.current as CameraAngles).vertical += event.movementY * sensitivity;
 
-            // Clamp vertical angle(to prevent the tpp camera from coming in front of the player.)
             const maxVerticalAngle: number = Math.PI / 2;
             const minVerticalAngle: number = -Math.PI / 2;
             (cameraAngles.current as CameraAngles).vertical = Math.max(
@@ -220,7 +195,6 @@ const Player: React.FC<PlayerProps> = ({
             );
         };
 
-        // Just listen to mouse movement - that's it!
         document.addEventListener('mousemove', handleMouseMove);
 
         return () => {
@@ -228,14 +202,12 @@ const Player: React.FC<PlayerProps> = ({
         };
     }, []);
 
-
     //respawn logic
     useEffect(() => {
         let lastState = playerDeadRef.current;
 
         const interval = setInterval(() => {
             if (lastState && !playerDeadRef.current) {
-                // Player just respawned
                 const otherPlayerList = Object.values(otherPlayers.current);
                 console.log("Respawning player, other players:", otherPlayerList);
                 const MIN_DISTANCE = 100;
@@ -260,7 +232,7 @@ const Player: React.FC<PlayerProps> = ({
                         const safe = otherPlayerList.every(p => p.position.distanceTo(candidate) >= MIN_DISTANCE);
                         if (safe) return candidate;
                     }
-                    return new Vector3(100, getGroundHeight(100, 100) + playerHeight, 100); // fallback
+                    return new Vector3(100, getGroundHeight(100, 100) + playerHeight, 100);
                 };
 
                 const spawnPos = getValidSpawn();
@@ -289,55 +261,56 @@ const Player: React.FC<PlayerProps> = ({
         };
     }, []);
 
-
-    const recoilVelocity = new Vector3();
-
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
 
-        if (playerDeadRef.current) return; // Skip if player is dead
+        if (playerDeadRef.current) return;
+
+        const currentTime = performance.now() / 1000; // Convert to seconds
 
         // Get ground height for the player
         const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
         const onGround = playerPosition.current.y <= groundY + playerHeight + 1;
 
-        // Calculate movement direction based on camera orientation
-        direction.current.z = Number(moveState.backward) - Number(moveState.forward);
-        direction.current.x = Number(moveState.right) - Number(moveState.left);
-        direction.current.normalize();
+        // NEW: Check if input is blocked
+        const isInputBlocked = currentTime < inputBlockedUntil.current;
 
+        // Calculate movement direction based on camera orientation
+        // Only apply input if not blocked
+        if (!isInputBlocked) {
+            direction.current.z = Number(moveState.backward) - Number(moveState.forward);
+            direction.current.x = Number(moveState.right) - Number(moveState.left);
+            direction.current.normalize();
+        } else {
+            // Input is blocked - zero out direction
+            direction.current.set(0, 0, 0);
+        }
 
         // Get player head position
         const playerHeadPosition = playerPosition.current.clone().add(new Vector3(0, playerHeight, 0));
 
         if (isFPS) {
-
-
             const horizontalAngle = cameraAngles.current.horizontal;
             const verticalAngle = cameraAngles.current.vertical;
 
-            // Position camera at the head (slightly offset optional to avoid clipping)
-            const eyeOffsetY = -2.5; // tweak if needed (e.g., 0.1)
+            const eyeOffsetY = -2.5;
             const eye = playerHeadPosition.clone();
             eye.y += eyeOffsetY;
 
             camera.position.copy(eye);
 
-            // Compute forward direction from angles
             const forward = new Vector3(
                 -Math.sin(horizontalAngle) * Math.cos(verticalAngle),
                 -Math.sin(verticalAngle),
                 -Math.cos(horizontalAngle) * Math.cos(verticalAngle)
             ).normalize();
 
-            // Look direction
             camera.lookAt(eye.clone().add(forward));
 
-            const zoomAmount = 2; // increase for more zoom
+            const zoomAmount = 2;
             camera.position.copy(eye.clone().add(forward.clone().multiplyScalar(zoomAmount)));
 
         } else {
-            // Third-person as before
             const cameraDistance = 6;
             const cameraHeight = 0;
             const smoothingFactor = 0.5;
@@ -353,10 +326,8 @@ const Player: React.FC<PlayerProps> = ({
 
             const idealCameraPosition = playerHeadPosition.clone().add(cameraOffset);
 
-            // Smooth camera movement
             camera.position.lerp(idealCameraPosition, smoothingFactor);
 
-            // Handle camera collision (ray from head toward camera offset)
             const raycaster = new Raycaster();
             const rayDirection = cameraOffset.clone().normalize();
             raycaster.set(playerHeadPosition, rayDirection);
@@ -372,9 +343,6 @@ const Player: React.FC<PlayerProps> = ({
             camera.lookAt(playerHeadPosition);
         }
 
-        // 4. UPDATE movement to use camera direction
-        // Replace your existing movement calculation with this:
-
         // Get movement direction from camera horizontal angle
         const forwardDirection = new Vector3(
             Math.sin(cameraAngles.current.horizontal),
@@ -389,37 +357,32 @@ const Player: React.FC<PlayerProps> = ({
 
         // Calculate movement vector
         const moveVector = new Vector3();
-        moveVector.addScaledVector(forwardDirection, direction.current.z); // forward/backward
-        moveVector.addScaledVector(rightDirection, direction.current.x); // left/right
+        moveVector.addScaledVector(forwardDirection, direction.current.z);
+        moveVector.addScaledVector(rightDirection, direction.current.x);
         moveVector.normalize();
 
         const targetSpeed = keysPressedRef.current.ShiftLeft ? SPRINT_SPEED : BASE_SPEED;
 
         const desiredVelocity = new Vector3();
-        if (moveVector.length() > 0) {
+        if (moveVector.length() > 0 && !isInputBlocked) {
             moveVector.normalize();
             desiredVelocity.copy(moveVector).multiplyScalar(targetSpeed);
         }
 
         const currentSpeed = horizontalVelocity.current.length();
 
-        if (desiredVelocity.length() > 0) {
-            // We want to move
+        if (desiredVelocity.length() > 0 && !isInputBlocked) {
             if (currentSpeed > 0) {
-                // Check if we're changing direction
                 const currentDirection = horizontalVelocity.current.clone().normalize();
                 const desiredDirection = desiredVelocity.clone().normalize();
                 const dot = currentDirection.dot(desiredDirection);
 
-                // If dot product is negative, we're going in opposite direction
                 if (dot < 0.2) {
-                    // Apply strong deceleration for direction changes
                     const decelerationRate = DIRECTION_CHANGE_DECELERATION * delta;
                     horizontalVelocity.current.multiplyScalar(Math.max(0, 1 - decelerationRate));
                 }
             }
 
-            // Apply acceleration toward desired velocity
             const velocityDiff = desiredVelocity.clone().sub(horizontalVelocity.current);
             const accelerationAmount = ACCELERATION * delta;
 
@@ -429,19 +392,27 @@ const Player: React.FC<PlayerProps> = ({
 
             horizontalVelocity.current.add(velocityDiff);
         } else {
-            // No input - apply deceleration
             const decelerationRate = DECELERATION * delta;
             horizontalVelocity.current.multiplyScalar(Math.max(0, 1 - decelerationRate));
         }
 
+        // NEW: Apply rebound velocity
+        const totalVelocity = horizontalVelocity.current.clone().add(reboundVelocity.current);
+
         // Apply horizontal movement to player position
         const previousPosition = playerPosition.current.clone();
-        playerPosition.current.x += horizontalVelocity.current.x * delta
-        playerPosition.current.z += horizontalVelocity.current.z * delta;
+        playerPosition.current.x += totalVelocity.x * delta;
+        playerPosition.current.z += totalVelocity.z * delta;
+
+        // NEW: Decay rebound velocity
+        reboundVelocity.current.multiplyScalar(REBOUND_DECAY);
+
+        // Stop rebound when it's negligible
+        if (reboundVelocity.current.length() < 0.1) {
+            reboundVelocity.current.set(0, 0, 0);
+        }
 
         const horizontalMove = moveVector.multiplyScalar(playerSpeed.current * delta);
-
-
 
         // Handle gravity and jumping
         if (!onGround) {
@@ -483,30 +454,34 @@ const Player: React.FC<PlayerProps> = ({
                 playerPosition.current.y = Math.max(playerPosition.current.y, groundY + playerHeight);
                 playerVelocity.current.y = 0;
             } else {
-                // Handle side collisions
+                // NEW: Enhanced side collision with rebound
                 playerPosition.current.copy(previousPosition);
 
-                const slideVector = horizontalMove.clone().projectOnPlane(normal);
+                // Only trigger rebound if cooldown has passed
+                const timeSinceLastCollision = currentTime - lastCollisionTime.current;
+                if (timeSinceLastCollision > COLLISION_COOLDOWN) {
+                    // Calculate rebound direction (opposite to collision normal)
+                    const reboundDirection = normal.clone().multiplyScalar(REBOUND_STRENGTH);
 
-                // Target rebound strength
-                const targetPushDistance = 10;
-                const lerpFactor = 0.05; // initial impulse strength
-                const damping = 0.85;    // decay per frame
+                    // Set the rebound velocity
+                    reboundVelocity.current.copy(reboundDirection);
 
-                // Apply a one-frame impulse along the normal
-                const pushDir = normal.clone().multiplyScalar(targetPushDistance * lerpFactor);
-                recoilVelocity.add(pushDir);
+                    // Clear horizontal velocity to stop forward momentum
+                    horizontalVelocity.current.set(0, 0, 0);
 
-                // Move the player based on recoil
-                playerPosition.current.add(recoilVelocity.clone().multiplyScalar(delta));
+                    // Block input temporarily
+                    inputBlockedUntil.current = currentTime + INPUT_BLOCK_DURATION;
 
-                // Gradually reduce recoil over time
-                recoilVelocity.multiplyScalar(damping);
+                    // Update last collision time
+                    lastCollisionTime.current = currentTime;
 
-                // Optional small slide if you want surface drift
-                // playerPosition.current.add(slideVector.multiplyScalar(0.05));
+                    const collisionSound = new Howl({
+                        src: ['/sounds/hitwood.mp3'], // Update with your sound file path
+                        volume: 0.1,
+                    });
+                    collisionSound.play();
+                }
             }
-
         }
 
         // Update player position and rotation
@@ -521,28 +496,21 @@ const Player: React.FC<PlayerProps> = ({
             }
         }
 
-
         // Update player position for networking
         const cameraDirection = new Vector3();
 
-
-        const currentTime = performance.now();
-        if (currentTime - lastUpdateTime.current >= 0) {
+        const networkUpdateTime = performance.now();
+        if (networkUpdateTime - lastUpdateTime.current >= 0) {
 
             camera.getWorldDirection(cameraDirection);
-
 
             handlePositionAndCameraChange(playerPosition.current.clone(), playerVelocity.current.clone(), cameraDirection);
             handlePlayerCenterUpdate(playerPosition.current.clone(), cameraDirection.clone());
 
-
-            lastUpdateTime.current = currentTime;
+            lastUpdateTime.current = networkUpdateTime;
         }
 
-
-
         //walk sound logic
-
         const START_WALK_THRESHOLD = 0.01;
         const STOP_WALK_THRESHOLD = 0.001;
 
@@ -572,7 +540,6 @@ const Player: React.FC<PlayerProps> = ({
                 walkSound.stop();
                 socket.emit("playerStopped", { userId });
             } else if (isWalkingNow && walkSound.playing()) {
-                // Update rate and volume dynamically if needed while walking
                 walkSound.volume(isShift ? 0.8 : 0);
                 walkSound.rate(isShift ? 2 : 0);
             }
@@ -583,18 +550,6 @@ const Player: React.FC<PlayerProps> = ({
 
     return (
         <>
-            {/* work on them later when implementing fireballs */}
-            {/* {fireballs.map((fireball) => (
-                <Fireball
-                    key={fireball.id}
-                    position={fireball.position}
-                    getGroundHeight={getGroundHeight}
-                    direction={fireball.direction}
-                    obstacles={obstacles || []} // Pass obstacle references here
-                    onExplode={handleExplosion}
-                />
-            ))} */}
-
             {explosions.map((explosion) => (
                 <Explosion key={explosion.id} position={explosion.position} explosionRadius={15} />
             ))}
@@ -604,7 +559,6 @@ const Player: React.FC<PlayerProps> = ({
                     <sphereGeometry args={[PLAYER_RADIUS]} />
                     <meshStandardMaterial color="skyblue" />
                 </mesh>
-
 
                 {/* Gun (attached to player's right hand) */}
                 <Gun
