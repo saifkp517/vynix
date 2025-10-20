@@ -37,6 +37,7 @@ const RemoteOpponents: React.FC<Props> = ({
 
   const deadPlayers = useRef<Set<string>>(new Set());
   const shootEventEmitter = useRef(new EventEmitter());
+  const deathEventEmitter = useRef(new EventEmitter());
   const walkingAudioRefs = useRef<Record<string, PositionalAudio>>({});
   const shootingAudioRefs = useRef<Record<string, PositionalAudio>>({});
 
@@ -124,10 +125,16 @@ const RemoteOpponents: React.FC<Props> = ({
       if (killerSocketId === socket.id) {
         showKillToast(killerName);
       }
+      deathEventEmitter.current.emit('playDeathAnimation', {
+        id: victimSocketId,
+      })
 
       deadPlayers.current.add(victimSocketId);
-      // remove data + visuals
-      removePlayer(victimSocketId);
+      
+      // 👇 remove player after short delay (enough for animation to finish)
+      setTimeout(() => {
+        removePlayer(victimSocketId);
+      }, 1500);
     };
 
     const handlePlayerShot = (payload: { id: string; rayOrigin: { x: number; y: number; z: number }; rayDirection: { x: number; y: number; z: number } }) => {
@@ -194,6 +201,7 @@ const RemoteOpponents: React.FC<Props> = ({
             velocity={() => playerDataRef.current[id]?.velocity || null}
             cameraDirection={() => playerDataRef.current[id]?.cameraDirection || null}
             shootEvent={shootEventEmitter.current}
+            deathEvent={deathEventEmitter.current}
             userId={id}
             username={playerUsernamesRef.current[id] ?? ''}
             addObstacleRef={addObstacleRef}

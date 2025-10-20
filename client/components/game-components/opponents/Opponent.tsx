@@ -17,6 +17,7 @@ export const Opponent = ({
   cameraDirection,
   smoothnessRef,
   shootEvent,
+  deathEvent,
   userId,
   username,
   addObstacleRef,
@@ -29,6 +30,7 @@ export const Opponent = ({
   cameraDirection: () => Vector3 | null;
   smoothnessRef: RefObject<number>;
   shootEvent: EventEmitter;
+  deathEvent: EventEmitter;
   userId: string;
   username: string;
   addObstacleRef?: (ref: Mesh | null) => void;
@@ -44,6 +46,46 @@ export const Opponent = ({
   const soundRef = useRef<PositionalAudio | null>(null);
 
   const [visible, setVisible] = useState(true);
+  const [dead, setDead] = useState(false);
+
+  //reset player to normal after death
+  useEffect(() => {
+  if (sphereRef.current && visible && !dead) {
+    const material = sphereRef.current.material as any;
+    material.color.set(new Color("red"));
+    material.opacity = 1;
+    material.transparent = false;
+  }
+}, [visible, dead]);
+
+  //handle death animation
+  useEffect(() => {
+    const handleDeath = () => {
+      if (sphereRef.current) {
+        setDead(true);
+        const material = sphereRef.current.material as any;
+        material.color.set(new Color("gray"));
+        material.opacity = 1;
+        material.transparent = true;
+
+        // simple fade-out effect
+        let opacity = 1;
+        const fade = setInterval(() => {
+          opacity -= 0.05;
+          if (opacity <= 0) {
+            opacity = 0;
+            clearInterval(fade);
+          }
+          material.opacity = opacity;
+        }, 50);
+      }
+    };
+
+    deathEvent.on("playDeathAnimation", handleDeath);
+    return () => {
+      deathEvent.off("playDeathAnimation", handleDeath)
+    };
+  }, [deathEvent]);
 
   useEffect(() => {
     if (!listener || !sphereRef.current) return;
@@ -97,7 +139,7 @@ export const Opponent = ({
       targetPosition.current.copy(pos);
     }
 
-    if(pos && localPlayerPos) {
+    if (pos && localPlayerPos) {
       const distance = localPlayerPos.distanceTo(pos);
       setVisible(distance <= 30);
     }

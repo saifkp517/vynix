@@ -14,7 +14,7 @@ export default function GameLoadoutMenu() {
   const [matchmakingStatus, setMatchmakingStatus] = useState("Find Match");
   const [isMatchMaking, setIsMatchmaking] = useState(false);
   const [activeSection, setActiveSection] = useState('');
-  const [onlinePlayers, setOnlinePlayers] = useState(12);
+  const [onlinePlayers, setOnlinePlayers] = useState(0);
   const [username, setUsername] = useState("");
   const [savedUsername, setSavedUsername] = useState("");
 
@@ -101,16 +101,20 @@ export default function GameLoadoutMenu() {
   );
 
   const handleMatchmaking = () => {
-    if (isMatchMaking) {
-      socket.emit("cancelMatchmaking");
-      setIsMatchmaking(false);
-      setMatchmakingStatus("Find Match");
+    if (socket.connected) {
+      if (isMatchMaking) {
+        socket.emit("cancelMatchmaking");
+        setIsMatchmaking(false);
+        setMatchmakingStatus("Find Match");
+      } else {
+
+        if(username.trim() === "") setUsername(savedUsername)
+        socket.emit("requestMatchmaking", username);
+        setIsMatchmaking(true);
+        setMatchmakingStatus("Searching...");
+        setTimeout(() => setMatchmakingStatus("Finding opponents..."), 1500);
+      }
     } else {
-      socket.emit("updateUsername", username);
-      socket.emit("requestMatchmaking");
-      setIsMatchmaking(true);
-      setMatchmakingStatus("Searching...");
-      setTimeout(() => setMatchmakingStatus("Finding opponents..."), 1500);
     }
   };
 

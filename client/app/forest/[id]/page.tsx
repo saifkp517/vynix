@@ -121,7 +121,6 @@ const Game: React.FC = () => {
   }, []);
 
 
-
   // Effects
   useEffect(() => {
     document.documentElement.requestFullscreen?.();

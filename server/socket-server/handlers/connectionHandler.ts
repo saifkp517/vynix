@@ -54,12 +54,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
   assignGuest(socket);
 
-   socket.on("updateUsername", (newUsername: string) => {
-    if (!newUsername || newUsername.trim().length === 0) return;
 
-    socket.username = newUsername.trim();
-    console.log(`✏️ Username updated: ${socket.userId} → ${socket.username}`);
-  });
 
   async function validateSession(sessionId: string) {
     const response = await axios.get("http://localhost:3001/auth/me", {
@@ -82,7 +77,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
     socket.emit("pong-check", clientTime)
   })
 
-  socket.on("requestMatchmaking", (userId) => handleMatchmaking(socket, io));
+  socket.on("requestMatchmaking", (username) => handleMatchmaking(socket, io, username));
   socket.on("cancelMatchmaking", () => cancelMatchmaking)
   socket.on("updatePositionAndCamera", (position, velocity, cameraDirection, roomId) => handleUpdatePositionAndCameraUpdate(socket, io, roomId,  position, velocity, cameraDirection));
   socket.on("shoot", ({ userId, shootObject, roomId }) => handleShoot(socket, io, userId, shootObject, roomId));

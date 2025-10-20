@@ -293,8 +293,16 @@ export const cancelMatchmaking = async (socket: AuthenticatedSocket, io: Server)
   socket.emit("cancelledMatchmaking");
 }
 
-export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server) => {
+
+export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server, updatedUsername: string) => {
   console.log("called")
+
+  if(updatedUsername.trim() !== "") {
+socket.username = updatedUsername;
+console.log("updated username: ", socket.username)
+  }
+  
+  
   socket.emit("searchingForMatch");
   let roomId = await findAvailableRoom();
 
