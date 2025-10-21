@@ -50,7 +50,7 @@ export default function GameLoadoutMenu() {
       if (isFetching) return; //wait until previous fetch has been completed
       isFetching = true;
       try {
-        const res = await axios.get(`http://localhost:3001/game/onlinePlayers`);
+        const res = await axios.get(`${process.env.NEXT_PUBLIC_REST_API_URL}/game/onlinePlayers`);
         setOnlinePlayers(res.data.players)
       } catch (err) {
         console.error("Error fetching players:", err);
