@@ -194,7 +194,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
             key={playerId}
             className="absolute w-0.5 h-0.5 bg-red-500 rounded-full border border-red-300 
            shadow-[0_0_15px_5px_rgba(255,0,0,0.9),0_0_30px_10px_rgba(255,0,0,0.6),0_0_45px_15px_rgba(255,0,0,0.3)] 
-           animate-pulse transition-all duration-1000 
+            transition-all duration-1000 
            before:absolute before:inset-0 before:rounded-full before:bg-red-500 
            before:shadow-[0_0_20px_8px_rgba(255,0,0,0.8)] before:animate-ping"
             style={{

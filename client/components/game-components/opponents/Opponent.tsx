@@ -141,7 +141,7 @@ export const Opponent = ({
 
     if (pos && localPlayerPos) {
       const distance = localPlayerPos.distanceTo(pos);
-      setVisible(distance <= 30);
+      setVisible(distance <= 40);
     }
 
 
@@ -175,14 +175,14 @@ export const Opponent = ({
           center
           distanceFactor={50}
           style={{
-            background: "rgba(0,0,0,0.5)",
+            background: "",
             padding: "2px 6px",
             borderRadius: "4px",
             color: "white",
             fontSize: "12px",
           }}
         >
-          {username}
+          {username.startsWith("Guest") ? username.slice(0, 10) : username}
         </Html>
       )}
     </group>

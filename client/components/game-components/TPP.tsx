@@ -13,6 +13,7 @@ import { CollisionType } from './player/checkCollision';
 import { useAudioListener } from '@/hooks/useAudioListener';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 import { useRoomStore } from '@/hooks/useRoomStore';
+import { emitCameraUpdate } from '@/hooks/useRadarHook';
 
 import { PLAYER_RADIUS } from '@/types/types';
 
@@ -52,6 +53,7 @@ const Player: React.FC<PlayerProps> = ({
     userId,
     listenerRef
 }) => {
+
 
     const [isFPS, setIsFPS] = useState(false);
 
@@ -227,6 +229,8 @@ const Player: React.FC<PlayerProps> = ({
             document.removeEventListener('mousemove', handleMouseMove);
         };
     }, []);
+
+
 
 
     //respawn logic
@@ -506,19 +510,19 @@ const Player: React.FC<PlayerProps> = ({
         // Update player position for networking
         const cameraDirection = new Vector3();
 
+        camera.getWorldDirection(cameraDirection);
 
         const currentTime = performance.now();
-        if (currentTime - lastUpdateTime.current >= 0) {
-
-            camera.getWorldDirection(cameraDirection);
+        if (currentTime - lastUpdateTime.current >= 100) {
 
 
             handlePositionAndCameraChange(playerPosition.current.clone(), playerVelocity.current.clone(), cameraDirection);
             handlePlayerCenterUpdate(playerPosition.current.clone(), cameraDirection.clone());
 
-
             lastUpdateTime.current = currentTime;
         }
+
+        emitCameraUpdate(playerPosition.current.clone(), cameraDirection);
 
 
 
