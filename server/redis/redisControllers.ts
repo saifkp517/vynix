@@ -297,12 +297,12 @@ export const cancelMatchmaking = async (socket: AuthenticatedSocket, io: Server)
 export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server, updatedUsername: string) => {
   console.log("called")
 
-  if(updatedUsername.trim() !== "") {
-socket.username = updatedUsername;
-console.log("updated username: ", socket.username)
+  if (updatedUsername.trim() !== "") {
+    socket.username = updatedUsername;
+    console.log("updated username: ", socket.username)
   }
-  
-  
+
+
   socket.emit("searchingForMatch");
   let roomId = await findAvailableRoom();
 
@@ -583,7 +583,7 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
 
           // Emit death events
           io.to(playerId).emit("youDied", { message: "You are dead!" });
-          io.to(roomId).emit("playerDead", { killerSocketId: userId, victimSocketId: playerId, killerName: socket.username, victimName: player.username  });
+          io.to(roomId).emit("playerDead", { killerSocketId: userId, victimSocketId: playerId, killerName: socket.username, victimName: player.username });
 
 
 

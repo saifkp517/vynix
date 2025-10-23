@@ -98,7 +98,7 @@ const Player: React.FC<PlayerProps> = ({
 
     // NEW: Rebound constants
     const REBOUND_STRENGTH = 30; // Initial bounce-back force
-    const REBOUND_DECAY = 0.88; // How quickly rebound loses strength (higher = slower decay)
+    const REBOUND_DECAY = 0.90; // How quickly rebound loses strength (higher = slower decay)
     const INPUT_BLOCK_DURATION = 0.4; // Seconds to block input after collision
     const COLLISION_COOLDOWN = 0.15; // Minimum time between collision rebounds
 
@@ -477,7 +477,8 @@ const Player: React.FC<PlayerProps> = ({
 
                     const collisionSound = new Howl({
                         src: ['/sounds/hitwood.mp3'], // Update with your sound file path
-                        volume: 0.1,
+                        volume: 1,
+                        rate: 0.5
                     });
                     collisionSound.play();
                 }

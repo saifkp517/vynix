@@ -50,43 +50,69 @@ export const Opponent = ({
 
   //reset player to normal after death
   useEffect(() => {
-  if (sphereRef.current && visible && !dead) {
-    const material = sphereRef.current.material as any;
-    material.color.set(new Color("red"));
-    material.opacity = 1;
-    material.transparent = false;
-  }
-}, [visible, dead]);
+    if (sphereRef.current && visible && !dead) {
+      const material = sphereRef.current.material as any;
+      material.color.set(new Color("red"));
+      material.opacity = 1;
+      material.transparent = false;
+    }
+  }, [visible, dead]);
 
   //handle death animation
   useEffect(() => {
     const handleDeath = () => {
-      if (sphereRef.current) {
-        setDead(true);
-        const material = sphereRef.current.material as any;
-        material.color.set(new Color("gray"));
-        material.opacity = 1;
-        material.transparent = true;
+      if (!sphereRef.current) return;
 
-        // simple fade-out effect
-        let opacity = 1;
-        const fade = setInterval(() => {
-          opacity -= 0.05;
-          if (opacity <= 0) {
-            opacity = 0;
-            clearInterval(fade);
+      setDead(true);
+      const material = sphereRef.current.material as any;
+      material.color.set(new Color("gray"));
+      material.opacity = 1;
+      material.transparent = true;
+
+      // Fade-out effect
+      let opacity = 1;
+      const fadeOut = setInterval(() => {
+        opacity -= 0.05;
+        if (opacity <= 0) {
+          opacity = 0;
+          clearInterval(fadeOut);
+        }
+        material.opacity = opacity;
+      }, 50);
+
+      // Respawn after 5 seconds
+      const respawnTimeout = setTimeout(() => {
+        if (!sphereRef.current) return;
+
+        setDead(false);
+        const respawnMaterial = sphereRef.current.material as any;
+        respawnMaterial.color.set(new Color("red"));
+        respawnMaterial.transparent = true;
+
+        let respawnOpacity = 0;
+        const fadeIn = setInterval(() => {
+          respawnOpacity += 0.05;
+          if (respawnOpacity >= 1) {
+            respawnOpacity = 1;
+            respawnMaterial.transparent = false;
+            clearInterval(fadeIn);
           }
-          material.opacity = opacity;
+          respawnMaterial.opacity = respawnOpacity;
         }, 50);
-      }
+      }, 5000);
+
+      return () => {
+        clearInterval(fadeOut);
+        clearTimeout(respawnTimeout);
+      };
     };
 
     deathEvent.on("playDeathAnimation", handleDeath);
     return () => {
-      deathEvent.off("playDeathAnimation", handleDeath)
+      deathEvent.off("playDeathAnimation", handleDeath);
     };
   }, [deathEvent]);
-
+  
   useEffect(() => {
     if (!listener || !sphereRef.current) return;
 
