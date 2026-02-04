@@ -121,9 +121,9 @@ const RemoteOpponents: React.FC<Props> = ({
     };
 
     const handlePlayerDead = (payload: { killerSocketId: string; victimSocketId: string; killerName: string; victimName: string }) => {
-      const { killerSocketId, victimSocketId, killerName } = payload;
+      const { killerSocketId, victimSocketId, killerName, victimName } = payload;
       if (killerSocketId === socket.id) {
-        showKillToast(killerName);
+        showKillToast(victimName);
       }
       deathEventEmitter.current.emit('playDeathAnimation', {
         id: victimSocketId,

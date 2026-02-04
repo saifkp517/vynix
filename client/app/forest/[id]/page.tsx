@@ -126,13 +126,6 @@ const Game: React.FC = () => {
     document.documentElement.requestFullscreen?.();
   }, []);
 
-  useEffect(() => {
-    if (sessionStorage.getItem('justRefreshed')) {
-      sessionStorage.removeItem('justRefreshed');
-      socket.disconnect();
-      window.location.href = '/';
-    }
-  }, []);
 
   useEffect(() => {
     fetch('/api/data')
@@ -177,19 +170,13 @@ const Game: React.FC = () => {
       handleConnect();
     }
 
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      sessionStorage.setItem('justRefreshed', 'true');
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
+   
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('youDied', handleYouDied);
       socket.off('gameOver', handleGameOver);
       socket.off('pong-check');
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [params.id]);
 

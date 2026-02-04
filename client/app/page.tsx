@@ -101,20 +101,22 @@ export default function GameLoadoutMenu() {
   );
 
   const handleMatchmaking = () => {
-    if (socket.connected) {
-      if (isMatchMaking) {
-        socket.emit("cancelMatchmaking");
-        setIsMatchmaking(false);
-        setMatchmakingStatus("Find Match");
-      } else {
 
-        if(username.trim() === "") setUsername(savedUsername)
-        socket.emit("requestMatchmaking", username);
-        setIsMatchmaking(true);
-        setMatchmakingStatus("Searching...");
-        setTimeout(() => setMatchmakingStatus("Finding opponents..."), 1500);
-      }
+    if (!socket.connected) {
+      socket.connect()
+    }
+
+    if (isMatchMaking) {
+      socket.emit("cancelMatchmaking");
+      setIsMatchmaking(false);
+      setMatchmakingStatus("Find Match");
     } else {
+
+      setUsername(savedUsername)
+      socket.emit("requestMatchmaking", username);
+      setIsMatchmaking(true);
+      setMatchmakingStatus("Searching...");
+      setTimeout(() => setMatchmakingStatus("Finding opponents..."), 1500);
     }
   };
 

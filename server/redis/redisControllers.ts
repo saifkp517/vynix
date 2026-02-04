@@ -82,6 +82,10 @@ export const setOnlinePlayer = async (playerSocketId: string) => {
   await redis.lPush(ONLINE_PLAYERS_KEY, playerSocketId);
 }
 
+export const removeOnlinePLayers = async (count: number) => {
+  await redis.lPopCount(ONLINE_PLAYERS_KEY, count)
+}
+
 export const setPlayerInRoom = async (
   socket: AuthenticatedSocket,
   roomId: string,
@@ -219,7 +223,7 @@ export const createRoom = async (socket: AuthenticatedSocket, io: Server): Promi
   await redis.sAdd(ROOM_KEY, roomId);
   //game over room deletion logic
 
-  const GAME_DURATION = 10 * 60 * 1000;
+  const GAME_DURATION = 1 * 60 * 1000;
 
 
   setTimeout(async () => {
@@ -249,8 +253,12 @@ export const createRoom = async (socket: AuthenticatedSocket, io: Server): Promi
 
       io.to(roomId).emit("gameOver");
 
+      const playerCount = await redis.sCard(`roomPlayers:${roomId}`)
+
       await redis.sRem(ROOM_KEY, roomId);
       await redis.del(`roomPlayers:${roomId}`);
+      await removeOnlinePLayers(playerCount);
+
       socket.leave(roomId);
 
       console.log("gameOver");
@@ -362,12 +370,15 @@ export const handleMatchmaking = async (socket: AuthenticatedSocket, io: Server,
     const playerPoolCount = await redis.sCard(WAITING_POOL_KEY)
     socket.broadcast.emit("playerPoolCount", playerPoolCount)
 
-    let roomId = await createRoom(socket, io); // return roomId
-    const roomKey = `roomPlayers:${roomId}`;
+
 
     const poolCount = await redis.sCard(WAITING_POOL_KEY);
 
     if (poolCount >= MIN_PLAYERS_TO_START) {
+
+      let roomId = await createRoom(socket, io); // return roomId
+      const roomKey = `roomPlayers:${roomId}`;
+
       console.log("poolCount >= MIN_PLAYERS_TO_START")
 
       const players = await redis.sPopCount(WAITING_POOL_KEY, poolCount);
@@ -563,12 +574,23 @@ export const handleShoot = async (socket: AuthenticatedSocket, io: Server, userI
 
           if (isDead) {
             await redis.unwatch();
+
+
             break; // Already dead, no need to schedule respawn
           }
 
           // Not dead: Attempt to kill atomically
           const multi = redis.multi();
           multi.hSet(key, 'isDead', 'true');
+
+          //remove dead player from the grid
+          for (const [key, set] of grid.entries()) {
+            if (set.has(playerId)) {
+              set.delete(playerId);
+              if (set.size === 0) grid.delete(key); // Clean up empty cells
+            }
+          }
+
           const execResult = await multi.exec();
 
           if (execResult === null) {

@@ -92,6 +92,14 @@ export const useRadar = ({
   // Event listener for camera updates
   const handleCameraUpdate = useCallback(
     (event: CustomEvent<CameraUpdateEvent>) => {
+
+      console.log('🎯 Radar hook received camera update:', {
+        timestamp: Date.now(),
+        position: event.detail.position,
+        direction: event.detail.direction,
+        playerDataKeys: playerDataRef.current ? Object.keys(playerDataRef.current).length : 0, // Quick check for data presence
+      });
+
       const { position, direction } = event.detail;
 
       setMyPosition(position.clone());

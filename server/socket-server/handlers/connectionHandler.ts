@@ -92,7 +92,7 @@ export const socketConnectionHandler = (io: Server) => (socket: AuthenticatedSoc
 
     leaveRoom(socket.id, io);
 
-    io.emit('playerDisconnected', socket.id);
+    io.emit('playerDisconnected', socket.id, socket.username);
     
   });
 

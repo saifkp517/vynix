@@ -296,8 +296,12 @@ const Player: React.FC<PlayerProps> = ({
 
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
+        console.log("tesedt")
 
-        if (playerDeadRef.current) return; // Skip if player is dead
+        if (playerDeadRef.current) {
+            console.log('💀 Skipping frame: player dead');
+            return;
+        }
 
         // Get ground height for the player
         const groundY = getGroundHeight(playerPosition.current.x, playerPosition.current.z);
@@ -511,6 +515,9 @@ const Player: React.FC<PlayerProps> = ({
         const cameraDirection = new Vector3();
 
         camera.getWorldDirection(cameraDirection);
+        console.log("test!!!!")
+
+        emitCameraUpdate(playerPosition.current.clone(), cameraDirection);
 
         const currentTime = performance.now();
         if (currentTime - lastUpdateTime.current >= 100) {
@@ -522,7 +529,7 @@ const Player: React.FC<PlayerProps> = ({
             lastUpdateTime.current = currentTime;
         }
 
-        emitCameraUpdate(playerPosition.current.clone(), cameraDirection);
+
 
 
 

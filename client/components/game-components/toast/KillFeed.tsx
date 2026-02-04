@@ -94,12 +94,12 @@ export function KillFeedRenderer({
 
       switch (streak) {
         case 1:
-          msg = `💥 First Kill`;
+          msg = `💥 First Kill, you killed ${name}`;
           gradient = "from-green-500 to-emerald-500";
           break;
         case 2:
           msg = `😂 ${name} Double Kill! Greedy much?`;
-          gradient = "from-orange-500 to-yellow-500";
+          gradient = "from-orange-500 to-y  ellow-500";
           break;
         case 3:
           msg = `🔥 ${name} Triple Kill! You're on fire, literally!`;
