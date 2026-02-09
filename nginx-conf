@@ -1,0 +1,52 @@
+server {
+    server_name thryp.duckdns.org;
+
+    # Socket.IO endpoint - proxy to port 4000 where it actually runs
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:4000/socket.io/;
+        proxy_http_version 1.1;
+
+        # WebSocket headers
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts for long-polling
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_connect_timeout 60;
+
+        # Disable buffering
+        proxy_buffering off;
+    }
+
+    # REST API - proxy to port 3001
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/thryp.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/thryp.duckdns.org/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    if ($host = thryp.duckdns.org) {
+        return 301 https://$host$request_uri;
+    }
+
+    listen 80;
+    server_name thryp.duckdns.org;
+    return 404;
+}
