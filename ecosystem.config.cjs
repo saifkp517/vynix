@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "rest-api",
       script: "bun",
-      args: "run ./vynix/rest-api/index.ts",
+      args: "run ./server/rest-api/index.ts",
       watch: false,
       env: {
         NODE_ENV: "production"
@@ -12,7 +12,7 @@ module.exports = {
     {
       name: "socket-server",
       script: "bun",
-      args: "run ./vynix/socket-server/index.ts",
+      args: "run ./server/socket-server/index.ts",
       watch: false,
       env: {
         NODE_ENV: "production"
