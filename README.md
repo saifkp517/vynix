@@ -131,6 +131,31 @@ pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup
 ```
+---
+
+## Run Client (Frontend)
+
+The frontend is located in the `client` folder.
+
+```bash
+cd client
+npm install
+```
+
+### Development
+
+```bash
+npm run dev
+```
+
+### Production (local)
+
+```bash
+npm run build
+npm start
+```
+
+> Make sure the backend server is running for API and socket connections.
 
 ---
 
