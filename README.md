@@ -1,7 +1,7 @@
 # Zentra – Setup & Deployment Guide
 ![alt text](https://www.notion.so/image/attachment%3Abeaac051-7e7c-4a35-be68-a570f8f0d50a%3Aimage.png?table=block&id=2236a4af-6be5-80b8-b899-de3b49c13213&spaceId=9ac34708-1a91-43c9-8446-c0ed190e48ed&width=1420&userId=&cache=v2)
 
-![demo](https://www.linkedin.com/feed/update/urn:li:activity:7433921645238599680/?originTrackingId=uW4oHzXnWy8S4j%2FgxzoGmw%3D%3D)
+[demo](https://www.linkedin.com/feed/update/urn:li:activity:7433921645238599680/?originTrackingId=uW4oHzXnWy8S4j%2FgxzoGmw%3D%3D)
 
 
 This guide explains how to run the project in **development** and **production** environments.
