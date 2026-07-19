@@ -116,7 +116,7 @@ const Player: React.FC<PlayerProps> = ({
 
 
     const handlePositionAndCameraChange = React.useCallback((pos: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
-        socket.emit("updatePositionAndCamera", pos, velocity, cameraDirection, roomId);
+        socket.emit("updatePositionAndCamera", { position: pos, velocity, cameraDirection, roomId });
     }, []);
 
 

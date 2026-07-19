@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"\\\\\\\\\\\\\\\\wsl.localhost\\\\\\\\Ubuntu\\\\\\\\home\\\\\\\\saif\\\\\\\\vynix\" 2>&1 || echo \"---\" && ls .)",
+      "Read(///wsl.localhost/Ubuntu/home/saif/**)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

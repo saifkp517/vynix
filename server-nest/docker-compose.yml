@@ -1,0 +1,25 @@
+services:
+  server-nest:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    mem_limit: 512m
+    cpus: 0.75
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    mem_limit: 128m
+    cpus: 0.125
+
+volumes:
+  redis-data:
