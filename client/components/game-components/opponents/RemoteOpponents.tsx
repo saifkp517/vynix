@@ -13,6 +13,13 @@ interface PlayerData {
   cameraDirection: Vector3;
 }
 
+interface Snapshot {
+  position: Vector3;
+  velocity: Vector3;
+  cameraDirection: Vector3;
+  time: number;
+}
+
 interface Props {
   addObstacleRef: (ref: Mesh | null) => void;
   smoothnessRef: RefObject<number>;
@@ -34,6 +41,8 @@ const RemoteOpponents: React.FC<Props> = ({
   const [playerIds, setPlayerIds] = useState<string[]>([]);
   const playerIdsRef = useRef<string[]>([]); // mirrors state for fast checks
   const playerUsernamesRef = useRef<Record<string, string>>({}); // id -> username
+
+  const latestSnapshotRef = useRef<Record<string, Snapshot>>({});
 
   const deadPlayers = useRef<Set<string>>(new Set());
   const shootEventEmitter = useRef(new EventEmitter());
@@ -74,6 +83,7 @@ const RemoteOpponents: React.FC<Props> = ({
 
       // remove player data
       delete playerDataRef.current[id];
+      delete latestSnapshotRef.current[id];
       deadPlayers.current.delete(id);
 
       setPlayerIds([...playerIdsRef.current]);
@@ -103,6 +113,15 @@ const RemoteOpponents: React.FC<Props> = ({
         position: new Vector3(position.x, position.y, position.z),
         velocity: new Vector3(velocity.x, velocity.y, velocity.z),
         cameraDirection: new Vector3(cameraDirection.x, cameraDirection.y, cameraDirection.z),
+      };
+
+      // latest authoritative snapshot; the opponent dead-reckons on its own
+      // velocity between packets and softly corrects toward this
+      latestSnapshotRef.current[id] = {
+        position: playerDataRef.current[id].position.clone(),
+        velocity: playerDataRef.current[id].velocity.clone(),
+        cameraDirection: playerDataRef.current[id].cameraDirection.clone(),
+        time: performance.now(),
       };
 
       addPlayer(id, username);
@@ -200,6 +219,7 @@ const RemoteOpponents: React.FC<Props> = ({
             position={() => playerDataRef.current[id]?.position || null}
             velocity={() => playerDataRef.current[id]?.velocity || null}
             cameraDirection={() => playerDataRef.current[id]?.cameraDirection || null}
+            getLatestSnapshot={() => latestSnapshotRef.current[id] || null}
             shootEvent={shootEventEmitter.current}
             deathEvent={deathEventEmitter.current}
             userId={id}

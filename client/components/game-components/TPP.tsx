@@ -520,7 +520,7 @@ const Player: React.FC<PlayerProps> = ({
         emitCameraUpdate(playerPosition.current.clone(), cameraDirection);
 
         const currentTime = performance.now();
-        if (currentTime - lastUpdateTime.current >= 100) {
+        if (currentTime - lastUpdateTime.current >= 150) {
 
 
             handlePositionAndCameraChange(playerPosition.current.clone(), playerVelocity.current.clone(), cameraDirection);

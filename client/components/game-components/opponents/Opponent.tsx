@@ -10,12 +10,29 @@ import OpponentGun from "./OpGun"
 
 const RED = new Color("red");
 const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
+// How hard we pull the dead-reckoned position back toward the server's
+// authoritative position each second. Motion itself is driven by
+// continuously integrating velocity (smooth, self-propelled); this just
+// bleeds off drift once a fresh snapshot arrives instead of snapping to it.
+// Higher = corrects faster (more visible); lower = smoother (can lag behind
+// the true position for longer).
+const CORRECTION_RATE = 6;
+// if the server hasn't sent anything for this long, stop trusting our own
+// extrapolated velocity and just hold position instead of drifting away
+const MAX_DEAD_RECKON_MS = 600;
+
+interface Snapshot {
+  position: Vector3;
+  velocity: Vector3;
+  cameraDirection: Vector3;
+  time: number;
+}
 
 export const Opponent = ({
   position,
   velocity,
   cameraDirection,
-  smoothnessRef,
+  getLatestSnapshot,
   shootEvent,
   deathEvent,
   userId,
@@ -28,7 +45,8 @@ export const Opponent = ({
   position: () => Vector3 | null;
   velocity: () => Vector3 | null;
   cameraDirection: () => Vector3 | null;
-  smoothnessRef: RefObject<number>;
+  smoothnessRef?: RefObject<number>;
+  getLatestSnapshot: () => Snapshot | null;
   shootEvent: EventEmitter;
   deathEvent: EventEmitter;
   userId: string;
@@ -41,8 +59,9 @@ export const Opponent = ({
   const group = useRef<Group>(null);
   const sphereRef = useRef<Mesh>(null);
   const buffer = useLoader(AudioLoader, "/sounds/walk.mp3");
-  const targetPosition = useRef<Vector3>(new Vector3());
   const currentPosition = useRef<Vector3>(new Vector3());
+  const currentVelocity = useRef<Vector3>(new Vector3());
+  const initializedRef = useRef(false);
   const soundRef = useRef<PositionalAudio | null>(null);
 
   const [visible, setVisible] = useState(true);
@@ -146,40 +165,44 @@ export const Opponent = ({
     };
   }, [addObstacleRef]);
 
-  useEffect(() => {
-    const pos = position();
-    if (pos) {
-      targetPosition.current.copy(pos);
-      currentPosition.current.copy(pos);
-    }
-  }, [position]);
-
-
-  /** Code used to update the opponent's position and rotation by lerping */
+  /** Dead reckoning: the opponent moves under its own steam every frame by
+   * integrating its last known velocity, rather than snapping between
+   * server positions. New packets don't teleport it — they just adjust
+   * where it's extrapolated to be right now and nudge it there gently,
+   * so motion always looks continuous no matter how the 150ms broadcast
+   * tick jitters. */
   useFrame((_, delta) => {
-    const pos = position();
-    const vel = velocity();
+    const snap = getLatestSnapshot();
     const localPlayerPos = localPlayerPositionRef.current;
 
-    if (pos) {
-      targetPosition.current.copy(pos);
+    if (snap && !initializedRef.current) {
+      // first data we've seen for this opponent: place it directly, no reckoning yet
+      currentPosition.current.copy(snap.position);
+      currentVelocity.current.copy(snap.velocity);
+      initializedRef.current = true;
+    } else if (snap) {
+      const elapsedSec = Math.min(performance.now() - snap.time, MAX_DEAD_RECKON_MS) / 1000;
+      const extrapolatedTarget = snap.position.clone().addScaledVector(snap.velocity, elapsedSec);
+
+      // move on its own using the last known velocity
+      currentPosition.current.addScaledVector(currentVelocity.current, delta);
+
+      // bleed off any drift from our own extrapolation toward the truth
+      const correction = Math.min(1, CORRECTION_RATE * delta);
+      currentPosition.current.lerp(extrapolatedTarget, correction);
+      currentVelocity.current.lerp(snap.velocity, correction);
     }
 
-    if (pos && localPlayerPos) {
-      const distance = localPlayerPos.distanceTo(pos);
+    if (localPlayerPos) {
+      const distance = localPlayerPos.distanceTo(currentPosition.current);
       setVisible(distance <= 40);
     }
-
-
-
-
-    currentPosition.current.lerp(targetPosition.current, delta * (smoothnessRef.current ?? 10));
 
     if (group.current) {
       group.current.position.copy(currentPosition.current);
 
-      if (vel && vel.lengthSq() > MOVEMENT_THRESHOLD) {
-        const angle = Math.atan2(vel.x, vel.z);
+      if (currentVelocity.current.lengthSq() > MOVEMENT_THRESHOLD) {
+        const angle = Math.atan2(currentVelocity.current.x, currentVelocity.current.z);
         group.current.rotation.y = angle;
       }
     }
