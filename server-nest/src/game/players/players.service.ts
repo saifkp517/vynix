@@ -83,6 +83,7 @@ export class PlayersService {
       kills: Number(data.kills),
       deaths: Number(data.deaths),
       health: Number(data.health),
+      isBot: data.isBot === 'true',
     };
   }
 

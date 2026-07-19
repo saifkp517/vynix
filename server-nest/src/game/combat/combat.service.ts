@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 import { RedisService } from '../redis/redis.service';
 import { PlayersService } from '../players/players.service';
 import { PhysicsService } from '../physics/physics.service';
-import { type AuthenticatedSocket, type ShootObject, PLAYER_RADIUS } from '../players/players.types';
+import { type ShooterIdentity, type ShootObject, PLAYER_RADIUS } from '../players/players.types';
 
 const DAMAGE_PER_HIT = 10;
 const RESPAWN_DELAY_MS = 5000;
@@ -23,7 +23,7 @@ export class CombatService {
   }
 
   async handleShoot(
-    shooterSocket: AuthenticatedSocket,
+    shooter: ShooterIdentity,
     roomId: string,
     shootObject: ShootObject,
     server: Server,
@@ -43,12 +43,12 @@ export class CombatService {
     const cellKey = this.physicsService.getCellKey(roomId, rayOrigin);
     const nearbyIds = this.physicsService.getNearbySocketIds(
       roomId,
-      shooterSocket.id,
+      shooter.id,
       cellKey,
     );
     for (const id of nearbyIds) {
       server.to(id).emit('playerShot', {
-        id: shooterSocket.id,
+        id: shooter.id,
         rayOrigin,
         rayDirection,
       });
@@ -58,7 +58,7 @@ export class CombatService {
 
     for (const [playerId, player] of Object.entries(players)) {
       // BUG-05 fix: compare socketId to socketId, not socketId to userId
-      if (playerId === shooterSocket.id) continue;
+      if (playerId === shooter.id) continue;
 
       const playerCenter = new Vector3(
         player.position.x,
@@ -92,7 +92,7 @@ export class CombatService {
         roomId,
         playerId,
         player,
-        shooterSocket,
+        shooter,
         server,
       });
     }
@@ -103,14 +103,14 @@ export class CombatService {
     roomId,
     playerId,
     player,
-    shooterSocket,
+    shooter,
     server,
   }: {
     key: string;
     roomId: string;
     playerId: string;
     player: { username: string };
-    shooterSocket: AuthenticatedSocket;
+    shooter: ShooterIdentity;
     server: Server;
   }): Promise<void> {
     const MAX_RETRIES = 3;
@@ -129,7 +129,7 @@ export class CombatService {
       const multi = this.redisService.multi();
       multi.hset(key, 'isDead', 'true');
       multi.hincrby(
-        this.playerKey(roomId, shooterSocket.id),
+        this.playerKey(roomId, shooter.id),
         'kills',
         1,
       );
@@ -147,9 +147,9 @@ export class CombatService {
 
       server.to(playerId).emit('youDied', { message: 'You are dead!' });
       server.to(roomId).emit('playerDead', {
-        killerSocketId: shooterSocket.id,
+        killerSocketId: shooter.id,
         victimSocketId: playerId,
-        killerName: shooterSocket.username,
+        killerName: shooter.username,
         victimName: player.username,
       });
 

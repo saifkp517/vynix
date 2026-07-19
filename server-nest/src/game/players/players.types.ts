@@ -13,6 +13,12 @@ export interface Player {
     kills: number;
     deaths: number;
     cameraDirection: Vector3;
+    isBot?: boolean;
+}
+
+export interface ShooterIdentity {
+    id: string;
+    username: string;
 }
 
 export interface PlayerMap {

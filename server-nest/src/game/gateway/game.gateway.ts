@@ -19,8 +19,10 @@ import { PlayersService } from '../players/players.service';
 import { MovementService } from '../movement/movement.service';
 import { CombatService } from '../combat/combat.service';
 import { PhysicsService } from '../physics/physics.service';
+import { BotsService } from '../bots/bots.service';
 import { type AuthenticatedSocket, type ShootObject } from '../players/players.types';
 import { MIN_PLAYERS_TO_START } from '../rooms/rooms.constants';
+import { BOT_FILL_TARGET } from '../bots/bots.constants';
 
 interface MovementPayload {
     position: { x: number; y: number; z: number };
@@ -58,6 +60,7 @@ export class GameGateway
         private readonly movementService: MovementService,
         private readonly combatService: CombatService,
         private readonly physicsService: PhysicsService,
+        private readonly botsService: BotsService,
     ) {}
 
     afterInit() {
@@ -201,7 +204,10 @@ export class GameGateway
             await this.joinSocketToRoom(playerSocket, roomId);
         }
 
+        await this.botsService.fillRoom(roomId, BOT_FILL_TARGET, this.server);
+
         this.roomsService.scheduleGameEnd(roomId, async (expiredRoomId) => {
+            this.botsService.stopRoom(expiredRoomId);
             this.server.to(expiredRoomId).emit('gameOver');
             // TODO: flush per-player stats to Prisma before emitting (blocked on PrismaService)
         });
@@ -271,7 +277,7 @@ export class GameGateway
         @MessageBody() payload: ShootPayload,
     ) {
         await this.combatService.handleShoot(
-            socket,
+            { id: socket.id, username: socket.username },
             payload.roomId,
             payload.shootObject,
             this.server,
