@@ -5,13 +5,41 @@ import { Server } from 'socket.io';
 import { RedisService } from '../redis/redis.service';
 import { PlayersService } from '../players/players.service';
 import { PhysicsService } from '../physics/physics.service';
-import { type AuthenticatedSocket, type ShootObject, PLAYER_RADIUS } from '../players/players.types';
+import {
+  type ShooterIdentity,
+  type ShootObject,
+  PLAYER_RADIUS,
+  PLAYER_HITBOX_Y_OFFSET,
+} from '../players/players.types';
 
 const DAMAGE_PER_HIT = 10;
 const RESPAWN_DELAY_MS = 5000;
 
+// Regen: once a real player has gone this long without taking a hit, heal
+// them 1hp/100ms (10hp/sec) until back to full health, so it reads as a
+// smooth climb rather than a stepped one. Reset by any hit (see `lastHitAt`
+// stamp in handleShoot). Each tick is a targeted per-player emit (server.to
+// a single socket, ~40-byte payload) that stops firing entirely once a
+// player is at full health, so cost is bounded by how many real players are
+// actively mid-heal at once, not room size — but at 10 emits/sec per healer
+// this is the priciest per-player event in the codebase; if that ever
+// matters (many concurrent healers), switch to one `healthRegenStart` event
+// + client-side local tween instead of ticking the network every 100ms.
+const REGEN_IDLE_MS = 10_000;
+const REGEN_TICK_MS = 100;
+const REGEN_AMOUNT = 1;
+const MAX_HEALTH = 100;
+
+// Invincibility ability: press-to-activate, 5s of full damage immunity,
+// 10s cooldown before it can be used again. Cooldown is enforced here
+// (not just client-side) so a modified client can't spam it.
+const INVINCIBILITY_DURATION_MS = 5_000;
+const ABILITY_COOLDOWN_MS = 10_000;
+
 @Injectable()
 export class CombatService {
+  private readonly regenIntervals = new Map<string, NodeJS.Timeout>();
+
   constructor(
     private readonly redisService: RedisService,
     private readonly playersService: PlayersService,
@@ -22,8 +50,87 @@ export class CombatService {
     return `player:${roomId}:${socketId}`;
   }
 
+  /** Starts this room's regen tick. No-op if already running. */
+  startRegen(roomId: string, server: Server): void {
+    if (this.regenIntervals.has(roomId)) return;
+
+    const interval = setInterval(() => {
+      this.tickRegen(roomId, server).catch((err) =>
+        console.error(`[Regen] tickRegen(${roomId}) threw:`, err),
+      );
+    }, REGEN_TICK_MS);
+
+    this.regenIntervals.set(roomId, interval);
+  }
+
+  stopRegen(roomId: string): void {
+    const interval = this.regenIntervals.get(roomId);
+    if (interval) {
+      clearInterval(interval);
+      this.regenIntervals.delete(roomId);
+    }
+  }
+
+  private async tickRegen(roomId: string, server: Server): Promise<void> {
+    const players = await this.playersService.getAllPlayersFromRoom(roomId);
+    const now = Date.now();
+
+    for (const [playerId, player] of Object.entries(players)) {
+      // Bots don't regen — only real players should visibly heal over time.
+      if (player.isBot || player.isDead) continue;
+      if (player.health >= MAX_HEALTH) continue;
+      if (now - player.lastHitAt < REGEN_IDLE_MS) continue;
+
+      const key = this.playerKey(roomId, playerId);
+      const newHealth = Math.min(
+        MAX_HEALTH,
+        await this.redisService.hIncrBy(key, 'health', REGEN_AMOUNT),
+      );
+
+      server.to(playerId).emit('healthRegen', { id: playerId, health: newHealth });
+    }
+  }
+
+  /**
+   * Activates the invincibility ability for a player, if it's not on
+   * cooldown. Emits `abilityActivated` (roomwide, so others can render the
+   * shield effect) on success or `abilityOnCooldown` (to the caller only)
+   * on failure.
+   */
+  async activateInvincibility(
+    roomId: string,
+    playerId: string,
+    server: Server,
+  ): Promise<void> {
+    const player = await this.playersService.getPlayerFromRoom(roomId, playerId);
+    if (!player || player.isDead) return;
+
+    const now = Date.now();
+    if (now < player.abilityCooldownUntil) {
+      server.to(playerId).emit('abilityOnCooldown', {
+        remainingMs: player.abilityCooldownUntil - now,
+      });
+      return;
+    }
+
+    const invincibleUntil = now + INVINCIBILITY_DURATION_MS;
+    const abilityCooldownUntil = now + ABILITY_COOLDOWN_MS;
+
+    const key = this.playerKey(roomId, playerId);
+    await this.redisService.hSet(key, {
+      invincibleUntil: String(invincibleUntil),
+      abilityCooldownUntil: String(abilityCooldownUntil),
+    });
+
+    server.to(roomId).emit('abilityActivated', {
+      id: playerId,
+      invincibleUntil,
+      abilityCooldownUntil,
+    });
+  }
+
   async handleShoot(
-    shooterSocket: AuthenticatedSocket,
+    shooter: ShooterIdentity,
     roomId: string,
     shootObject: ShootObject,
     server: Server,
@@ -39,17 +146,26 @@ export class CombatService {
       shootObject.rayDirection.z,
     ).normalize();
 
+    // Cosmetic-only origin for other clients' tracers/muzzle flash — the
+    // aim ray above is camera-based and must never be rendered, or remote
+    // shots would visibly originate from above the shooter's head.
+    const muzzleOrigin = new Vector3(
+      shootObject.muzzleOrigin.x,
+      shootObject.muzzleOrigin.y,
+      shootObject.muzzleOrigin.z,
+    );
+
     // BUG-04 fix: broadcast playerShot once before the per-player loop
     const cellKey = this.physicsService.getCellKey(roomId, rayOrigin);
     const nearbyIds = this.physicsService.getNearbySocketIds(
       roomId,
-      shooterSocket.id,
+      shooter.id,
       cellKey,
     );
     for (const id of nearbyIds) {
       server.to(id).emit('playerShot', {
-        id: shooterSocket.id,
-        rayOrigin,
+        id: shooter.id,
+        rayOrigin: muzzleOrigin,
         rayDirection,
       });
     }
@@ -58,11 +174,11 @@ export class CombatService {
 
     for (const [playerId, player] of Object.entries(players)) {
       // BUG-05 fix: compare socketId to socketId, not socketId to userId
-      if (playerId === shooterSocket.id) continue;
+      if (playerId === shooter.id) continue;
 
       const playerCenter = new Vector3(
         player.position.x,
-        player.position.y - 1.5, // hitbox centre offset
+        player.position.y - PLAYER_HITBOX_Y_OFFSET,
         player.position.z,
       );
 
@@ -73,16 +189,43 @@ export class CombatService {
         PLAYER_RADIUS,
       );
 
+      // TEMP DEBUG — perpendicular miss distance (how far off the shot was),
+      // plus the raw points, so we can see *why* a shot misses instead of
+      // just that it did. Remove once the TPP hit-sync bug is confirmed fixed.
+      const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(distance));
+      const perpMiss = closestPoint.distanceTo(playerCenter);
       console.log(
-        `[Combat] ${playerId} — hit: ${hit}, dist: ${distance.toFixed(3)}`,
+        `[Combat] ${playerId} — hit: ${hit}, alongRayDist: ${distance.toFixed(2)}, perpMiss: ${perpMiss.toFixed(2)} | ` +
+        `rayOrigin: (${rayOrigin.x.toFixed(2)}, ${rayOrigin.y.toFixed(2)}, ${rayOrigin.z.toFixed(2)}) ` +
+        `rayDir: (${rayDirection.x.toFixed(2)}, ${rayDirection.y.toFixed(2)}, ${rayDirection.z.toFixed(2)}) ` +
+        `playerCenter: (${playerCenter.x.toFixed(2)}, ${playerCenter.y.toFixed(2)}, ${playerCenter.z.toFixed(2)}) ` +
+        `rawPos: (${player.position.x.toFixed(2)}, ${player.position.y.toFixed(2)}, ${player.position.z.toFixed(2)})`,
       );
 
       if (!hit) continue;
 
+      if (this.physicsService.isRayOccludedByTerrain(rayOrigin, rayDirection, distance)) {
+        continue;
+      }
+
+      if (Date.now() < player.invincibleUntil) {
+        // Shot connects but does nothing — let the client show a "blocked"
+        // spark instead of blood so it doesn't look like the bullet vanished.
+        server.to(playerId).emit('hitBlocked', { rayOrigin });
+        continue;
+      }
+
       server.to(playerId).emit('hit', { rayOrigin });
+      server.to(roomId).emit('playerHitReaction', { targetId: playerId });
+      // Confirms the shot to the shooter — drives the crosshair hit-marker,
+      // replacing the old client-side speculative prediction.
+      server.to(shooter.id).emit('youHit', { targetId: playerId });
 
       const key = this.playerKey(roomId, playerId);
       const newHealth = await this.redisService.hIncrBy(key, 'health', -DAMAGE_PER_HIT);
+      // Reset the regen clock — any hit, even a non-lethal one, restarts the
+      // 60s idle window before health starts climbing back up.
+      await this.redisService.hSet(key, { lastHitAt: String(Date.now()) });
 
       if (newHealth > 0) continue;
 
@@ -92,7 +235,7 @@ export class CombatService {
         roomId,
         playerId,
         player,
-        shooterSocket,
+        shooter,
         server,
       });
     }
@@ -103,14 +246,14 @@ export class CombatService {
     roomId,
     playerId,
     player,
-    shooterSocket,
+    shooter,
     server,
   }: {
     key: string;
     roomId: string;
     playerId: string;
     player: { username: string };
-    shooterSocket: AuthenticatedSocket;
+    shooter: ShooterIdentity;
     server: Server;
   }): Promise<void> {
     const MAX_RETRIES = 3;
@@ -129,7 +272,7 @@ export class CombatService {
       const multi = this.redisService.multi();
       multi.hset(key, 'isDead', 'true');
       multi.hincrby(
-        this.playerKey(roomId, shooterSocket.id),
+        this.playerKey(roomId, shooter.id),
         'kills',
         1,
       );
@@ -147,9 +290,9 @@ export class CombatService {
 
       server.to(playerId).emit('youDied', { message: 'You are dead!' });
       server.to(roomId).emit('playerDead', {
-        killerSocketId: shooterSocket.id,
+        killerSocketId: shooter.id,
         victimSocketId: playerId,
-        killerName: shooterSocket.username,
+        killerName: shooter.username,
         victimName: player.username,
       });
 
@@ -176,6 +319,7 @@ export class CombatService {
           isDead: 'false',
           health: String(100),
           position: JSON.stringify(newPos),
+          lastHitAt: String(Date.now()),
         });
 
         server.to(playerId).emit('spawnPoint', newPos);

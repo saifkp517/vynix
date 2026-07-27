@@ -2,14 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { Vector3 } from 'three';
 
 import { PlayersService } from '../players/players.service';
+import { TerrainService, MAX_TERRAIN_HEIGHT } from '../terrain/terrain.service';
 
 type Grid = Map<string, Set<string>>;
+
+// Step size for walking a shot's ray to check whether terrain occludes it.
+// Small enough to catch ridgelines, large enough to stay cheap per shot.
+const TERRAIN_SAMPLE_STEP = 2;
 
 @Injectable()
 export class PhysicsService {
   private readonly grid: Grid = new Map();
 
-  constructor(private readonly playersService: PlayersService) {}
+  constructor(
+    private readonly playersService: PlayersService,
+    private readonly terrainService: TerrainService,
+  ) {}
 
   // ── Grid ─────────────────────────────────────────────────────────────────────
 
@@ -96,8 +104,12 @@ export class PhysicsService {
     const roomPlayers = await this.playersService.getAllPlayersFromRoom(roomId);
     const playerList = Object.values(roomPlayers);
 
-    const MIN_DISTANCE = 50;
-    const MAX_ATTEMPTS = 30;
+    // Widened from 50 — at 50 a full room (up to ~20 bots+players in the
+    // 200x200 map) packed tightly enough that spawns/respawns often landed
+    // bots right next to each other, so idle bots would immediately lock
+    // onto the nearest bot instead of drifting toward the player.
+    const MIN_DISTANCE = 70;
+    const MAX_ATTEMPTS = 50;
 
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
       const candidate = this.randomSpawnPoint();
@@ -141,7 +153,38 @@ export class PhysicsService {
 
     return {
       hit: distanceToCenter <= sphereRadius,
-      distance: distanceToCenter,
+      // Along-ray distance to the closest approach, not the perpendicular
+      // miss distance — callers (e.g. terrain occlusion) walk the ray by
+      // this length, so it must be a travel distance, not distanceToCenter.
+      distance: projectionLength,
     };
+  }
+
+  /**
+   * Walks the ray up to `distance` in fixed steps and checks whether it dips
+   * below ground height at any sample point — i.e. whether a hill sits
+   * between the shooter and the point being tested. Used to stop shots from
+   * registering through terrain (e.g. two players on opposite sides of a hill).
+   */
+  isRayOccludedByTerrain(
+    rayOrigin: Vector3,
+    rayDirection: Vector3,
+    distance: number,
+  ): boolean {
+    // Since the ray is straight, its lowest y along the whole segment is at
+    // one of its two endpoints. If even the lower endpoint stays above the
+    // highest point the terrain could ever reach, no hill anywhere can be
+    // poking into this ray — skip the sample walk entirely.
+    const endY = rayOrigin.y + rayDirection.y * distance;
+    if (Math.min(rayOrigin.y, endY) > MAX_TERRAIN_HEIGHT) return false;
+
+    for (let traveled = TERRAIN_SAMPLE_STEP; traveled < distance; traveled += TERRAIN_SAMPLE_STEP) {
+      const point = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(traveled));
+      const groundHeight = this.terrainService.getHeight(point.x, point.z);
+
+      if (point.y < groundHeight) return true;
+    }
+
+    return false;
   }
 }

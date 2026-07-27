@@ -47,6 +47,8 @@ const RemoteOpponents: React.FC<Props> = ({
   const deadPlayers = useRef<Set<string>>(new Set());
   const shootEventEmitter = useRef(new EventEmitter());
   const deathEventEmitter = useRef(new EventEmitter());
+  const hitEventEmitter = useRef(new EventEmitter());
+  const abilityEventEmitter = useRef(new EventEmitter());
   const walkingAudioRefs = useRef<Record<string, PositionalAudio>>({});
   const shootingAudioRefs = useRef<Record<string, PositionalAudio>>({});
 
@@ -166,6 +168,14 @@ const RemoteOpponents: React.FC<Props> = ({
       });
     };
 
+    const handlePlayerHitReaction = (payload: { targetId: string }) => {
+      hitEventEmitter.current.emit('playerHitReaction', { id: payload.targetId });
+    };
+
+    const handleAbilityActivated = (payload: { id: string; invincibleUntil: number }) => {
+      abilityEventEmitter.current.emit('abilityActivated', payload);
+    };
+
     const handlePlayerWalking = (payload: { userId: string }) => {
       const audio = walkingAudioRefs.current[payload.userId];
       if (audio && !audio.isPlaying) {
@@ -187,22 +197,30 @@ const RemoteOpponents: React.FC<Props> = ({
     socket.on('playerDisconnected', handlePlayerDisconnected);
     socket.on('playerDead', handlePlayerDead);
     socket.on('playerShot', handlePlayerShot);
+    socket.on('playerHitReaction', handlePlayerHitReaction);
     socket.on('playerWalking', handlePlayerWalking);
     socket.on('playerStopped', handlePlayerStopped);
+    socket.on('abilityActivated', handleAbilityActivated);
 
     return () => {
       socket.off('playerMoved', handlePlayerMoved);
       socket.off('playerDisconnected', handlePlayerDisconnected);
       socket.off('playerDead', handlePlayerDead);
       socket.off('playerShot', handlePlayerShot);
+      socket.off('playerHitReaction', handlePlayerHitReaction);
       socket.off('playerWalking', handlePlayerWalking);
       socket.off('playerStopped', handlePlayerStopped);
+      socket.off('abilityActivated', handleAbilityActivated);
     };
   }, [addPlayer, removePlayer, playerDataRef, showKillToast]);
 
-  // stable function to hand audio refs to Opponent children
+  // stable functions to hand audio refs to Opponent children
   const setAudioRef = useCallback((userId: string, audio: PositionalAudio) => {
     walkingAudioRefs.current[userId] = audio;
+  }, []);
+
+  const setShootAudioRef = useCallback((userId: string, audio: PositionalAudio) => {
+    shootingAudioRefs.current[userId] = audio;
   }, []);
 
   // render Opponent components for current playerIds
@@ -222,12 +240,15 @@ const RemoteOpponents: React.FC<Props> = ({
             getLatestSnapshot={() => latestSnapshotRef.current[id] || null}
             shootEvent={shootEventEmitter.current}
             deathEvent={deathEventEmitter.current}
+            hitEvent={hitEventEmitter.current}
+            abilityEvent={abilityEventEmitter.current}
             userId={id}
             username={playerUsernamesRef.current[id] ?? ''}
             addObstacleRef={addObstacleRef}
             smoothnessRef={smoothnessRef}
             listener={listenerRef?.current}
             setAudioRef={setAudioRef}
+            setShootAudioRef={setShootAudioRef}
             localPlayerPositionRef={playerCenterRef}
           />
         );

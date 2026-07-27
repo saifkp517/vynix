@@ -67,6 +67,9 @@ export class MatchmakingService {
       kills: 0,
       deaths: 0,
       health: 100,
+      lastHitAt: Date.now(),
+      invincibleUntil: 0,
+      abilityCooldownUntil: 0,
     };
 
     await this.playersService.setPlayerInRoom(player);

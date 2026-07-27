@@ -8,6 +8,7 @@ import { PlayersModule } from '../players/players.module';
 import { MovementModule } from '../movement/movement.module';
 import { CombatModule } from '../combat/combat.module';
 import { PhysicsModule } from '../physics/physics.module';
+import { BotsModule } from '../bots/bots.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PhysicsModule } from '../physics/physics.module';
     MovementModule,
     CombatModule,
     PhysicsModule,
+    BotsModule,
   ],
   providers: [GameGateway],
   exports: [GameGateway],
