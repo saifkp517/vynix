@@ -64,6 +64,9 @@ export class GameService implements OnModuleInit {
       isDead: false,
       kills: 0,
       deaths: 0,
+      lastHitAt: Date.now(),
+      invincibleUntil: 0,
+      abilityCooldownUntil: 0,
     };
   }
 

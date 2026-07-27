@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect, RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber'
 import socket from '@/lib/socket';
-import { Howl } from 'howler';
+import { getLoopingSound, playSound } from '@/lib/sound';
 import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
 import { Vector3, Mesh, Camera, Raycaster, AudioListener } from 'three';
@@ -66,7 +66,6 @@ const Player: React.FC<PlayerProps> = ({
     const collisionTypeRef = useRef<CollisionType>("");
     const [explosions, setExplosions] = useState<{ id: number; position: Vector3 }[]>([]);
     const lastUpdateTime = useRef(0);
-    const walkSoundRef = useRef<Howl | null>(null);
     const wasWalkingRef = useRef(false);
 
     // NEW: Rebound system refs
@@ -249,15 +248,9 @@ const Player: React.FC<PlayerProps> = ({
 
     //walk sound initialization
     useEffect(() => {
-        walkSoundRef.current = new Howl({
-            src: ['/sounds/walks.mp3'],
-            volume: 0.5,
-            loop: true,
-            rate: 1
-        });
-
+        const walkSound = getLoopingSound('walk');
         return () => {
-            walkSoundRef.current?.stop();
+            walkSound.stop();
         };
     }, []);
 
@@ -475,12 +468,7 @@ const Player: React.FC<PlayerProps> = ({
                     // Update last collision time
                     lastCollisionTime.current = currentTime;
 
-                    const collisionSound = new Howl({
-                        src: ['/sounds/hitwood.mp3'], // Update with your sound file path
-                        volume: 1,
-                        rate: 0.5
-                    });
-                    collisionSound.play();
+                    playSound('hitWood', { volume: 1, rate: 0.5 });
                 }
             }
         }
@@ -527,26 +515,23 @@ const Player: React.FC<PlayerProps> = ({
 
         const isWalkingNow = nowWalking && onGround && !playerDeadRef.current;
 
-        const walkSound = walkSoundRef.current;
+        const walkSound = getLoopingSound('walk');
+        const isShift = keysPressedRef.current.ShiftLeft;
 
-        if (walkSound) {
-            const isShift = keysPressedRef.current.ShiftLeft;
-
-            if (isWalkingNow && !wasWalkingRef.current) {
-                walkSound.volume(isShift ? 0.8 : 0.2);
-                walkSound.rate(isShift ? 2 : 1);
-                walkSound.play();
-                socket.emit("playerWalking", { userId });
-            } else if (!isWalkingNow && wasWalkingRef.current) {
-                walkSound.stop();
-                socket.emit("playerStopped", { userId });
-            } else if (isWalkingNow && walkSound.playing()) {
-                walkSound.volume(isShift ? 0.8 : 0);
-                walkSound.rate(isShift ? 2 : 0);
-            }
-
-            wasWalkingRef.current = isWalkingNow;
+        if (isWalkingNow && !wasWalkingRef.current) {
+            walkSound.volume(isShift ? 0.8 : 0.2);
+            walkSound.rate(isShift ? 2 : 1);
+            walkSound.play();
+            socket.emit("playerWalking", { userId });
+        } else if (!isWalkingNow && wasWalkingRef.current) {
+            walkSound.stop();
+            socket.emit("playerStopped", { userId });
+        } else if (isWalkingNow && walkSound.playing()) {
+            walkSound.volume(isShift ? 0.8 : 0);
+            walkSound.rate(isShift ? 2 : 0);
         }
+
+        wasWalkingRef.current = isWalkingNow;
     });
 
     return (
@@ -571,6 +556,7 @@ const Player: React.FC<PlayerProps> = ({
                     getGroundHeight={getGroundHeight}
                     otherPlayers={otherPlayers}
                     crosshairRef={crosshairRef}
+                    playerDeadRef={playerDeadRef}
                 />
             </group>
         </>

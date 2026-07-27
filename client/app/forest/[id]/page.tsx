@@ -2,7 +2,6 @@
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Howl } from 'howler';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls, Stats } from '@react-three/drei';
 import { useParams, useRouter } from 'next/navigation';
@@ -18,8 +17,11 @@ import Player from '@/components/game-components/player/TPP';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
+import HitImpact from '@/components/game-components/player/HitImpact';
+import KillCam from '@/components/game-components/player/KillCam';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
+import { getLoopingSound, stopAllSounds } from '@/lib/sound';
 
 interface Player {
   id: string;
@@ -38,12 +40,14 @@ const Game: React.FC = () => {
   // Refs
   const obstacles = useRef<Mesh[]>([]);
   const isPlayerDead = useRef(false);
+  const killerIdRef = useRef<string | null>(null);
   const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 } }>({});
   const playerCenterRef = useRef<Vector3>(new Vector3());
   const cameraDirectionRef = useRef<Vector3>(new Vector3(0, 0, 1));
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
   const grenadeCoolDownRef = useRef(false);
+  const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const crosshairRef = useRef(null);
   const controlsRef = useRef<any>(null);
   const listenerRef = useRef<AudioListener>(new AudioListener());
@@ -151,11 +155,21 @@ const Game: React.FC = () => {
       isPlayerDead.current = true;
       setTimeout(() => {
         isPlayerDead.current = false;
+        killerIdRef.current = null;
       }, RESPAWN_TIMEOUT);
+    }
+
+    // Broadcast to the whole room — only capture the killer when we're the
+    // victim. killerSocketId feeds the killcam (see KillCam component).
+    const handlePlayerDead = ({ killerSocketId, victimSocketId }: { killerSocketId: string; victimSocketId: string }) => {
+      if (victimSocketId === socket.id) {
+        killerIdRef.current = killerSocketId;
+      }
     }
 
     const handleGameOver = () => {
       setGameOver(true);
+      stopAllSounds();
       setTimeout(() => {
         socket.disconnect();
         router.push('/');
@@ -164,17 +178,19 @@ const Game: React.FC = () => {
 
     socket.on('connect', handleConnect);
     socket.on('youDied', handleYouDied);
+    socket.on('playerDead', handlePlayerDead);
     socket.on('gameOver', handleGameOver);
 
     if (socket.connected) {
       handleConnect();
     }
 
-   
+
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('youDied', handleYouDied);
+      socket.off('playerDead', handlePlayerDead);
       socket.off('gameOver', handleGameOver);
       socket.off('pong-check');
     };
@@ -189,13 +205,40 @@ const Game: React.FC = () => {
     obstacles.current = [];
   }, []);
 
+  // Covers leaving the game by any path other than the handleGameOver flow
+  // (closing the tab, in-app route change, back button) — stops looping
+  // local sounds (walk, breeze) and, critically, disconnects the socket so
+  // the server's handleDisconnect fires. The socket is a singleton reused
+  // across the app (see lib/socket.ts), so without this a client-side route
+  // change (e.g. router.push('/')) leaves it connected — the server never
+  // learns the player left, the room never gets torn down, and its bots
+  // keep ticking against a "player" who's actually gone. The home page
+  // already reconnects on mount if disconnected, so this is safe there.
+  //
+  // Debounced rather than immediate: React StrictMode (on by default in
+  // `next dev`) mounts this effect, fires its cleanup, then mounts again —
+  // a synthetic double-invoke to catch missing cleanup, not a real
+  // navigation. An immediate disconnect() here fired on that synthetic
+  // cleanup and dropped the player moments after joining. Delaying it lets
+  // the guaranteed-immediate remount cancel the pending disconnect; a real
+  // unmount (no remount coming) lets it fire.
   useEffect(() => {
-    const sound = new Howl({
-      src: ['/sounds/breeze.mp3'],
-      volume: 1,
-      preload: true,
-      loop: true,
-    });
+    if (disconnectTimeoutRef.current) {
+      clearTimeout(disconnectTimeoutRef.current);
+      disconnectTimeoutRef.current = null;
+    }
+
+    return () => {
+      stopAllSounds();
+      disconnectTimeoutRef.current = setTimeout(() => {
+        if (socket.connected) socket.disconnect();
+      }, 100);
+    };
+  }, []);
+
+  useEffect(() => {
+    const sound = getLoopingSound('breeze');
+    sound.volume(1);
     sound.play();
     return () => {
       sound.stop();
@@ -310,6 +353,13 @@ const Game: React.FC = () => {
                     listenerRef={listenerRef}
                     playerCenterRef={playerCenterRef}
                   />
+                  <KillCam
+                    isPlayerDead={isPlayerDead}
+                    killerIdRef={killerIdRef}
+                    playerDataRef={playerDataRef}
+                    controlsRef={controlsRef}
+                  />
+                  <HitImpact playerCenterRef={playerCenterRef} />
                 </Ground>
               </Canvas>
             </div>

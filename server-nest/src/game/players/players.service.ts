@@ -84,6 +84,13 @@ export class PlayersService {
       deaths: Number(data.deaths),
       health: Number(data.health),
       isBot: data.isBot === 'true',
+      // Players persisted before this field existed won't have it in Redis —
+      // default to "just hit" so they don't instantly start regenerating.
+      lastHitAt: data.lastHitAt ? Number(data.lastHitAt) : Date.now(),
+      invincibleUntil: data.invincibleUntil ? Number(data.invincibleUntil) : 0,
+      abilityCooldownUntil: data.abilityCooldownUntil
+        ? Number(data.abilityCooldownUntil)
+        : 0,
     };
   }
 

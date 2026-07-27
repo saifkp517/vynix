@@ -7,17 +7,18 @@ export function useSocketHandlers(
   {
     setMatchmakingStatus,
     setIsMatchmaking,
+    setRoomId,
     redirect,
   }: {
     setMatchmakingStatus: (status: string) => void;
     setIsMatchmaking: (val: boolean) => void;
+    setRoomId?: (roomId: string) => void;
     redirect: (path: string) => void;
   }
 ) {
   // Handlers
   const handleRoomSnapshot = ({ roomPlayers }: { roomPlayers: Record<string, Player> }) => {
     const playersArray = Object.values(roomPlayers);
-    console.log("current room players", roomPlayers, playersArray);
     useRoomStore.getState().setPlayers([...playersArray]);
   };
 
@@ -26,9 +27,30 @@ export function useSocketHandlers(
     setIsMatchmaking(true);
   }
 
+  // Room is assigned as soon as the player is placed — this does NOT mean
+  // the match is full yet. Bots trickle in afterward; the page watches the
+  // room's player count and redirects once it hits the match size.
   const handleRoomAssigned = ({ roomId }: { roomId: string }) => {
-    setMatchmakingStatus("Match Found!!");
-    redirect(`forest/${roomId}`);
+    setMatchmakingStatus("Room found — waiting for lobby to fill");
+    setRoomId?.(roomId);
+  };
+
+  const handlePlayerJoined = (player: any) => {
+    useRoomStore.getState().addPlayers([
+      {
+        socketId: player.id,
+        userId: player.id,
+        room: "",
+        position: player.position,
+        velocity: player.velocity,
+        cameraDirection: player.cameraDirection,
+        username: player.username,
+        isDead: player.isDead ?? false,
+        kills: player.kills ?? 0,
+        deaths: player.deaths ?? 0,
+        health: player.health ?? 100,
+      },
+    ]);
   };
 
   const handleCancelledMatchmaking = () => {
@@ -37,7 +59,6 @@ export function useSocketHandlers(
   };
 
   const handleSpawnPoint = (spawnPoint: any) => {
-    console.log("got spawn point: ", spawnPoint);
     useRoomStore.getState().setSpawnPoint(spawnPoint);
   };
 
@@ -48,12 +69,14 @@ export function useSocketHandlers(
     socket.on("roomSnapshot", handleRoomSnapshot);
     socket.on("searchingForMatch", confirmMatchmaking);
     socket.on("roomAssigned", handleRoomAssigned);
+    socket.on("playerJoined", handlePlayerJoined);
     socket.on("cancelledMatchmaking", handleCancelledMatchmaking);
     socket.on("spawnPoint", handleSpawnPoint);
 
     return () => {
       socket.off("roomSnapshot", handleRoomSnapshot);
       socket.off("roomAssigned", handleRoomAssigned);
+      socket.off("playerJoined", handlePlayerJoined);
       socket.off("cancelledMatchmaking", handleCancelledMatchmaking);
       socket.off("spawnPoint", handleSpawnPoint);
     };

@@ -8,3 +8,4 @@ export interface ThemeConfig {
 }
 
 export const PLAYER_RADIUS = 1;
+export const PLAYER_HITBOX_Y_OFFSET = 1.5;

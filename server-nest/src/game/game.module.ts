@@ -6,7 +6,6 @@ import { RoomsModule } from './rooms/rooms.module';
 import { MatchmakingModule } from './matchmaking/matchmaking.module';
 import { PhysicsModule } from './physics/physics.module';
 import { SocketStateModule } from './socket-state/socket-state.module';
-import { GameService } from './game.service';
 import { GameController } from './game.controller';
 
 @Module({
@@ -19,6 +18,5 @@ import { GameController } from './game.controller';
     PhysicsModule
   ],
   controllers: [GameController],
-  providers: [GameService],
 })
 export class GameModule {}

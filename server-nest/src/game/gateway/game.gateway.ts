@@ -122,10 +122,12 @@ export class GameGateway
         if (roomId) {
             void this.playersService
                 .deletePlayer(roomId, socket.id)
-                .then(() => {
+                .then(async () => {
                     this.server
                         .to(roomId)
                         .emit('playerLeft', { id: socket.id });
+
+                    await this.reapIfNoRealPlayersLeft(roomId);
                 })
                 .catch((err) => {
                     console.error(
@@ -140,6 +142,22 @@ export class GameGateway
         console.log(
             `[Gateway] Disconnected: ${socket.id} (${this.socketState.count()} total)`,
         );
+    }
+
+    // A room left with only bots in it burns CPU (bot tick loop) and network
+    // (broadcasting bot movement/combat to nobody) for no reason — tear it
+    // down, bots included, the moment the last real player leaves.
+    private async reapIfNoRealPlayersLeft(roomId: string): Promise<void> {
+        const remaining = await this.playersService.getAllPlayersFromRoom(roomId);
+        const entries = Object.values(remaining);
+        if (entries.length === 0) return; // already-empty rooms are handled by tickRoom/ghost sweep
+
+        const hasRealPlayer = entries.some((p) => !p.isBot);
+        if (hasRealPlayer) return;
+
+        await this.botsService.destroyRoom(roomId);
+        await this.roomsService.removeRoom(roomId);
+        console.log(`[Gateway] Room ${roomId} had no real players left — reaped room and its bots`);
     }
 
     // ─────────────────────── DEBUG ───────────────────────
@@ -205,9 +223,11 @@ export class GameGateway
         }
 
         await this.botsService.fillRoom(roomId, BOT_FILL_TARGET, this.server);
+        this.combatService.startRegen(roomId, this.server);
 
         this.roomsService.scheduleGameEnd(roomId, async (expiredRoomId) => {
             this.botsService.stopRoom(expiredRoomId);
+            this.combatService.stopRegen(expiredRoomId);
             this.server.to(expiredRoomId).emit('gameOver');
             // TODO: flush per-player stats to Prisma before emitting (blocked on PrismaService)
         });
@@ -280,6 +300,18 @@ export class GameGateway
             { id: socket.id, username: socket.username },
             payload.roomId,
             payload.shootObject,
+            this.server,
+        );
+    }
+
+    @SubscribeMessage('useAbility')
+    async handleUseAbility(
+        @ConnectedSocket() socket: AuthenticatedSocket,
+        @MessageBody() payload: { roomId: string },
+    ) {
+        await this.combatService.activateInvincibility(
+            payload.roomId,
+            socket.id,
             this.server,
         );
     }

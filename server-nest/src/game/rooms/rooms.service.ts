@@ -65,10 +65,7 @@ export class RoomsService {
                     this.getRoomPlayersKey(roomId),
                 );
 
-            if (
-                playerCount < MAX_PLAYERS &&
-                playerCount >= 2
-            ) {
+            if (playerCount < MAX_PLAYERS) {
                 return roomId;
             }
         }

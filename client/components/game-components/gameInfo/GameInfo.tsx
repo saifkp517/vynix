@@ -47,6 +47,7 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+
 interface HitEffect {
   id: string;
   rayOrigin: Vector3;
@@ -54,13 +55,7 @@ interface HitEffect {
   duration: number;
 }
 
-interface DamageIndicator {
-  id: string;
-  angle: number;
-  intensity: number;
-  timestamp: number;
-  duration: number;
-}
+const LOW_HEALTH_THRESHOLD = 80;
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
   ({ roomId, userid, controlsRef, crosshairRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef, gameOver }) => {
@@ -82,83 +77,126 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       };
 
       const handleHit = ({ rayOrigin }: { rayOrigin: Vector3 }) => {
-        healthRef.current -= 10;
+        healthRef.current = Math.max(0, healthRef.current - 10);
+        setHealthInfo(healthRef.current);
         createHitEffect(rayOrigin);
       };
 
+      const handlePlayerRespawned = ({ id }: { id: string }) => {
+        if (id === userid) {
+          healthRef.current = 100;
+          setHealthInfo(100);
+          setKillerName(null);
+        }
+      };
+
+      const handlePlayerDead = ({
+        victimSocketId,
+        killerName: killedBy,
+      }: {
+        victimSocketId: string;
+        killerName: string;
+      }) => {
+        if (victimSocketId === userid) {
+          setKillerName(killedBy);
+        }
+      };
+
+      const handleHealthRegen = ({ id, health }: { id: string; health: number }) => {
+        if (id === userid) {
+          healthRef.current = health;
+          setHealthInfo(health);
+        }
+      };
+
+      const handleAbilityActivated = ({
+        id,
+        invincibleUntil,
+        abilityCooldownUntil,
+      }: {
+        id: string;
+        invincibleUntil: number;
+        abilityCooldownUntil: number;
+      }) => {
+        if (id === userid) {
+          setAbilityState({ invincibleUntil, cooldownUntil: abilityCooldownUntil });
+        }
+      };
 
       socket.on("hit", handleHit);
       socket.on("receiveMessage", handleReceiveMessage);
+      socket.on("playerRespawned", handlePlayerRespawned);
+      socket.on("healthRegen", handleHealthRegen);
+      socket.on("abilityActivated", handleAbilityActivated);
+      socket.on("playerDead", handlePlayerDead);
 
       return () => {
         socket.off('receiveMessage', handleReceiveMessage);
         socket.off("hit", handleHit);
+        socket.off("playerRespawned", handlePlayerRespawned);
+        socket.off("healthRegen", handleHealthRegen);
+        socket.off("abilityActivated", handleAbilityActivated);
+        socket.off("playerDead", handlePlayerDead);
       };
-    }, [socket]);
+    }, [socket, userid]);
 
     // ====================================================================
 
     const healthRef = useRef(100);
+    const [healthInfo, setHealthInfo] = useState(100);
+    const [killerName, setKillerName] = useState<string | null>(null);
     const [pingInfo, setPingInfo] = useState(0);
     const [showScoreboard, setShowScoreboard] = useState(false);
     const [showChat, setShowChat] = useState(false);
     const [chatMessage, setChatMessage] = useState('');
     const chatInputRef = useRef<HTMLInputElement>(null);
     const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
-    const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
 
-    const ammo = useGameInfoStore((state) => state.ammo);
-
-    const chatMessages = useRef<ChatMessage[]>([]);
-    const [, forceUpdate] = useState({});
-
-    // Calculate angle from rayOrigin to screen center (player position)
-    const calculateDamageAngle = (rayOrigin: Vector3) => {
-      const deltaX = -rayOrigin.x;
-      const deltaZ = -rayOrigin.z;
-      let angle = Math.atan2(deltaX, -deltaZ) * (180 / Math.PI);
-      if (angle < 0) angle += 360;
-      return angle;
-    };
-
-    // Create damage direction indicator
-    const createDamageIndicator = (rayOrigin: Vector3, intensity: number = 0.8) => {
-      const angle = calculateDamageAngle(rayOrigin);
-      console.log(angle);
-
-      const newIndicator: DamageIndicator = {
-        id: Date.now().toString() + Math.random(),
-        angle: -angle,
-        intensity: Math.max(0.4, Math.min(1, intensity)),
-        timestamp: Date.now(),
-        duration: 1500
-      };
-
-      setDamageIndicators(prev => [...prev, newIndicator]);
-
-      setTimeout(() => {
-        setDamageIndicators(prev => prev.filter(indicator => indicator.id !== newIndicator.id));
-      }, newIndicator.duration);
-    };
-
-    // Create hit effect
+    // Create hit effect — brief red screen flash/pulse in the direction-agnostic
+    // center, distinct from the low-health vignette which is persistent.
     const createHitEffect = (rayOrigin: Vector3) => {
       const newHitEffect: HitEffect = {
-        id: Date.now().toString(),
-        rayOrigin: rayOrigin,
+        id: Date.now().toString() + Math.random(),
+        rayOrigin,
         timestamp: Date.now(),
-        duration: 1000
+        duration: 1000,
       };
 
       setHitEffects(prev => [...prev, newHitEffect]);
-      createDamageIndicator(rayOrigin, 0.8);
 
       setTimeout(() => {
         setHitEffects(prev => prev.filter(effect => effect.id !== newHitEffect.id));
       }, newHitEffect.duration);
     };
 
+    // Invincibility ability — timestamps come from the server (activateInvincibility
+    // in CombatService), so cooldown can't be spoofed by editing local state.
+    const [abilityState, setAbilityState] = useState({ invincibleUntil: 0, cooldownUntil: 0 });
+    const [now, setNow] = useState(Date.now());
 
+    useEffect(() => {
+      const interval = setInterval(() => setNow(Date.now()), 100);
+      return () => clearInterval(interval);
+    }, []);
+
+    const isInvincible = now < abilityState.invincibleUntil;
+    const abilityCooldownRemainingMs = Math.max(0, abilityState.cooldownUntil - now);
+    const abilityReady = abilityCooldownRemainingMs <= 0;
+
+    useEffect(() => {
+      const handleAbilityKeyDown = (event: KeyboardEvent) => {
+        if (event.key.toLowerCase() === 'q' && !showChat) {
+          socket.emit("useAbility", { roomId });
+        }
+      };
+      window.addEventListener('keydown', handleAbilityKeyDown);
+      return () => window.removeEventListener('keydown', handleAbilityKeyDown);
+    }, [roomId, showChat]);
+
+    const ammo = useGameInfoStore((state) => state.ammo);
+
+    const chatMessages = useRef<ChatMessage[]>([]);
+    const [, forceUpdate] = useState({});
 
     useEffect(() => {
       const interval = setInterval(() => {
@@ -245,12 +283,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       };
     }, [showChat, showScoreboard, chatMessage, handleSendMessage]);
 
-    const handleChatClose = () => {
-      setShowChat(false);
-      setChatMessage('');
-      setTimeout(lockControls, 50);
-    };
-
     const getPingColor = (ping: number) => {
       if (ping < 50) return 'text-emerald-400';
       if (ping < 100) return 'text-yellow-400';
@@ -280,7 +312,19 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       return chatMessages.current.slice(-2);
     };
 
-    // Hit Animation Component
+    const getHealthColor = (health: number) => {
+      if (health > 60) return 'text-emerald-400';
+      if (health > 30) return 'text-yellow-400';
+      return 'text-red-400';
+    };
+
+    const getHealthBarColor = (health: number) => {
+      if (health > 60) return 'bg-emerald-400';
+      if (health > 30) return 'bg-yellow-400';
+      return 'bg-red-400';
+    };
+
+    // Hit Animation Component — brief flash + pulse on taking damage
     const HitAnimation = ({ effect }: { effect: HitEffect }) => {
       const elapsed = Date.now() - effect.timestamp;
       const flashOpacity = Math.max(0, 1 - (elapsed / 300));
@@ -309,8 +353,45 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
       );
     };
 
+    // Low-health vignette — a persistent (not fading) red glow around the
+    // screen edges standing in for "bloody vision" the lower your health
+    // gets. Center stays clear (that's where you're actually aiming), so
+    // the gradient is inverted from the old hit-flash: transparent middle,
+    // red edges. Opacity ramps linearly from 0 at LOW_HEALTH_THRESHOLD down
+    // to fully opaque at 0hp, instead of snapping on/off.
+    const lowHealthOpacity = Math.max(
+      0,
+      Math.min(1, (LOW_HEALTH_THRESHOLD - healthInfo) / LOW_HEALTH_THRESHOLD),
+    );
+
     return (
       <>
+        {lowHealthOpacity > 0 && (
+          <div
+            className="fixed inset-0 pointer-events-none z-45 transition-opacity duration-300"
+            style={{
+              background: `radial-gradient(ellipse at center, transparent 40%, rgba(255, 0, 0, 0.85) 100%)`,
+              opacity: lowHealthOpacity,
+            }}
+          />
+        )}
+
+        {/* Invincibility shield — cyan edge glow, mirrors the low-health vignette
+            so it reads instantly as "protected" rather than competing with it. */}
+        {isInvincible && (
+          <div
+            className="fixed inset-0 pointer-events-none z-46"
+            style={{
+              background: `radial-gradient(ellipse at center, transparent 55%, rgba(56, 189, 248, 0.55) 100%)`,
+            }}
+          />
+        )}
+
+        {/* Hit Effects Overlay */}
+        {hitEffects.map(effect => (
+          <HitAnimation key={effect.id} effect={effect} />
+        ))}
+
         {/* Scoreboard Component */}
         <Scoreboard
           roomId={roomId}
@@ -320,10 +401,47 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           onClose={() => setShowScoreboard(false)}
         />
 
-        {/* Hit Effects Overlay */}
-        {hitEffects.map(effect => (
-          <HitAnimation key={effect.id} effect={effect} />
-        ))}
+        {/* Health - Top Left Corner */}
+        <div className="fixed top-2 left-2 p-3 z-30">
+          <div className="text-white/90">
+            <div className="flex items-center space-x-2 mb-1">
+              <Heart size={14} className={getHealthColor(healthInfo)} />
+              <span className="text-lg font-bold tabular-nums">{healthInfo}</span>
+            </div>
+            <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${getHealthBarColor(healthInfo)}`}
+                style={{ width: `${Math.max(0, Math.min(100, healthInfo))}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Invincibility ability — Q to activate */}
+          <div className="flex items-center space-x-2 mt-2">
+            <div
+              className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[9px] font-bold ${
+                isInvincible
+                  ? 'border-sky-400 bg-sky-400/30 text-sky-200'
+                  : abilityReady
+                    ? 'border-white/60 text-white/80'
+                    : 'border-white/20 text-white/30'
+              }`}
+            >
+              Q
+            </div>
+            <span
+              className={`text-xs font-bold tabular-nums ${
+                isInvincible ? 'text-sky-300' : abilityReady ? 'text-white/80' : 'text-white/40'
+              }`}
+            >
+              {isInvincible
+                ? `${Math.ceil((abilityState.invincibleUntil - now) / 1000)}s`
+                : abilityReady
+                  ? 'READY'
+                  : `${Math.ceil(abilityCooldownRemainingMs / 1000)}s`}
+            </span>
+          </div>
+        </div>
 
         {/* Ammo - Bottom Right Corner */}
         <div className="fixed bottom-0 right-0 p-3 z-30">
@@ -350,9 +468,9 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           {playerDataRef && (
             <RadarUI
               myPlayerId={userid!}
-              myPosition={playerCenterRef.current}
+              myPositionRef={playerCenterRef}
               playerDataRef={playerDataRef}
-              cameraDirection={cameraDirectionRef.current}
+              cameraDirectionRef={cameraDirectionRef}
             />
           )}
           <div className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
@@ -428,12 +546,15 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           </div>
         )}
 
-        {/* Death Screen */}
+        {/* Death Screen — a corner toast, not a full-screen block, so the
+            killcam (spectating whoever killed you) stays visible behind it */}
         {isPlayerDead?.current && (
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="text-center">
-              <div className="w-6 h-6 border-2 border-red-400/30 border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
-              <h1 className="text-white text-xl font-light">Eliminated</h1>
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-sm rounded-lg px-5 py-2.5 border border-red-500/30 flex items-center gap-2.5">
+              <div className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-500 rounded-full animate-spin" />
+              <h1 className="text-white text-sm font-light tracking-wide">
+                Eliminated{killerName ? <span className="text-white/60"> by {killerName}</span> : null}
+              </h1>
             </div>
           </div>
         )}

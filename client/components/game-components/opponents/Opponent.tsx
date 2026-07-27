@@ -1,10 +1,11 @@
 import { RefObject, useEffect, useRef, useState } from "react";
-import { useFrame, useThree, useLoader } from "@react-three/fiber";
-import { PositionalAudio, AudioListener, AudioLoader, Group, Mesh, Vector3, Color } from 'three';
+import { useFrame } from "@react-three/fiber";
+import { PositionalAudio, AudioListener, Group, Mesh, Vector3, Color } from 'three';
 import { EventEmitter } from "events";
 import { Html } from "@react-three/drei";
 
 import { PLAYER_RADIUS } from "@/types/types";
+import { createPositionalSound, retriggerPositionalSound } from "@/lib/positionalSound";
 import OpponentGun from "./OpGun"
 
 
@@ -35,11 +36,14 @@ export const Opponent = ({
   getLatestSnapshot,
   shootEvent,
   deathEvent,
+  hitEvent,
+  abilityEvent,
   userId,
   username,
   addObstacleRef,
   listener,
   setAudioRef,
+  setShootAudioRef,
   localPlayerPositionRef
 }: {
   position: () => Vector3 | null;
@@ -49,23 +53,48 @@ export const Opponent = ({
   getLatestSnapshot: () => Snapshot | null;
   shootEvent: EventEmitter;
   deathEvent: EventEmitter;
+  hitEvent: EventEmitter;
+  abilityEvent: EventEmitter;
   userId: string;
   username: string;
   addObstacleRef?: (ref: Mesh | null) => void;
   listener: AudioListener | undefined;
   setAudioRef?: (userId: string, audio: PositionalAudio) => void;
+  setShootAudioRef?: (userId: string, audio: PositionalAudio) => void;
   localPlayerPositionRef: RefObject<Vector3>;
 }) => {
   const group = useRef<Group>(null);
   const sphereRef = useRef<Mesh>(null);
-  const buffer = useLoader(AudioLoader, "/sounds/walk.mp3");
   const currentPosition = useRef<Vector3>(new Vector3());
   const currentVelocity = useRef<Vector3>(new Vector3());
   const initializedRef = useRef(false);
   const soundRef = useRef<PositionalAudio | null>(null);
+  const shootSoundRef = useRef<PositionalAudio | null>(null);
 
   const [visible, setVisible] = useState(true);
   const [dead, setDead] = useState(false);
+  const [invincible, setInvincible] = useState(false);
+  const invincibleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Shield glow: lets everyone else see this player popped invincibility,
+  // so the counterplay is "back off or pop your own" instead of wasting shots.
+  useEffect(() => {
+    const handleAbilityActivated = (payload: { id: string; invincibleUntil: number }) => {
+      if (payload.id !== userId) return;
+
+      if (invincibleTimeoutRef.current) clearTimeout(invincibleTimeoutRef.current);
+
+      setInvincible(true);
+      const remainingMs = Math.max(0, payload.invincibleUntil - Date.now());
+      invincibleTimeoutRef.current = setTimeout(() => setInvincible(false), remainingMs);
+    };
+
+    abilityEvent.on('abilityActivated', handleAbilityActivated);
+    return () => {
+      abilityEvent.off('abilityActivated', handleAbilityActivated);
+      if (invincibleTimeoutRef.current) clearTimeout(invincibleTimeoutRef.current);
+    };
+  }, [abilityEvent, userId]);
 
   //reset player to normal after death
   useEffect(() => {
@@ -131,27 +160,77 @@ export const Opponent = ({
       deathEvent.off("playDeathAnimation", handleDeath);
     };
   }, [deathEvent]);
-  
+
+  // flash the sphere white when a bullet actually lands on this opponent
+  const hitFlashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleHitReaction = (payload: { id: string }) => {
+      if (payload.id !== userId) return;
+      if (dead || !sphereRef.current) return;
+
+      if (hitFlashTimeoutRef.current) clearTimeout(hitFlashTimeoutRef.current);
+
+      const material = sphereRef.current.material as any;
+      material.color.set(new Color("white"));
+
+      hitFlashTimeoutRef.current = setTimeout(() => {
+        if (sphereRef.current) {
+          (sphereRef.current.material as any).color.set(new Color("red"));
+        }
+      }, 120);
+    };
+
+    hitEvent.on("playerHitReaction", handleHitReaction);
+    return () => {
+      hitEvent.off("playerHitReaction", handleHitReaction);
+      if (hitFlashTimeoutRef.current) clearTimeout(hitFlashTimeoutRef.current);
+    };
+  }, [hitEvent, userId, dead]);
+
+  // Walk sound: positional, decays with distance, silent past the shared
+  // MAX_DISTANCE threshold (see lib/positionalSound.ts). Loop/start/stop is
+  // driven by 'playerWalking'/'playerStopped' socket events in RemoteOpponents.
   useEffect(() => {
     if (!listener || !sphereRef.current) return;
 
-    const sound = new PositionalAudio(listener);
-    const loader = new AudioLoader();
+    const sound = createPositionalSound('walk', listener, { loop: true });
+    sound.setPlaybackRate(2);
+    sphereRef.current.add(sound);
+    soundRef.current = sound;
+    setAudioRef?.(userId, sound);
 
+    return () => {
+      sound.stop();
+      sphereRef.current?.remove(sound);
+      soundRef.current = null;
+    };
+  }, [listener, userId, setAudioRef]);
 
-    loader.load('/sounds/walk.mp3', (buffer) => {
-      sound.setBuffer(buffer);
-      sound.setPlaybackRate(2)
-      sound.setVolume(1);
-      sound.setRefDistance(5);
-      sphereRef.current!.add(sound);
-      soundRef.current = sound;
+  // Shoot sound: positional one-shot, retriggered on every shot this
+  // opponent fires, decaying with distance same as walk audio.
+  useEffect(() => {
+    if (!listener || !sphereRef.current) return;
 
-      if (setAudioRef) {
-        setAudioRef(userId, sound);
-      }
-    });
-  }, [listener]);
+    const sound = createPositionalSound('shoot', listener, { volume: 0.6 });
+    sphereRef.current.add(sound);
+    shootSoundRef.current = sound;
+    setShootAudioRef?.(userId, sound);
+
+    const handleShoot = (payload: { id: string }) => {
+      if (payload.id !== userId) return;
+      retriggerPositionalSound(sound);
+    };
+
+    shootEvent.on('playerShot', handleShoot);
+
+    return () => {
+      shootEvent.off('playerShot', handleShoot);
+      sound.stop();
+      sphereRef.current?.remove(sound);
+      shootSoundRef.current = null;
+    };
+  }, [listener, userId, setShootAudioRef, shootEvent]);
 
   /** Obstacle detection code, to prevent lerping from making the opponent clip through trees */
   useEffect(() => {
@@ -214,6 +293,19 @@ export const Opponent = ({
         <sphereGeometry args={[PLAYER_RADIUS]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
+      {invincible && (
+        <mesh position={[0, -1.5, 0]}>
+          <sphereGeometry args={[PLAYER_RADIUS * 1.5, 16, 16]} />
+          <meshStandardMaterial
+            color={new Color('#38bdf8')}
+            emissive={new Color('#38bdf8')}
+            emissiveIntensity={0.8}
+            transparent
+            opacity={0.35}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
       <OpponentGun
         cameraDirection={cameraDirection || new Vector3(0, 0, 1)}
         shootEvent={shootEvent}
