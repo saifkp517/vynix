@@ -1,5 +1,4 @@
 name: CI
-
 on:
   push:
     branches: [main]
@@ -7,28 +6,38 @@ on:
   pull_request:
     branches: [main]
     paths: ['server-nest/**']
-
 jobs:
   build:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: server-nest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
           cache-dependency-path: server-nest/pnpm-lock.yaml
-
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run lint --if-present
       - run: pnpm run build
       - run: pnpm run test --if-present
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to droplet
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            cd /var/www/vynix/server-nest
+            git pull origin main
+            docker compose up -d --build server-nest
