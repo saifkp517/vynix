@@ -9,6 +9,7 @@ interface InputParams {
   onRightMouseDown: () => void;
   onLeftMouseUp: () => void;
   onRightMouseUp: () => void;
+  onScroll?: (deltaY: number) => void;
   setMoveState: (updater: (prev: MoveState) => MoveState) => void;
 }
 
@@ -28,6 +29,7 @@ export function usePlayerInput({
   onRightMouseDown,
   onLeftMouseUp,
   onRightMouseUp,
+  onScroll,
   setMoveState,
 }: InputParams) {
   useEffect(() => {
@@ -103,6 +105,16 @@ export function usePlayerInput({
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
 
+    const handleWheel = (e: WheelEvent) => {
+      if (!onScroll) return;
+      e.preventDefault();
+      onScroll(e.deltaY);
+    };
+
+    if (onScroll) {
+      window.addEventListener('wheel', handleWheel, { passive: false });
+    }
+
     // Prevent browser right-click context menu so right mouse works smoothly
     window.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -111,6 +123,9 @@ export function usePlayerInput({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
+      if (onScroll) {
+        window.removeEventListener('wheel', handleWheel);
+      }
     };
   }, [
     onJump,
@@ -119,6 +134,7 @@ export function usePlayerInput({
     onGrenade,
     onLeftMouseDown,
     onRightMouseDown,
+    onScroll,
     setMoveState,
   ]);
 }

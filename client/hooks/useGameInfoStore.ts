@@ -8,6 +8,9 @@ interface GameInfoStateType {
     resetAmmo: (maxAmmo: number) => void;
     kills: number;
     setKills: (kills: number) => void;
+    isScoped: boolean;
+    scopeLevel: number;
+    setScope: (isScoped: boolean, scopeLevel: number) => void;
 }
 
 export const useGameInfoStore = create<GameInfoStateType>((set) => ({
@@ -21,4 +24,7 @@ export const useGameInfoStore = create<GameInfoStateType>((set) => ({
   resetAmmo: (maxAmmo: number) => set({ ammo: maxAmmo }),
   kills: 0,
   setKills: (kills) => set({ kills }),
+  isScoped: false,
+  scopeLevel: 1,
+  setScope: (isScoped, scopeLevel) => set({ isScoped, scopeLevel }),
 }));

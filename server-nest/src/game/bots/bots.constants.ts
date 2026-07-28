@@ -1,6 +1,9 @@
-export const BOT_ID_PREFIX = 'bot-';
+const botNodeEnv = (globalThis as any).process?.env?.NODE_ENV;
 
-export const BOT_FILL_TARGET = 10;
+export const BOT_ID_PREFIX =
+  botNodeEnv === 'dev' ? 'bot-' : 'Guest_';
+
+export const BOT_FILL_TARGET = 5;
 
 // Server-side room loop. Movement/state transitions run on every tick now
 // (see BotsService.tickBot) — only fresh target *acquisition* while idle is
@@ -31,7 +34,7 @@ export const BOT_MOVE_SPEED_MAX = 5;
 // threshold) — scaling radius by it too used to mean high vengeance also
 // meant every bot in the room noticing you at once and dogpiling.
 export const BOT_ENGAGEMENT_RADIUS_MIN = 18;
-export const BOT_ENGAGEMENT_RADIUS_MAX = 26;
+export const BOT_ENGAGEMENT_RADIUS_MAX = 52;
 
 // While locked on a target, a bot holds position once within this distance
 // instead of closing to melee range — but keeps chasing if the target
@@ -62,7 +65,7 @@ export const BOT_AIM_ERROR_MAX_RAD = 0.05;
 
 // Idle (no target) bots steer toward the player cluster centroid plus this
 // per-bot random offset, so they don't all converge on one exact point.
-export const BOT_ROAM_OFFSET_RADIUS = 8;
+export const BOT_ROAM_OFFSET_RADIUS = 32;
 
 // Side length of the density buckets used to find the player cluster.
 export const BOT_CLUSTER_CELL_SIZE = 20;

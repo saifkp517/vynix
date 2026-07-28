@@ -194,6 +194,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     }, [roomId, showChat]);
 
     const ammo = useGameInfoStore((state) => state.ammo);
+    const isScoped = useGameInfoStore((state) => state.isScoped);
+    const scopeLevel = useGameInfoStore((state) => state.scopeLevel);
 
     const chatMessages = useRef<ChatMessage[]>([]);
     const [, forceUpdate] = useState({});
@@ -569,12 +571,70 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           </div>
         )}
 
-        {/* Crosshair */}
+        {/* Crosshair — stays mounted (so youHit still reaches it) but visually
+            hidden behind the scope overlay while scoped in */}
         {
           !gameOver && !isPlayerDead?.current && (
-            <Crosshair ref={crosshairRef} />
+            <Crosshair ref={crosshairRef} hidden={isScoped} />
           )
         }
+
+        {/* Sniper scope overlay */}
+        {isScoped && !gameOver && !isPlayerDead?.current && (
+          <div className="fixed inset-0 z-40 pointer-events-none">
+            <svg
+              width="100%"
+              height="100%"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="xMidYMid slice"
+              className="absolute inset-0"
+            >
+              <defs>
+                <mask id="scope-aperture-mask">
+                  <rect x="0" y="0" width="100" height="100" fill="white" />
+                  <circle cx="50" cy="50" r="34" fill="black" />
+                </mask>
+              </defs>
+              <rect
+                x="0"
+                y="0"
+                width="100"
+                height="100"
+                fill="black"
+                mask="url(#scope-aperture-mask)"
+              />
+              <circle cx="50" cy="50" r="34" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="0.6" />
+              <line x1="50" y1="16" x2="50" y2="84" stroke="rgba(0,0,0,0.55)" strokeWidth="0.25" />
+              <line x1="16" y1="50" x2="84" y2="50" stroke="rgba(0,0,0,0.55)" strokeWidth="0.25" />
+              {[-24, -16, -8, 8, 16, 24].map((offset) => (
+                <line
+                  key={`tick-h-${offset}`}
+                  x1={50 + offset}
+                  y1="48.5"
+                  x2={50 + offset}
+                  y2="51.5"
+                  stroke="rgba(0,0,0,0.55)"
+                  strokeWidth="0.25"
+                />
+              ))}
+              {[-24, -16, -8, 8, 16, 24].map((offset) => (
+                <line
+                  key={`tick-v-${offset}`}
+                  x1="48.5"
+                  y1={50 + offset}
+                  x2="51.5"
+                  y2={50 + offset}
+                  stroke="rgba(0,0,0,0.55)"
+                  strokeWidth="0.25"
+                />
+              ))}
+              <circle cx="50" cy="50" r="0.6" fill="rgba(0,0,0,0.7)" />
+            </svg>
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/70 text-xs font-bold tracking-wide">
+              {scopeLevel}x
+            </div>
+          </div>
+        )}
 
 
         {/* Room Info - Subtle Bottom Left */}
