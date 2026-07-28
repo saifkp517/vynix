@@ -6,7 +6,7 @@ import socket from '@/lib/socket';
 import { getLoopingSound, playSound } from '@/lib/sound';
 import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
-import { Vector3, Mesh, Camera, Raycaster, AudioListener } from 'three';
+import { Vector3, Mesh, Camera, PerspectiveCamera, Raycaster, AudioListener } from 'three';
 import { checkCollisions } from './checkCollision';
 import { CollisionType } from './checkCollision';
 
@@ -14,6 +14,7 @@ import { CollisionType } from './checkCollision';
 import { useAudioListener } from '@/hooks/useAudioListener';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 import { useRoomStore } from '@/hooks/useRoomStore';
+import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 
 import { PLAYER_RADIUS } from '@/types/types';
 
@@ -55,6 +56,16 @@ const Player: React.FC<PlayerProps> = ({
 }) => {
 
     const [isFPS, setIsFPS] = useState(false);
+
+    // Sniper scope: FOV-based zoom, stepped by scroll while aiming (isFPS).
+    // Magnification is a discrete stop (not continuous) so the HUD readout
+    // is stable and each scroll click feels intentional.
+    const ZOOM_LEVELS = [1, 2, 4, 8];
+    const baseFovRef = useRef(75);
+    const zoomIndexRef = useRef(0);
+    const currentFovRef = useRef(75);
+    const sensitivityScaleRef = useRef(1);
+    const setScope = useGameInfoStore((state) => state.setScope);
 
     const { camera } = useThree();
     const collidingRef = useRef(false);
@@ -112,6 +123,21 @@ const Player: React.FC<PlayerProps> = ({
 
     useAudioListener(camera, listenerRef);
 
+    useEffect(() => {
+        if ((camera as PerspectiveCamera).fov) {
+            baseFovRef.current = (camera as PerspectiveCamera).fov;
+            currentFovRef.current = (camera as PerspectiveCamera).fov;
+        }
+
+        return () => {
+            const perspectiveCamera = camera as PerspectiveCamera;
+            if (perspectiveCamera.fov !== undefined) {
+                perspectiveCamera.fov = baseFovRef.current;
+                perspectiveCamera.updateProjectionMatrix();
+            }
+        };
+    }, [camera]);
+
     const result = checkCollisions(playerPosition.current, obstacles);
     collidingRef.current = result.isColliding;
     collisionNormalRef.current = result.collisionNormal;
@@ -147,23 +173,37 @@ const Player: React.FC<PlayerProps> = ({
     // Handle keyboard input
     usePlayerInput({
         onJump: () => { jumpRequested.current = true; },
-        onSprintStart: () => { keysPressedRef.current.ShiftLeft = true; },
+        onSprintStart: () => {
+            keysPressedRef.current.ShiftLeft = true;
+            // Sprinting while scoped in doesn't make sense, drop the zoom.
+            zoomIndexRef.current = 0;
+        },
         onSprintEnd: () => { keysPressedRef.current.ShiftLeft = false; },
         onGrenade: () => {
             if (!grenadeCoolDownRef.current) {
                 handleFireballShoot();
                 grenadeCoolDownRef.current = true;
                 setTimeout(() => (grenadeCoolDownRef.current = false), 5000);
+                zoomIndexRef.current = 0;
             }
         },
         onRightMouseDown: () => {
             setIsFPS(true);
         },
         onRightMouseUp: () => {
-            setIsFPS(false)
+            setIsFPS(false);
+            zoomIndexRef.current = 0;
         },
         onLeftMouseDown() { },
         onLeftMouseUp() { },
+        onScroll: (deltaY: number) => {
+            if (!isFPS) return;
+            const direction = deltaY > 0 ? -1 : 1;
+            zoomIndexRef.current = Math.max(
+                0,
+                Math.min(ZOOM_LEVELS.length - 1, zoomIndexRef.current + direction)
+            );
+        },
         setMoveState,
     });
 
@@ -181,7 +221,7 @@ const Player: React.FC<PlayerProps> = ({
         }
 
         const handleMouseMove = (event: MouseMoveEvent) => {
-            const sensitivity: number = 0.004;
+            const sensitivity: number = 0.004 * sensitivityScaleRef.current;
 
             (cameraAngles.current as CameraAngles).horizontal -= event.movementX * sensitivity;
             (cameraAngles.current as CameraAngles).vertical += event.movementY * sensitivity;
@@ -257,7 +297,14 @@ const Player: React.FC<PlayerProps> = ({
     // Move player based on keyboard input and check collisions
     useFrame((_, delta) => {
 
-        if (playerDeadRef.current) return;
+        if (playerDeadRef.current) {
+            // Force out of the scope on death so a respawn never inherits a
+            // narrowed FOV or a stale "scoped" HUD state.
+            if (zoomIndexRef.current !== 0) zoomIndexRef.current = 0;
+            const scopedStore = useGameInfoStore.getState();
+            if (scopedStore.isScoped) setScope(false, 1);
+            return;
+        }
 
         const currentTime = performance.now() / 1000; // Convert to seconds
 
@@ -282,6 +329,32 @@ const Player: React.FC<PlayerProps> = ({
         // Get player head position
         const playerHeadPosition = playerPosition.current.clone().add(new Vector3(0, playerHeight, 0));
 
+        // Scope zoom: narrow the FOV rather than dollying the camera forward.
+        // Dollying broke down at high magnification (camera would clip through
+        // walls/desync from the eye point the server validates hits against).
+        // FOV only affects the projection, so the aim ray in Gun.tsx (which is
+        // always the camera ray) is completely unaffected.
+        const targetZoomLevel = isFPS ? ZOOM_LEVELS[zoomIndexRef.current] : 1;
+        const targetFov = baseFovRef.current / targetZoomLevel;
+        currentFovRef.current += (targetFov - currentFovRef.current) * Math.min(1, delta * 12);
+
+        const perspectiveCamera = camera as PerspectiveCamera;
+        if (perspectiveCamera.fov !== undefined && Math.abs(perspectiveCamera.fov - currentFovRef.current) > 0.01) {
+            perspectiveCamera.fov = currentFovRef.current;
+            perspectiveCamera.updateProjectionMatrix();
+        }
+
+        // Mouse sensitivity scales down with magnification (roughly 1/zoom,
+        // slightly gentler than linear) so high zoom stays aimable instead of
+        // sweeping the reticle across the screen on a small mouse move.
+        sensitivityScaleRef.current = Math.pow(currentFovRef.current / baseFovRef.current, 0.85);
+
+        const isScopedNow = isFPS && zoomIndexRef.current > 0;
+        const scopedStore = useGameInfoStore.getState();
+        if (scopedStore.isScoped !== isScopedNow || scopedStore.scopeLevel !== targetZoomLevel) {
+            setScope(isScopedNow, targetZoomLevel);
+        }
+
         if (isFPS) {
             const horizontalAngle = cameraAngles.current.horizontal;
             const verticalAngle = cameraAngles.current.vertical;
@@ -299,9 +372,6 @@ const Player: React.FC<PlayerProps> = ({
             ).normalize();
 
             camera.lookAt(eye.clone().add(forward));
-
-            const zoomAmount = 2;
-            camera.position.copy(eye.clone().add(forward.clone().multiplyScalar(zoomAmount)));
 
         } else {
             const cameraDistance = 6;

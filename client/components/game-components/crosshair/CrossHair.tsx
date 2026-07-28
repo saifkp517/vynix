@@ -11,7 +11,7 @@ interface CrosshairRef {
 }
 
 export const Crosshair = React.memo(
-  forwardRef<CrosshairRef, {}>((_, ref) => {
+  forwardRef<CrosshairRef, { hidden?: boolean }>(({ hidden }, ref) => {
     const animationRef = useRef<HTMLDivElement>(null);
     const [damageTexts, setDamageTexts] = useState<
       { id: number; value: number; x: number; y: number }[]
@@ -169,7 +169,11 @@ export const Crosshair = React.memo(
           `}
         </style>
 
-        <div className="crosshair-container" ref={animationRef}>
+        <div
+          className="crosshair-container"
+          ref={animationRef}
+          style={hidden ? { display: 'none' } : undefined}
+        >
           {/* Main crosshair */}
           <div className="crosshair-line horizontal-line"></div>
           <div className="crosshair-line vertical-line"></div>

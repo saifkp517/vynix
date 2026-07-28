@@ -162,7 +162,7 @@ export class BotsService implements OnModuleDestroy {
       socketId: botId,
       userId: botId,
       room: roomId,
-      username: `Bot_${botId.slice(BOT_ID_PREFIX.length, BOT_ID_PREFIX.length + 6)}`,
+      username: `${BOT_ID_PREFIX}${botId.slice(BOT_ID_PREFIX.length, BOT_ID_PREFIX.length + 6)}`,
       position: spawnPoint,
       velocity: new Vector3(0, 0, 0),
       health: 100,

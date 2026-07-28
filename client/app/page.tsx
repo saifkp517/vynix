@@ -9,7 +9,9 @@ import socket from "@/lib/socket";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 
-const MATCH_SIZE = 10;
+// Must match BOT_FILL_TARGET in server-nest/src/game/bots/bots.constants.ts —
+// the lobby only fills to that count, so the redirect never fires if this is higher.
+const MATCH_SIZE = 5;
 
 export default function GameLoadoutMenu() {
 
