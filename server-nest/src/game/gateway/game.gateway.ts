@@ -273,10 +273,6 @@ export class GameGateway
             cam,
         );
 
-        console.log(
-            `[Movement] ${socket.id} -> room ${roomId} pos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)},${pos.z.toFixed(1)}) nearby=[${nearbySocketIds.join(', ')}]`,
-        );
-
         for (const id of nearbySocketIds) {
             this.server.to(id).emit('playerMoved', {
                 id: socket.id,

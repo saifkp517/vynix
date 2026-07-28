@@ -35,6 +35,8 @@ export class MovementService {
       position,
     );
 
+    this.physicsService.recordPosition(socketId, position);
+
     return { nearbySocketIds };
   }
 }
