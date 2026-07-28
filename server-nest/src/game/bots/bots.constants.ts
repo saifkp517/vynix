@@ -1,5 +1,4 @@
 const botNodeEnv = (globalThis as any).process?.env?.NODE_ENV;
-
 export const BOT_ID_PREFIX =
   botNodeEnv === 'dev' ? 'bot-' : 'Guest_';
 
@@ -34,7 +33,7 @@ export const BOT_MOVE_SPEED_MAX = 5;
 // threshold) — scaling radius by it too used to mean high vengeance also
 // meant every bot in the room noticing you at once and dogpiling.
 export const BOT_ENGAGEMENT_RADIUS_MIN = 18;
-export const BOT_ENGAGEMENT_RADIUS_MAX = 52;
+export const BOT_ENGAGEMENT_RADIUS_MAX = 104;
 
 // While locked on a target, a bot holds position once within this distance
 // instead of closing to melee range — but keeps chasing if the target
@@ -68,7 +67,7 @@ export const BOT_AIM_ERROR_MAX_RAD = 0.05;
 export const BOT_ROAM_OFFSET_RADIUS = 32;
 
 // Side length of the density buckets used to find the player cluster.
-export const BOT_CLUSTER_CELL_SIZE = 20;
+export const BOT_CLUSTER_CELL_SIZE = 50;
 
 // Hard cap on how many bots can be locked onto the same target at once —
 // keeps every fight a 1-on-1 duel (bot-on-player or bot-on-bot) instead of a
@@ -78,8 +77,8 @@ export const BOT_MAX_ENGAGERS_PER_TARGET = 1;
 // Bots trickle into a room one at a time, waiting a random delay in this
 // range between joins, so it reads as real players joining rather than a
 // room instantly filling up.
-export const BOT_JOIN_DELAY_MIN_MS = 500;
-export const BOT_JOIN_DELAY_MAX_MS = 2000;
+export const BOT_JOIN_DELAY_MIN_MS = botNodeEnv === 'dev' ? 500 : 2000;
+export const BOT_JOIN_DELAY_MAX_MS = botNodeEnv === 'dev' ? 500 : 8000;
 
 // Bots get the same invincibility ability real players do, gated by the same
 // server-side cooldown state — but unlike a coin-flip mid-fight, it's now
@@ -91,8 +90,8 @@ export const BOT_JOIN_DELAY_MAX_MS = 2000;
 // invincibility, and flees — randomized per bot so a group doesn't all break
 // off at the exact same HP, then scaled by BOT_VENGEANCE_RATE (more vengeful
 // bots fight down to a lower health before running).
-export const BOT_LOW_HEALTH_THRESHOLD_MIN = 20;
-export const BOT_LOW_HEALTH_THRESHOLD_MAX = 35;
+export const BOT_LOW_HEALTH_THRESHOLD_MIN = 35;
+export const BOT_LOW_HEALTH_THRESHOLD_MAX = 50;
 
 // Hard ceiling on the scaled low-health threshold. Without this, a low
 // BOT_VENGEANCE_RATE (e.g. 0.1) divides the threshold up past 100 — a bot
@@ -101,14 +100,20 @@ export const BOT_LOW_HEALTH_THRESHOLD_MAX = 35;
 // guarantees a bot always fights for at least a stretch before running.
 export const BOT_LOW_HEALTH_THRESHOLD_ABS_MAX = 70;
 
-// Minimum distance from the player cluster centroid a fleeing bot must reach
-// before it's considered "safe" and switches from FLEEING to HEALING.
-export const BOT_FLEE_SAFE_DISTANCE = 45;
+// Minimum distance from the player cluster centroid a fleeing bot must reach before it considers itself safe
+export const BOT_FLEE_SAFE_DISTANCE = 50;
 
 // Health regenerated per room tick while HEALING (bots have no idle-timer
 // regen like real players — once safely clear of the fight they heal
 // immediately and continuously back to full before returning).
 export const BOT_HEAL_AMOUNT_PER_TICK = 2;
+
+// How long a bot must go without being shot before HEALING actually starts
+// ticking health back up. Stands in for the invincibility we're removing
+// from bots — without it, a shooter who stays in range (or re-acquires the
+// bot) during the flee-out window would otherwise get outraced by instant
+// regen the moment BOT_FLEE_SAFE_DISTANCE is reached.
+export const BOT_HEAL_START_DELAY_MS = 5000;
 
 // Single tunable "aggression" dial for the whole bot roster — scales fire
 // cadence, aim accuracy, and how low a bot's health drops before it flees.
@@ -118,4 +123,4 @@ export const BOT_HEAL_AMOUNT_PER_TICK = 2;
 // from the average XP of the real players in it (harder bots vs. strong
 // players) once player XP/profiles exist. >1 = more aggressive/vengeful,
 // <1 = more cautious.
-export const BOT_VENGEANCE_RATE = 1;
+export const BOT_VENGEANCE_RATE = 0.8;

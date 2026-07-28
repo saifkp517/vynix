@@ -6,7 +6,7 @@ import socket from '@/lib/socket';
 import { getLoopingSound, playSound } from '@/lib/sound';
 import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
-import { Vector3, Mesh, Camera, PerspectiveCamera, Raycaster, AudioListener } from 'three';
+import { Vector3, Mesh, Camera, PerspectiveCamera, Raycaster, AudioListener, FogExp2 } from 'three';
 import { checkCollisions } from './checkCollision';
 import { CollisionType } from './checkCollision';
 
@@ -65,9 +65,10 @@ const Player: React.FC<PlayerProps> = ({
     const zoomIndexRef = useRef(0);
     const currentFovRef = useRef(75);
     const sensitivityScaleRef = useRef(1);
+    const baseFogDensityRef = useRef<number | null>(null);
     const setScope = useGameInfoStore((state) => state.setScope);
 
-    const { camera } = useThree();
+    const { camera, scene } = useThree();
     const collidingRef = useRef(false);
     const collisionNormalRef = useRef<Vector3 | null>(null);
     const jumpRequested = useRef(false);
@@ -344,12 +345,23 @@ const Player: React.FC<PlayerProps> = ({
             perspectiveCamera.updateProjectionMatrix();
         }
 
+        // Thin the fog while scoped in — a distant target shouldn't be
+        // swallowed by the same haze that's tuned for hip-fire visibility.
+        // Density is scaled by the same zoom ratio driving the FOV, so it
+        // eases back in smoothly as the scope de-magnifies.
+        const fog = scene.fog as FogExp2 | null;
+        if (fog) {
+            if (baseFogDensityRef.current === null) baseFogDensityRef.current = fog.density;
+            const zoomRatio = baseFovRef.current / currentFovRef.current;
+            fog.density = baseFogDensityRef.current / zoomRatio;
+        }
+
         // Mouse sensitivity scales down with magnification (roughly 1/zoom,
         // slightly gentler than linear) so high zoom stays aimable instead of
         // sweeping the reticle across the screen on a small mouse move.
         sensitivityScaleRef.current = Math.pow(currentFovRef.current / baseFovRef.current, 0.85);
 
-        const isScopedNow = isFPS && zoomIndexRef.current > 0;
+        const isScopedNow = isFPS;
         const scopedStore = useGameInfoStore.getState();
         if (scopedStore.isScoped !== isScopedNow || scopedStore.scopeLevel !== targetZoomLevel) {
             setScope(isScopedNow, targetZoomLevel);

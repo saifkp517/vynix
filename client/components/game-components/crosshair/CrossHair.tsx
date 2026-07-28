@@ -172,12 +172,15 @@ export const Crosshair = React.memo(
         <div
           className="crosshair-container"
           ref={animationRef}
-          style={hidden ? { display: 'none' } : undefined}
         >
-          {/* Main crosshair */}
-          <div className="crosshair-line horizontal-line"></div>
-          <div className="crosshair-line vertical-line"></div>
-          <div className="center-dot"></div>
+          {/* Main crosshair — hidden while scoped, but hit markers below stay visible */}
+          {!hidden && (
+            <>
+              <div className="crosshair-line horizontal-line"></div>
+              <div className="crosshair-line vertical-line"></div>
+              <div className="center-dot"></div>
+            </>
+          )}
 
           {/* Floating numbers */}
           {damageTexts.map((t) => (

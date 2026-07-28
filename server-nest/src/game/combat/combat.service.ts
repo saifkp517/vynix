@@ -15,6 +15,14 @@ import {
 const DAMAGE_PER_HIT = 10;
 const RESPAWN_DELAY_MS = 5000;
 
+// Lag compensation: a real shooter's shot is tested against where the target
+// actually was ~this long ago (per PhysicsService's position history), not
+// where the target is right now — closing the gap between what the shooter
+// saw on their screen and what the server hit-tests against. Bots skip this
+// entirely: a bot's ray is built from the same-tick position it fires with,
+// so there's no client-render lag to compensate for.
+const SHOT_REWIND_MS = 0; // TEMP: zeroed to rule out lag-compensation as the cause of missed hits
+
 // Regen: once a real player has gone this long without taking a hit, heal
 // them 1hp/100ms (10hp/sec) until back to full health, so it reads as a
 // smooth climb rather than a stepped one. Reset by any hit (see `lastHitAt`
@@ -171,15 +179,27 @@ export class CombatService {
     }
 
     const players = await this.playersService.getAllPlayersFromRoom(roomId);
+    // Bots build their ray from the same tick's position, so there's no
+    // render lag on their end to compensate for — only rewind for shots
+    // fired by real clients.
+    const rewindTo = shooter.isBot ? null : Date.now() - SHOT_REWIND_MS;
 
     for (const [playerId, player] of Object.entries(players)) {
       // BUG-05 fix: compare socketId to socketId, not socketId to userId
       if (playerId === shooter.id) continue;
 
+      // Hit-test against where the target actually was at shot-time, not
+      // their current position, so the shooter's screen and the server's
+      // hit-scan agree — falls back to the live position if no history is
+      // buffered yet (e.g. target just spawned).
+      const hitTestPosition =
+        (rewindTo !== null && this.physicsService.getPositionAt(playerId, rewindTo)) ||
+        player.position;
+
       const playerCenter = new Vector3(
-        player.position.x,
-        player.position.y - PLAYER_HITBOX_Y_OFFSET,
-        player.position.z,
+        hitTestPosition.x,
+        hitTestPosition.y - PLAYER_HITBOX_Y_OFFSET,
+        hitTestPosition.z,
       );
 
       const { hit, distance } = this.physicsService.rayIntersectsSphere(
@@ -187,19 +207,6 @@ export class CombatService {
         rayDirection,
         playerCenter,
         PLAYER_RADIUS,
-      );
-
-      // TEMP DEBUG — perpendicular miss distance (how far off the shot was),
-      // plus the raw points, so we can see *why* a shot misses instead of
-      // just that it did. Remove once the TPP hit-sync bug is confirmed fixed.
-      const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(distance));
-      const perpMiss = closestPoint.distanceTo(playerCenter);
-      console.log(
-        `[Combat] ${playerId} — hit: ${hit}, alongRayDist: ${distance.toFixed(2)}, perpMiss: ${perpMiss.toFixed(2)} | ` +
-        `rayOrigin: (${rayOrigin.x.toFixed(2)}, ${rayOrigin.y.toFixed(2)}, ${rayOrigin.z.toFixed(2)}) ` +
-        `rayDir: (${rayDirection.x.toFixed(2)}, ${rayDirection.y.toFixed(2)}, ${rayDirection.z.toFixed(2)}) ` +
-        `playerCenter: (${playerCenter.x.toFixed(2)}, ${playerCenter.y.toFixed(2)}, ${playerCenter.z.toFixed(2)}) ` +
-        `rawPos: (${player.position.x.toFixed(2)}, ${player.position.y.toFixed(2)}, ${player.position.z.toFixed(2)})`,
       );
 
       if (!hit) continue;
@@ -285,8 +292,14 @@ export class CombatService {
         continue;
       }
 
-      // This caller won — remove victim from grid and emit death events
-      this.physicsService.removeFromGrid(playerId);
+      // This caller won — emit death events. Deliberately NOT removing the
+      // victim from the spatial grid here: grid membership only drives
+      // playerMoved broadcast fan-out (see PhysicsService.getNearbySocketIds),
+      // not hit detection, and removing them stops the killer's movement
+      // updates from reaching the corpse — freezing KillCam on the client
+      // mid-chase. Leaving their stale grid entry in place keeps them
+      // receiving nearby updates until they move again post-respawn, at
+      // which point updatePlayerCell relocates/refreshes it naturally.
 
       server.to(playerId).emit('youDied', { message: 'You are dead!' });
       server.to(roomId).emit('playerDead', {

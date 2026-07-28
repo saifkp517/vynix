@@ -36,6 +36,7 @@ import {
   BOT_LOW_HEALTH_THRESHOLD_ABS_MAX,
   BOT_FLEE_SAFE_DISTANCE,
   BOT_HEAL_AMOUNT_PER_TICK,
+  BOT_HEAL_START_DELAY_MS,
   BOT_VENGEANCE_RATE,
 } from './bots.constants';
 
@@ -315,15 +316,13 @@ export class BotsService implements OnModuleDestroy {
       state.fsmState = 'FLEEING';
       state.fleeDirection = this.computeFleeDirection(bot.position, cluster);
       this.botTargets.delete(botId);
-      // Deterministic, not a coin flip — flee is always covered by
-      // invincibility when it isn't on cooldown. activateInvincibility is a
-      // no-op (emits abilityOnCooldown to a socket nobody's listening on) if
-      // it's still cooling down, which is fine — the bot still runs either way.
-      void this.combatService.activateInvincibility(roomId, botId, server);
+      // TEMP: bot invincibility-on-flee disabled to isolate whether stale
+      // invincibleUntil timestamps were behind missed hits after a flee.
+      // void this.combatService.activateInvincibility(roomId, botId, server);
     }
 
     if (state.fsmState === 'FLEEING' || state.fsmState === 'HEALING') {
-      await this.tickRecovery(roomId, botId, bot, state, cluster, server);
+      await this.tickRecovery(roomId, botId, bot, state, cluster, entities, server);
       return;
     }
 
@@ -476,7 +475,7 @@ export class BotsService implements OnModuleDestroy {
     state.lastFiredAt = now;
 
     await this.combatService.handleShoot(
-      { id: botId, username: bot.username },
+      { id: botId, username: bot.username, isBot: true },
       roomId,
       {
         rayOrigin: { x: newPosition.x, y: newPosition.y, z: newPosition.z },
@@ -498,6 +497,7 @@ export class BotsService implements OnModuleDestroy {
     bot: Player,
     state: BotState,
     cluster: Vector3,
+    entities: [string, Player][],
     server: Server,
   ): Promise<void> {
     if (state.fsmState === 'FLEEING') {
@@ -526,7 +526,12 @@ export class BotsService implements OnModuleDestroy {
         });
       }
 
-      if (newPosition.distanceTo(cluster) >= BOT_FLEE_SAFE_DISTANCE) {
+      const nearestDistance = entities.reduce((min, [id, entity]) => {
+        if (id === botId || entity.isDead) return min;
+        return Math.min(min, newPosition.distanceTo(entity.position));
+      }, Infinity);
+
+      if (nearestDistance >= BOT_FLEE_SAFE_DISTANCE) {
         state.fsmState = 'HEALING';
       }
       return;
@@ -534,7 +539,14 @@ export class BotsService implements OnModuleDestroy {
 
     // HEALING — hold position and climb back to full health before
     // resuming the hunt. No socket to target (bots don't get healthRegen
-    // emits), so this just writes the new health straight to Redis.
+    // emits), so this just writes the new health straight to Redis. Health
+    // only starts climbing once the bot hasn't been shot for
+    // BOT_HEAL_START_DELAY_MS — stands in for the invincibility bots no
+    // longer get, so staying on a fleeing bot's tail still denies its heal.
+    if (Date.now() - bot.lastHitAt < BOT_HEAL_START_DELAY_MS) {
+      return;
+    }
+
     if (bot.health < 100) {
       const newHealth = Math.min(100, bot.health + BOT_HEAL_AMOUNT_PER_TICK);
       await this.playersService.updatePlayerInRoom(roomId, botId, { health: newHealth });

@@ -10,9 +10,23 @@ type Grid = Map<string, Set<string>>;
 // Small enough to catch ridgelines, large enough to stay cheap per shot.
 const TERRAIN_SAMPLE_STEP = 2;
 
+interface PositionSnapshot {
+  position: Vector3;
+  time: number;
+}
+
+// How far back lag-compensated hit detection is allowed to rewind a target.
+// Anything older than this is dropped from the buffer — no point keeping it,
+// and it caps how far back a shot can ever be tested against.
+const POSITION_HISTORY_MAX_AGE_MS = 400;
+
 @Injectable()
 export class PhysicsService {
   private readonly grid: Grid = new Map();
+  // Per-player recent position history, used to rewind a target to where
+  // they were at shot-time instead of testing against their current (later)
+  // position — see getPositionAt / CombatService.handleShoot.
+  private readonly positionHistory = new Map<string, PositionSnapshot[]>();
 
   constructor(
     private readonly playersService: PlayersService,
@@ -66,15 +80,12 @@ export class PhysicsService {
     if (!this.grid.has(cellKey)) this.grid.set(cellKey, new Set());
     this.grid.get(cellKey)!.add(socketId);
 
-    const nearby = this.getNearbySocketIds(roomId, socketId, cellKey);
-    console.log(
-      `[Physics] ${socketId} -> cell ${cellKey} (grid has ${this.grid.size} cells), nearby=[${nearby.join(', ')}]`,
-    );
-
-    return nearby;
+    return this.getNearbySocketIds(roomId, socketId, cellKey);
   }
 
   removeFromGrid(socketId: string): void {
+    this.clearPositionHistory(socketId);
+
     for (const [key, set] of this.grid) {
       if (set.has(socketId)) {
         set.delete(socketId);
@@ -82,6 +93,54 @@ export class PhysicsService {
         return;
       }
     }
+  }
+
+  // ── Position history (lag compensation) ─────────────────────────────────────
+
+  /** Records a position sample and trims anything older than the buffer needs. */
+  recordPosition(socketId: string, position: Vector3, time: number = Date.now()): void {
+    let history = this.positionHistory.get(socketId);
+    if (!history) {
+      history = [];
+      this.positionHistory.set(socketId, history);
+    }
+
+    history.push({ position: position.clone(), time });
+
+    const cutoff = time - POSITION_HISTORY_MAX_AGE_MS;
+    while (history.length > 1 && history[0].time < cutoff) history.shift();
+  }
+
+  clearPositionHistory(socketId: string): void {
+    this.positionHistory.delete(socketId);
+  }
+
+  /**
+   * Returns the target's interpolated position at `time` (typically
+   * `now - rewindMs`), for testing a shot against where they actually were
+   * instead of where they are now. Falls back to the newest/oldest sample if
+   * `time` falls outside the buffered range, and to `null` if nothing's
+   * buffered yet (caller should fall back to the live position).
+   */
+  getPositionAt(socketId: string, time: number): Vector3 | null {
+    const history = this.positionHistory.get(socketId);
+    if (!history || history.length === 0) return null;
+
+    if (time <= history[0].time) return history[0].position.clone();
+    const last = history[history.length - 1];
+    if (time >= last.time) return last.position.clone();
+
+    for (let i = 1; i < history.length; i++) {
+      const next = history[i];
+      if (next.time < time) continue;
+
+      const prev = history[i - 1];
+      const span = next.time - prev.time;
+      const t = span > 0 ? (time - prev.time) / span : 0;
+      return prev.position.clone().lerp(next.position, t);
+    }
+
+    return last.position.clone();
   }
 
   // ── Spawn ─────────────────────────────────────────────────────────────────────

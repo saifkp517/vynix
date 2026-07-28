@@ -589,20 +589,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
               preserveAspectRatio="xMidYMid slice"
               className="absolute inset-0"
             >
-              <defs>
-                <mask id="scope-aperture-mask">
-                  <rect x="0" y="0" width="100" height="100" fill="white" />
-                  <circle cx="50" cy="50" r="34" fill="black" />
-                </mask>
-              </defs>
-              <rect
-                x="0"
-                y="0"
-                width="100"
-                height="100"
-                fill="black"
-                mask="url(#scope-aperture-mask)"
-              />
               <circle cx="50" cy="50" r="34" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="0.6" />
               <line x1="50" y1="16" x2="50" y2="84" stroke="rgba(0,0,0,0.55)" strokeWidth="0.25" />
               <line x1="16" y1="50" x2="84" y2="50" stroke="rgba(0,0,0,0.55)" strokeWidth="0.25" />

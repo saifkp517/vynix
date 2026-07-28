@@ -28,6 +28,9 @@ export interface Player {
 export interface ShooterIdentity {
     id: string;
     username: string;
+    // Bots fire with a same-tick ray already built from their current
+    // position, so their shots skip CombatService's lag-compensation rewind.
+    isBot?: boolean;
 }
 
 export interface PlayerMap {
