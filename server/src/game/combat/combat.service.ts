@@ -211,7 +211,7 @@ export class CombatService {
 
       if (!hit) continue;
 
-      if (this.physicsService.isRayOccludedByTerrain(rayOrigin, rayDirection, distance)) {
+      if (this.physicsService.isPathOccluded(rayOrigin, rayDirection, distance)) {
         continue;
       }
 

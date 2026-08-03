@@ -336,8 +336,8 @@ export class BotsService implements OnModuleDestroy {
 
       const aimPoint = entity.position.clone().setY(entity.position.y - PLAYER_HITBOX_Y_OFFSET);
       const direction = aimPoint.clone().sub(bot.position).normalize();
-      if (this.physicsService.isRayOccludedByTerrain(bot.position, direction, distance)) {
-        return null; // in range but a hill blocks line of sight
+      if (this.physicsService.isPathOccluded(bot.position, direction, distance)) {
+        return null; // in range but a hill or rock blocks line of sight
       }
 
       return distance;
@@ -407,7 +407,14 @@ export class BotsService implements OnModuleDestroy {
       state.fsmState = nearestTarget.distance > state.holdDistance ? 'HUNTING' : 'ENGAGED';
 
       if (nearestTarget.distance > state.holdDistance) {
-        const toTarget = nearestTarget.player.position.clone().sub(bot.position);
+        // Route the chase point around any rock sitting directly between the
+        // bot and its target — rocks are solid cover now, so a straight
+        // beeline would walk the bot straight into one instead of around it.
+        const steeredTarget = this.physicsService.steerAroundRocks(
+          bot.position,
+          nearestTarget.player.position,
+        );
+        const toTarget = steeredTarget.clone().sub(bot.position);
         toTarget.y = 0;
         if (toTarget.length() > 0.1) {
           const direction = toTarget.normalize();
@@ -422,7 +429,8 @@ export class BotsService implements OnModuleDestroy {
       // Runs every tick (not gated by think cadence) so idle bots are
       // always visibly drifting instead of freezing between long pauses.
       const roamTarget = cluster.clone().add(state.roamOffset);
-      const toRoamTarget = roamTarget.sub(bot.position);
+      const steeredRoamTarget = this.physicsService.steerAroundRocks(bot.position, roamTarget);
+      const toRoamTarget = steeredRoamTarget.sub(bot.position);
       if (toRoamTarget.length() > 1) {
         const direction = toRoamTarget.normalize();
         velocity = direction.multiplyScalar(state.moveSpeed);
