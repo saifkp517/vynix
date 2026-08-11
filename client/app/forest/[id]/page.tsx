@@ -2,7 +2,6 @@
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Howl } from 'howler';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls, Stats } from '@react-three/drei';
 import { useParams, useRouter } from 'next/navigation';
@@ -18,8 +17,11 @@ import Player from '@/components/game-components/player/TPP';
 import Ground, { useGroundHeight } from '@/components/game-components/ground/Ground';
 import GameInfo from '@/components/game-components/gameInfo/GameInfo';
 import RemoteOpponents from '@/components/game-components/opponents/RemoteOpponents';
+import HitImpact from '@/components/game-components/player/HitImpact';
+import KillCam from '@/components/game-components/player/KillCam';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
+import { getLoopingSound, stopAllSounds } from '@/lib/sound';
 
 interface Player {
   id: string;
@@ -38,19 +40,22 @@ const Game: React.FC = () => {
   // Refs
   const obstacles = useRef<Mesh[]>([]);
   const isPlayerDead = useRef(false);
+  const killerIdRef = useRef<string | null>(null);
   const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 } }>({});
   const playerCenterRef = useRef<Vector3>(new Vector3());
   const cameraDirectionRef = useRef<Vector3>(new Vector3(0, 0, 1));
   const pingRef = useRef(0);
   const smoothnessRef = useRef(0);
   const grenadeCoolDownRef = useRef(false);
+  const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const crosshairRef = useRef(null);
   const controlsRef = useRef<any>(null);
   const listenerRef = useRef<AudioListener>(new AudioListener());
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  const killFeedRef = useRef<{ id: number; name: string }[]>([]);
-  const listenersRef = useRef<((list: { id: number; name: string }[]) => void)[]>([]);
+  const killFeedRef = useRef<{ id: number; name: string; streak: number }[]>([]);
+  const listenersRef = useRef<((list: { id: number; name: string; streak: number }[]) => void)[]>([]);
   const toastIdRef = useRef(0);
+  const killStreakRef = useRef(0);
   const vegetationPositionsRef = useRef<Vegetation[] | undefined>(undefined);
 
   // State
@@ -92,7 +97,8 @@ const Game: React.FC = () => {
 
   const showKillToast = useCallback((name: string) => {
     const id = toastIdRef.current++;
-    killFeedRef.current.push({ id, name });
+    killStreakRef.current++;
+    killFeedRef.current.push({ id, name, streak: killStreakRef.current });
     listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
     setTimeout(() => {
       killFeedRef.current = killFeedRef.current.filter(item => item.id !== id);
@@ -118,6 +124,15 @@ const Game: React.FC = () => {
     if (ref && !obstacles.current.includes(ref)) {
       obstacles.current.push(ref);
     }
+  }, []);
+
+  // Paired with addObstacleRef: without a way to remove a mesh, every
+  // tree/rock that ever scrolled into view stayed in the obstacles array
+  // forever — see useColliderRefs for the full story on why that happened
+  // and why it silently only got worse as a session went on.
+  const removeObstacleRef = useCallback((ref: Mesh) => {
+    const index = obstacles.current.indexOf(ref);
+    if (index !== -1) obstacles.current.splice(index, 1);
   }, []);
 
 
@@ -149,13 +164,24 @@ const Game: React.FC = () => {
 
     const handleYouDied = () => {
       isPlayerDead.current = true;
+      killStreakRef.current = 0;
       setTimeout(() => {
         isPlayerDead.current = false;
+        killerIdRef.current = null;
       }, RESPAWN_TIMEOUT);
+    }
+
+    // Broadcast to the whole room — only capture the killer when we're the
+    // victim. killerSocketId feeds the killcam (see KillCam component).
+    const handlePlayerDead = ({ killerSocketId, victimSocketId }: { killerSocketId: string; victimSocketId: string }) => {
+      if (victimSocketId === socket.id) {
+        killerIdRef.current = killerSocketId;
+      }
     }
 
     const handleGameOver = () => {
       setGameOver(true);
+      stopAllSounds();
       setTimeout(() => {
         socket.disconnect();
         router.push('/');
@@ -164,17 +190,19 @@ const Game: React.FC = () => {
 
     socket.on('connect', handleConnect);
     socket.on('youDied', handleYouDied);
+    socket.on('playerDead', handlePlayerDead);
     socket.on('gameOver', handleGameOver);
 
     if (socket.connected) {
       handleConnect();
     }
 
-   
+
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('youDied', handleYouDied);
+      socket.off('playerDead', handlePlayerDead);
       socket.off('gameOver', handleGameOver);
       socket.off('pong-check');
     };
@@ -189,13 +217,80 @@ const Game: React.FC = () => {
     obstacles.current = [];
   }, []);
 
+  // Covers leaving the game by any path other than the handleGameOver flow
+  // (closing the tab, in-app route change, back button) — stops looping
+  // local sounds (walk, breeze) and, critically, disconnects the socket so
+  // the server's handleDisconnect fires. The socket is a singleton reused
+  // across the app (see lib/socket.ts), so without this a client-side route
+  // change (e.g. router.push('/')) leaves it connected — the server never
+  // learns the player left, the room never gets torn down, and its bots
+  // keep ticking against a "player" who's actually gone. The home page
+  // already reconnects on mount if disconnected, so this is safe there.
+  //
+  // Debounced rather than immediate: React StrictMode (on by default in
+  // `next dev`) mounts this effect, fires its cleanup, then mounts again —
+  // a synthetic double-invoke to catch missing cleanup, not a real
+  // navigation. An immediate disconnect() here fired on that synthetic
+  // cleanup and dropped the player moments after joining. Delaying it lets
+  // the guaranteed-immediate remount cancel the pending disconnect; a real
+  // unmount (no remount coming) lets it fire.
   useEffect(() => {
-    const sound = new Howl({
-      src: ['/sounds/breeze.mp3'],
-      volume: 1,
-      preload: true,
-      loop: true,
-    });
+    if (disconnectTimeoutRef.current) {
+      clearTimeout(disconnectTimeoutRef.current);
+      disconnectTimeoutRef.current = null;
+    }
+
+    return () => {
+      stopAllSounds();
+      disconnectTimeoutRef.current = setTimeout(() => {
+        if (socket.connected) socket.disconnect();
+      }, 100);
+    };
+  }, []);
+
+  // Warns on tab close/refresh while a match is in progress. Browser-native
+  // confirm dialog only — its text is ignored by modern browsers, which show
+  // their own generic "leave site?" wording; the returnValue assignment is
+  // what actually triggers the prompt.
+  useEffect(() => {
+    if (gameOver) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [gameOver]);
+
+  // Warns on the browser back button too. Next's router navigates this away
+  // client-side (no unload), so beforeunload alone never fires for it — we
+  // push a guard entry onto history and intercept the resulting popstate.
+  // Confirmed: pop the guard for real (skip it, then let the follow-up
+  // back happen once, landing one entry before this page). Cancelled:
+  // push the guard back so the user stays put.
+  useEffect(() => {
+    if (gameOver) return;
+
+    window.history.pushState(null, '', window.location.href);
+
+    const handlePopState = () => {
+      const confirmed = window.confirm('Leave the match? Your progress in this round will be lost.');
+      if (confirmed) {
+        window.history.back();
+      } else {
+        window.history.pushState(null, '', window.location.href);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [gameOver]);
+
+  useEffect(() => {
+    const sound = getLoopingSound('breeze');
+    sound.volume(1);
     sound.play();
     return () => {
       sound.stop();
@@ -232,10 +327,11 @@ const Game: React.FC = () => {
   const groundProps = useMemo(() => ({
     playerCenterRef,
     addObstacleRef,
+    removeObstacleRef,
     vegetationPositions: vegetationPositionsRef.current,
     onComponentStatusChange: handleComponentStatusChange,
     onAllComponentsLoaded: handleAllComponentsLoaded,
-  }), [addObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded, vegetationPositions]);
+  }), [addObstacleRef, removeObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded, vegetationPositions]);
 
   console.log(groundProps)
 
@@ -255,10 +351,10 @@ const Game: React.FC = () => {
           <GameLoading />
         </div>
       )}
-      <KillFeedRenderer subscribe={(cb: (list: { id: number; name: string }[]) => void) => listenersRef.current.push(cb)} />
+      <KillFeedRenderer subscribe={(cb: (list: { id: number; name: string; streak: number }[]) => void) => listenersRef.current.push(cb)} />
       {isReady ? (
         <>
-          {/* <Stats /> */}
+          {process.env.NODE_ENV !== 'production' && <Stats />}
           <GameInfo
             roomId={roomId}
             grenadeCoolDownRef={grenadeCoolDownRef}
@@ -283,13 +379,13 @@ const Game: React.FC = () => {
               <Canvas
                 gl={{
                   antialias: false,
-                  alpha: false,
+                  alpha: true,
                   powerPreference: 'high-performance',
                   preserveDrawingBuffer: false,
                   failIfMajorPerformanceCaveat: false,
                   outputColorSpace: SRGBColorSpace,
                 }}
-                dpr={0.5}
+                dpr={0.25}
                 style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px`, imageRendering: 'pixelated' }}
                 camera={{ position: [0, 0.1, 0], fov: FOV, near: 0.1, far: 1000 }}
               >
@@ -303,13 +399,19 @@ const Game: React.FC = () => {
                     listenerRef={listenerRef}
                   />
                   <RemoteOpponents
-                    addObstacleRef={addObstacleRef}
                     smoothnessRef={smoothnessRef}
                     playerDataRef={playerDataRef}
                     showKillToast={showKillToast}
                     listenerRef={listenerRef}
                     playerCenterRef={playerCenterRef}
                   />
+                  <KillCam
+                    isPlayerDead={isPlayerDead}
+                    killerIdRef={killerIdRef}
+                    playerDataRef={playerDataRef}
+                    controlsRef={controlsRef}
+                  />
+                  <HitImpact playerCenterRef={playerCenterRef} />
                 </Ground>
               </Canvas>
             </div>

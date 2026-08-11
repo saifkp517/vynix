@@ -1,39 +1,27 @@
-version: "3.9"
-
 services:
-  app:
+  server-nest:
     build: .
-    container_name: vynix-app
+    restart: unless-stopped
     ports:
-      - "3000:3000" # REST
-      - "4000:4000" # Socket
-    env_file:
-      - .env
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - .:/app
-    command: bun run start
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: vynix-postgres
+      - "4000:4000"
     environment:
-      POSTGRES_USER: vynix
-      POSTGRES_PASSWORD: vynixpass
-      POSTGRES_DB: vynixdb
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+      PORT: 4000
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+    depends_on:
+      - redis
+    mem_limit: 512m
+    cpus: 0.75
 
   redis:
     image: redis:7-alpine
-    container_name: vynix-redis
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    mem_limit: 128m
+    cpus: 0.125
 
 volumes:
-  pgdata:
-
+  redis-data:

@@ -15,6 +15,11 @@ export interface Player {
     health: number;
 }
 
+export interface MatchTiming {
+    startTime: number;
+    duration: number;
+}
+
 interface RoomStore {
     spawnPoint: Vector3;
     setSpawnPoint: (spawnPoint: Vector3) => void;
@@ -24,11 +29,17 @@ interface RoomStore {
     addPlayers: (player: Player[]) => void;
     updatePlayer: (id: string, updatedData: Partial<Player>) => void;
     removePlayer: (id: string) => void;
+    // 'gameStarted' fires on the lobby page, before GameInfo mounts in
+    // /forest/[id] — stash it here so it survives the route change.
+    matchTiming: MatchTiming | null;
+    setMatchTiming: (matchTiming: MatchTiming) => void;
 }
 
 export const useRoomStore = create<RoomStore>((set) => ({
     spawnPoint: new Vector3(0, 0, 0),
     setSpawnPoint: (spawnPoint) => set({ spawnPoint }),
+    matchTiming: null,
+    setMatchTiming: (matchTiming) => set({ matchTiming }),
     players: [] as Player[],
     getPlayer: (id: string): Player | undefined => {
         return useRoomStore.getState().players.find((p: Player) => p.socketId === id);

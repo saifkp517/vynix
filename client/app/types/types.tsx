@@ -30,6 +30,13 @@ export interface Vegetation {
     position: [number, number, number];
     scale: number;
     rotation: number;
+    // Baked at generation time (see server/scripts/generateTreePos.ts) rather
+    // than derived client-side: whether two canopies need to be pushed far
+    // apart depends on which *other* trees are nearby, which isn't knowable
+    // from a single tree's own fields. Added to CANOPY_PLATE_Y_OFFSET in
+    // Tree.tsx. Optional so older/hand-written POS.json data without it just
+    // falls back to the base height.
+    canopyHeightOffset?: number;
 }
 
 export interface Player {

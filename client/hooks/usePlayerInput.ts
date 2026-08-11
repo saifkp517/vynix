@@ -2,13 +2,12 @@ import { useEffect } from 'react';
 
 interface InputParams {
   onJump: () => void;
-  onSprintStart: () => void;
-  onSprintEnd: () => void;
   onGrenade: () => void;
   onLeftMouseDown: () => void;
   onRightMouseDown: () => void;
   onLeftMouseUp: () => void;
   onRightMouseUp: () => void;
+  onScroll?: (deltaY: number) => void;
   setMoveState: (updater: (prev: MoveState) => MoveState) => void;
 }
 
@@ -21,13 +20,12 @@ export type MoveState = {
 
 export function usePlayerInput({
   onJump,
-  onSprintStart,
-  onSprintEnd,
   onGrenade,
   onLeftMouseDown,
   onRightMouseDown,
   onLeftMouseUp,
   onRightMouseUp,
+  onScroll,
   setMoveState,
 }: InputParams) {
   useEffect(() => {
@@ -44,9 +42,6 @@ export function usePlayerInput({
           break;
         case 'KeyD':
           setMoveState(prev => ({ ...prev, right: true }));
-          break;
-        case 'ShiftLeft':
-          onSprintStart();
           break;
         case 'Space':
           onJump();
@@ -70,9 +65,6 @@ export function usePlayerInput({
           break;
         case 'KeyD':
           setMoveState(prev => ({ ...prev, right: false }));
-          break;
-        case 'ShiftLeft':
-          onSprintEnd();
           break;
       }
     };
@@ -103,6 +95,16 @@ export function usePlayerInput({
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
 
+    const handleWheel = (e: WheelEvent) => {
+      if (!onScroll) return;
+      e.preventDefault();
+      onScroll(e.deltaY);
+    };
+
+    if (onScroll) {
+      window.addEventListener('wheel', handleWheel, { passive: false });
+    }
+
     // Prevent browser right-click context menu so right mouse works smoothly
     window.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -111,14 +113,16 @@ export function usePlayerInput({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
+      if (onScroll) {
+        window.removeEventListener('wheel', handleWheel);
+      }
     };
   }, [
     onJump,
-    onSprintStart,
-    onSprintEnd,
     onGrenade,
     onLeftMouseDown,
     onRightMouseDown,
+    onScroll,
     setMoveState,
   ]);
 }

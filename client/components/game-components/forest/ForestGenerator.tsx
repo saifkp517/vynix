@@ -9,6 +9,7 @@ import { useFrame } from '@react-three/fiber';
 interface ForestProps {
   vegetationPositions: Vegetation[];
   addObstacleRef: (ref: THREE.Mesh | null) => void;
+  removeObstacleRef: (ref: THREE.Mesh) => void;
   getGroundHeight: (x: number, z: number) => number;
   playerCenterRef: RefObject<THREE.Vector3>;
 }
@@ -18,13 +19,13 @@ interface ForestProps {
 export const Forest: React.FC<ForestProps> = ({
   vegetationPositions,
   addObstacleRef,
+  removeObstacleRef,
   getGroundHeight,
   playerCenterRef
 }) => {
 
   const [visibleVegetation, setVisibleVegetation] = useState<Map<string, Vegetation>>(new Map());
-  const [isPending, startTransition] = useTransition();
-  const poolRef = useRef<Vegetation[]>([]);
+  const [, startTransition] = useTransition();
   const currentPosRef = useRef<[number, number, number]>([0, 0, 0]);
 
   const debounceTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -51,7 +52,6 @@ export const Forest: React.FC<ForestProps> = ({
         return (dx * dx + dy * dy + dz * dz) <= RADIUS_SQUARED;
       });
 
-      console.log(visible.length)
       startTransition(() => {
         setVisibleVegetation(prevMap => {
           // Create set of currently visible IDs
@@ -104,7 +104,7 @@ export const Forest: React.FC<ForestProps> = ({
 
     const now = performance.now();
     const checkInterval = 1000 / 60 * 50; // 5 frames ≈ 83.33ms
-    const innerRadius = 100;
+    const innerRadius = 50;
 
     if (now - lastCheckRef.current >= checkInterval) {
       const distance = playerCenterRef.current.distanceTo(newCenterRef.current);
@@ -123,8 +123,6 @@ export const Forest: React.FC<ForestProps> = ({
     [visibleVegetation]
   );
 
-  console.log('Rendering trees:', visibleTrees.length, 'isPending:', isPending);
-
   return (
     <group name="forest">
       <TreeVisual
@@ -135,6 +133,8 @@ export const Forest: React.FC<ForestProps> = ({
       <TreeColliders
         positions={visibleTrees}
         addObstacleRef={addObstacleRef}
+        removeObstacleRef={removeObstacleRef}
+        getGroundHeight={getGroundHeight}
         key="colliders"
       />
     </group>

@@ -1,20 +1,24 @@
-import React, { RefObject, useEffect, useState } from "react";
+import React, { RefObject, useEffect, useRef, useState } from "react";
 import { Vector3 } from "three";
 
 
 interface RadarUIProps {
   myPlayerId: string;
-  myPosition: Vector3;
+  myPositionRef: RefObject<Vector3>;
   playerDataRef: RefObject<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 } }>;
-  cameraDirection: Vector3;
+  cameraDirectionRef: RefObject<Vector3>;
 }
 interface player { playerId: string; x: number; y: number; distance: number; }
 
+// Scratch vectors reused every frame so the rAF loop doesn't allocate.
+const toPlayerScratch = new Vector3();
+const facingScratch = new Vector3();
+
 export const RadarUI: React.FC<RadarUIProps> = ({
   myPlayerId,
-  myPosition,
+  myPositionRef,
   playerDataRef,
-  cameraDirection
+  cameraDirectionRef
 }) => {
 
   // Radar dimensions
@@ -22,28 +26,28 @@ export const RadarUI: React.FC<RadarUIProps> = ({
   const radius = radarSize / 2;
   const maxWorldDistance = 500; // Max distance shown on radar
 
-  const calculateAngleToPlayer = (playerPos: Vector3): number => {
+  const calculateAngleToPlayer = (playerPos: Vector3, myPosition: Vector3, cameraDirection: Vector3): number => {
 
-    const toPlayer = new Vector3(
+    toPlayerScratch.set(
       playerPos.x - myPosition.x,
       0,
       playerPos.z - myPosition.z
-    )
+    );
 
-    if (toPlayer.lengthSq() === 0) {
+    if (toPlayerScratch.lengthSq() === 0) {
       return 0;
     }
 
-    toPlayer.normalize();
+    toPlayerScratch.normalize();
 
-    const facing = new Vector3(
+    facingScratch.set(
       cameraDirection.x,
       0,
       cameraDirection.z
     ).normalize();
 
-    const angleToPlayerRad = Math.atan2(toPlayer.x, toPlayer.z);
-    const angleFacingRad = Math.atan2(facing.x, facing.z);
+    const angleToPlayerRad = Math.atan2(toPlayerScratch.x, toPlayerScratch.z);
+    const angleFacingRad = Math.atan2(facingScratch.x, facingScratch.z);
 
     //if angleDiffRad > 0 player is to your left or vice.versa
     let angleDiffRad = angleToPlayerRad - angleFacingRad;
@@ -57,7 +61,7 @@ export const RadarUI: React.FC<RadarUIProps> = ({
     return -angleDiffDeg;
   };
 
-  const calculateDistanceToPlayer = (playerPos: Vector3): number => {
+  const calculateDistanceToPlayer = (playerPos: Vector3, myPosition: Vector3): number => {
     return myPosition.distanceTo(playerPos);
   };
 
@@ -80,20 +84,41 @@ export const RadarUI: React.FC<RadarUIProps> = ({
 
   const [radarPlayers, setRadarPlayers] = useState<player[]>([]);
 
+  // The enemy dot must rotate around the radar the instant the player's
+  // mouse rotates the camera — that facing update happens every rendered
+  // frame in TPP.tsx (via refs, not React state), so this has to read those
+  // refs on its own rAF loop rather than wait for a parent re-render. A
+  // parent re-render only happens on unrelated state changes (ping, chat,
+  // hits, ...), which is what caused the old useEffect-based version to
+  // jump in straight lines between stale snapshots instead of sweeping
+  // smoothly around the center as you look around.
   useEffect(() => {
-    if (!playerDataRef.current) return;
+    let frameId: number;
 
-    const players = Object.entries(playerDataRef.current)
-      .filter(([id]) => id !== myPlayerId)
-      .map(([id, data]) => {
-        const angle = calculateAngleToPlayer(data.position);
-        const distance = calculateDistanceToPlayer(data.position);
-        const { x, y } = angleDistanceToRadarCoords(angle, distance);
-        return { playerId: id, x, y, distance };
-      });
+    const tick = () => {
+      const myPosition = myPositionRef.current;
+      const cameraDirection = cameraDirectionRef.current;
+      const data = playerDataRef.current;
 
-    setRadarPlayers(players);
-  }, [myPlayerId, myPosition, cameraDirection, playerDataRef.current]);
+      if (myPosition && cameraDirection && data) {
+        const players = Object.entries(data)
+          .filter(([id]) => id !== myPlayerId)
+          .map(([id, entry]) => {
+            const angle = calculateAngleToPlayer(entry.position, myPosition, cameraDirection);
+            const distance = calculateDistanceToPlayer(entry.position, myPosition);
+            const { x, y } = angleDistanceToRadarCoords(angle, distance);
+            return { playerId: id, x, y, distance };
+          });
+
+        setRadarPlayers(players);
+      }
+
+      frameId = requestAnimationFrame(tick);
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [myPlayerId, myPositionRef, playerDataRef, cameraDirectionRef]);
 
 
 
@@ -192,10 +217,9 @@ export const RadarUI: React.FC<RadarUIProps> = ({
         {radarPlayers.map(({ playerId, x, y }) => (
           <div
             key={playerId}
-            className="absolute w-0.5 h-0.5 bg-red-500 rounded-full border border-red-300 
-           shadow-[0_0_15px_5px_rgba(255,0,0,0.9),0_0_30px_10px_rgba(255,0,0,0.6),0_0_45px_15px_rgba(255,0,0,0.3)] 
-            transition-all duration-1000 
-           before:absolute before:inset-0 before:rounded-full before:bg-red-500 
+            className="absolute w-0.5 h-0.5 bg-red-500 rounded-full border border-red-300
+           shadow-[0_0_15px_5px_rgba(255,0,0,0.9),0_0_30px_10px_rgba(255,0,0,0.6),0_0_45px_15px_rgba(255,0,0,0.3)]
+           before:absolute before:inset-0 before:rounded-full before:bg-red-500
            before:shadow-[0_0_20px_8px_rgba(255,0,0,0.8)] before:animate-ping"
             style={{
               left: radius + x - 6,

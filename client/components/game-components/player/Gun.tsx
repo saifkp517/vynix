@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
-import { Howl } from 'howler';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, Vector3, Mesh, Group } from 'three';
 
@@ -8,8 +7,8 @@ import { Raycaster, Vector3, Mesh, Group } from 'three';
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 import socket from '@/lib/socket';
+import { playSound } from '@/lib/sound';
 
-import { PLAYER_RADIUS } from "@/types/types";
 
 interface GunProps {
   roomId: string;
@@ -20,6 +19,7 @@ interface GunProps {
   getGroundHeight: (x: number, z: number) => number;
   otherPlayers: React.RefObject<Record<string, { position: THREE.Vector3 }>>;
   crosshairRef: React.RefObject<{ triggerHit: () => void }>;
+  playerDeadRef?: React.RefObject<boolean>;
 }
 
 const Gun: React.FC<GunProps> = ({
@@ -31,6 +31,7 @@ const Gun: React.FC<GunProps> = ({
   getGroundHeight,
   otherPlayers,
   crosshairRef,
+  playerDeadRef,
 }) => {
   const maxAmmo = 80;
   const gunRef = useRef<THREE.Group>(null!);
@@ -84,6 +85,18 @@ const Gun: React.FC<GunProps> = ({
   const isTriggerHeld = useRef(false);
   const lastFireTime = useRef(0);
   const fireRateMs = 120;
+
+  // Crosshair hit-marker is server-authoritative: only fires once the
+  // server confirms the aim ray actually connected, not on local prediction.
+  useEffect(() => {
+    const handleYouHit = () => {
+      crosshairRef.current?.triggerHit();
+    };
+    socket.on('youHit', handleYouHit);
+    return () => {
+      socket.off('youHit', handleYouHit);
+    };
+  }, [crosshairRef]);
 
 
   //get live barrel position
@@ -276,8 +289,6 @@ const Gun: React.FC<GunProps> = ({
   // Integrate with usePlayerInput
   usePlayerInput({
     onJump: () => { },
-    onSprintStart: () => { },
-    onSprintEnd: () => { },
     onGrenade: () => { },
     onLeftMouseDown: () => { isTriggerHeld.current = true },
     onRightMouseDown: () => { },
@@ -307,18 +318,14 @@ const Gun: React.FC<GunProps> = ({
 
     const intersects = raycaster.current.intersectObjects(obstacles, true);
 
-    let shootObject = {
-      // ensure these are plain Vector3 copies, not refs
-      rayOrigin: barrelWorldPos.clone(),
-      // rayDirection: (() => {
-      //   const spread = 0.05;
-      //   const randomDirection = shootDirection.clone();
-      //   randomDirection.x += (Math.random() - 0.5) * spread;
-      //   randomDirection.y += (Math.random() - 0.5) * spread;
-      //   randomDirection.z += (Math.random() - 0.5) * spread;
-      //   return randomDirection.normalize();
-      // })(),
+    // Aim ray = the camera ray, unconditionally. This is the line the
+    // crosshair actually covers in TPP, and it's what the server tests
+    // hits against. muzzleOrigin is cosmetic-only, for other clients'
+    // tracer/impact visuals — never used for hit detection.
+    const shootObject = {
+      rayOrigin: camera.position.clone(),
       rayDirection: shootDirection.clone(),
+      muzzleOrigin: barrelWorldPos.clone(),
       timestamp: Date.now(),
     };
 
@@ -328,29 +335,6 @@ const Gun: React.FC<GunProps> = ({
       const hitNormal = firstHit.face?.normal || new Vector3(0, 1, 0);
       const worldNormal = hitNormal.clone().transformDirection(firstHit.object.matrixWorld);
       createImpactParticles(hitPoint, worldNormal);
-
-      const hitDirection = new Vector3().subVectors(firstHit.point, playerCenterRef.current!).normalize();
-
-      const groundY = getGroundHeight(hitPoint.x, hitPoint.z);
-      const threshold = 0.1;
-      if (hitPoint.y > groundY + threshold) {
-        const players = Object.values(otherPlayers.current || {});
-        players.forEach(player => {
-          const playerPosition = player.position.clone().add(new Vector3(0, -1.5, 0));
-          const { hit, distance } = rayIntersectsSphere(
-            playerCenterRef.current!,
-            hitDirection,
-            playerPosition,
-            PLAYER_RADIUS
-          );
-          if (hit) crosshairRef.current?.triggerHit();
-        });
-        shootObject = {
-          rayOrigin: playerCenterRef.current!.clone(),
-          rayDirection: hitDirection.clone(),
-          timestamp: Date.now(),
-        };
-      }
     }
 
     socket.emit('shoot', { userId, shootObject, roomId });
@@ -363,9 +347,7 @@ const Gun: React.FC<GunProps> = ({
       }, 100);
     }
 
-    // play the sound; ideally reuse a preloaded Howl to avoid per-shot allocations
-    const gunShotSound = new Howl({ src: ['/sounds/gunshot.mp3'], volume: 0.5, rate: 2.0 });
-    gunShotSound.play();
+    playSound('gunshot', { volume: 0.5, rate: 2.0 });
 
     muzzleFlash.current = true;
     if (muzzleFlashTimeout.current) clearTimeout(muzzleFlashTimeout.current);
@@ -376,41 +358,10 @@ const Gun: React.FC<GunProps> = ({
     lastFireTime.current = performance.now();
   };
 
-
-  const rayIntersectsSphere = (
-    rayOrigin: Vector3,
-    rayDirection: Vector3,
-    sphereCenter: Vector3,
-    sphereRadius: number
-  ): { hit: boolean; distance: number } => {
-    if (!rayOrigin || !rayDirection || !sphereCenter) {
-      console.error('Invalid argument passed to rayIntersectsSphere:', {
-        rayOrigin,
-        rayDirection,
-        sphereCenter,
-      });
-      return { hit: false, distance: Infinity };
-    }
-
-    const toCenter = new Vector3().subVectors(sphereCenter, rayOrigin);
-    const projectionLength = toCenter.dot(rayDirection);
-
-    if (projectionLength < 0) return { hit: false, distance: Infinity };
-    const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
-    const distanceToCenter = closestPoint.distanceTo(sphereCenter);
-
-    const hit = distanceToCenter <= sphereRadius;
-    return { hit, distance: distanceToCenter };
-  };
-
   const reload = () => {
     if (isReloading.current || ammo === maxAmmo) return;
 
-    const reloadSound = new Howl({
-      src: ['/sounds/reload.mp3'],
-      volume: 0.7,
-    });
-    reloadSound.play();
+    playSound('reload', { volume: 0.7 });
 
     isReloading.current = true;
 
@@ -432,6 +383,11 @@ const Gun: React.FC<GunProps> = ({
   }, [ammo, maxAmmo, resetAmmo]);
 
   useFrame((state, delta) => {
+    // Killcam takes the camera far away from the (frozen) local player body
+    // while dead — without this the gun keeps snapping to face wherever the
+    // camera now is, since this useFrame isn't otherwise gated by death.
+    if (playerDeadRef?.current) return;
+
     if (gunRef.current && camera) {
       gunRef.current.lookAt(camera.position.clone());
     }

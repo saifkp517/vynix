@@ -11,7 +11,7 @@ interface CrosshairRef {
 }
 
 export const Crosshair = React.memo(
-  forwardRef<CrosshairRef, {}>((_, ref) => {
+  forwardRef<CrosshairRef, { hidden?: boolean }>(({ hidden }, ref) => {
     const animationRef = useRef<HTMLDivElement>(null);
     const [damageTexts, setDamageTexts] = useState<
       { id: number; value: number; x: number; y: number }[]
@@ -169,11 +169,18 @@ export const Crosshair = React.memo(
           `}
         </style>
 
-        <div className="crosshair-container" ref={animationRef}>
-          {/* Main crosshair */}
-          <div className="crosshair-line horizontal-line"></div>
-          <div className="crosshair-line vertical-line"></div>
-          <div className="center-dot"></div>
+        <div
+          className="crosshair-container"
+          ref={animationRef}
+        >
+          {/* Main crosshair — hidden while scoped, but hit markers below stay visible */}
+          {!hidden && (
+            <>
+              <div className="crosshair-line horizontal-line"></div>
+              <div className="crosshair-line vertical-line"></div>
+              <div className="center-dot"></div>
+            </>
+          )}
 
           {/* Floating numbers */}
           {damageTexts.map((t) => (

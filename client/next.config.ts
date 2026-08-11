@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   images: {
@@ -6,7 +7,10 @@ const nextConfig: NextConfig = {
   },
   env: {
     BACKEND_URL: process.env.BACKEND_URL
-  }
+  },
+  turbopack: {
+    root: path.join(__dirname, ".."),
+  },
 };
 
 export default nextConfig;
