@@ -4,7 +4,22 @@ import * as THREE from 'three';
 import { SimplexNoise } from 'three-stdlib';
 
 // Mountain Component that creates borders around a square map
-export const Mountains = ({ mapSize = 2000, height = 400, thickness = 5, detail = 64 }) => {
+export const Mountains = ({
+  mapSize = 2000,
+  height = 400,
+  thickness = 5,
+  detail = 64,
+  addObstacleRef,
+}: {
+  mapSize?: number;
+  height?: number;
+  thickness?: number;
+  detail?: number;
+  // Registers each boundary wall as a solid collider, same pattern as
+  // TreeColliders — without this the mountains were purely
+  // decorative and a player could walk straight through them off the map.
+  addObstacleRef?: (ref: THREE.Mesh | null) => void;
+}) => {
   // Create a new simplex noise instance
   const simplex = useMemo(() => new SimplexNoise(), []);
   
@@ -111,18 +126,22 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 5, detail 
   return (
     <group>
       {/* North Mountains - wider with more gentle slopes */}
-      <mesh 
-        position={[0, height / 2 - 20, -offset]} 
+      <mesh
+        name="mountain"
+        ref={(ref) => addObstacleRef?.(ref)}
+        position={[0, height / 2 - 20, -offset]}
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness)}
         material={mountainMaterial}
         castShadow
         receiveShadow
       >
       </mesh>
-      
+
       {/* South Mountains */}
-      <mesh 
-        position={[0, height / 2 - 20, offset]} 
+      <mesh
+        name="mountain"
+        ref={(ref) => addObstacleRef?.(ref)}
+        position={[0, height / 2 - 20, offset]}
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness)}
         material={mountainMaterial}
         castShadow
@@ -130,10 +149,12 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 5, detail 
       >
 
       </mesh>
-      
+
       {/* East Mountains */}
-      <mesh 
-        position={[offset, height / 2 - 20, 0]} 
+      <mesh
+        name="mountain"
+        ref={(ref) => addObstacleRef?.(ref)}
+        position={[offset, height / 2 - 20, 0]}
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness, true)}
         material={mountainMaterial}
         castShadow
@@ -141,10 +162,12 @@ export const Mountains = ({ mapSize = 2000, height = 400, thickness = 5, detail 
       >
 
       </mesh>
-      
+
       {/* West Mountains */}
-      <mesh 
-        position={[-offset, height / 2 - 20, 0]} 
+      <mesh
+        name="mountain"
+        ref={(ref) => addObstacleRef?.(ref)}
+        position={[-offset, height / 2 - 20, 0]}
         geometry={createMountainGeometry(mapSize + thickness * 2, thickness, true)}
         material={mountainMaterial}
         castShadow

@@ -254,6 +254,11 @@ export class GameGateway
         await this.botsService.fillRoom(roomId, BOT_FILL_TARGET, this.server);
         this.combatService.startRegen(roomId, this.server);
 
+        const gameDurationMs = 10 * 60_000;
+        const startTime = Date.now();
+        await this.roomsService.setRoomStart(roomId, startTime, gameDurationMs);
+        this.server.to(roomId).emit('gameStarted', { startTime, duration: gameDurationMs });
+
         this.roomsService.scheduleGameEnd(roomId, async (expiredRoomId) => {
             // Runs before RoomsService wipes the room's Redis state (see
             // RoomsService.scheduleGameEnd), so player data is still readable here.
@@ -269,7 +274,7 @@ export class GameGateway
             this.botsService.stopRoom(expiredRoomId);
             this.combatService.stopRegen(expiredRoomId);
             this.server.to(expiredRoomId).emit('gameOver');
-        });
+        }, gameDurationMs);
     }
 
     @SubscribeMessage('cancelMatchmaking')
@@ -404,6 +409,9 @@ export class GameGateway
 
         socket.emit('spawnPoint', spawnPoint);
         socket.emit('roomAssigned', { roomId });
+
+        const roomStart = await this.roomsService.getRoomStart(roomId);
+        if (roomStart) socket.emit('gameStarted', roomStart);
 
         const roomPlayers =
             await this.playersService.getAllPlayersFromRoom(roomId);

@@ -123,4 +123,4 @@ export const BOT_HEAL_START_DELAY_MS = 5000;
 // from the average XP of the real players in it (harder bots vs. strong
 // players) once player XP/profiles exist. >1 = more aggressive/vengeful,
 // <1 = more cautious.
-export const BOT_VENGEANCE_RATE = 0.8;
+export const BOT_VENGEANCE_RATE = 2;

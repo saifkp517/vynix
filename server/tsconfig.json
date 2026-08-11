@@ -12,6 +12,13 @@
     "allowSyntheticDefaultImports": true,
     "target": "ES2023",
     "sourceMap": true,
+    // Explicit because src/game/physics/physics.service.ts now imports
+    // ../../../../shared/treeConstants.ts (outside server/) — without this,
+    // TS silently infers rootDir as the lowest common ancestor of all
+    // compiled files (the repo root), which reshapes dist/'s layout. Kept
+    // explicit so that inference is pinned down instead of shifting again
+    // the next time something imports a file from outside server/.
+    "rootDir": "..",
     "outDir": "./dist",
     "incremental": true,
     "skipLibCheck": true,

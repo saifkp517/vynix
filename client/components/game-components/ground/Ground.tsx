@@ -101,12 +101,13 @@ type GroundProps = {
   vegetationPositions?: Vegetation[];
   fogColor?: string;
   addObstacleRef: (ref: THREE.Mesh | null) => void;
+  removeObstacleRef: (ref: THREE.Mesh) => void;
   onAllComponentsLoaded?: () => void;
   onComponentStatusChange?: (componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details?: { loadTime?: number; error?: string }) => void;
 };
 
 // Enhanced ForestWrapper with logging
-const ForestWrapper = memo(({ playerCenterRef, radius, density, getGroundHeight, addObstacleRef, vegetationPositions }: any) => {
+const ForestWrapper = memo(({ playerCenterRef, radius, density, getGroundHeight, addObstacleRef, removeObstacleRef, vegetationPositions }: any) => {
   const { markLoaded, markFailed } = useComponentLogger('ForestWrapper');
 
   useEffect(() => {
@@ -124,6 +125,7 @@ const ForestWrapper = memo(({ playerCenterRef, radius, density, getGroundHeight,
         playerCenterRef={playerCenterRef}
         vegetationPositions={vegetationPositions}
         addObstacleRef={addObstacleRef}
+        removeObstacleRef={removeObstacleRef}
         getGroundHeight={getGroundHeight}
       />
     </ComponentErrorBoundary>
@@ -149,7 +151,7 @@ const EnhancedTallGrass = memo((props: any) => {
   );
 });
 
-const EnhancedMountains = memo(() => {
+const EnhancedMountains = memo(({ addObstacleRef }: { addObstacleRef: (ref: THREE.Mesh | null) => void }) => {
   const { markLoaded, markFailed } = useComponentLogger('Mountains');
 
   useEffect(() => {
@@ -162,7 +164,7 @@ const EnhancedMountains = memo(() => {
 
   return (
     <ComponentErrorBoundary componentName="Mountains">
-      <Mountains />
+      <Mountains addObstacleRef={addObstacleRef} />
     </ComponentErrorBoundary>
   );
 });
@@ -228,6 +230,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   vegetationPositions,
   fogColor = "#A8B8D0",
   addObstacleRef,
+  removeObstacleRef,
   playerCenterRef,
   onAllComponentsLoaded,
   onComponentStatusChange
@@ -484,8 +487,9 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
     density: 0.01,
     types: ["banyan"],
     getGroundHeight,
-    addObstacleRef
-  }), [getGroundHeight, addObstacleRef]);
+    addObstacleRef,
+    removeObstacleRef
+  }), [getGroundHeight, addObstacleRef, removeObstacleRef]);
 
   // Mark ground component as loaded when everything is ready
   useEffect(() => {
@@ -508,7 +512,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         mieDirectionalG={0.7}
       />
 
-      <EnhancedMountains />
+      <EnhancedMountains addObstacleRef={addObstacleRef} />
 
       {/* Terrain */}
       <mesh
@@ -553,6 +557,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         intensity={8}
         area={300}
         center={targetPosition}
+        playerCenterRef={playerCenterRef}
       />
 
       <EnhancedLoot

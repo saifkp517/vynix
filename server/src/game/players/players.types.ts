@@ -70,7 +70,17 @@ export interface AuthenticatedSocket extends Socket {
     username: string;
 }
 
+// Physical radius: bot obstacle avoidance and spawn resolution use this to
+// keep a body from ending up inside a trunk. Matches the rendered sphere.
 export const PLAYER_RADIUS = 1;
+
+// Radius of the *hittable* sphere in CombatService.handleShoot, deliberately
+// 2x the physical/visual radius. Third-person aim in this game is hard enough
+// that a hitbox matching the model exactly made shots feel like they never
+// stuck; this trades realism for shots that register. Keep it separate from
+// PLAYER_RADIUS — widening that one instead would also fatten bot obstacle
+// avoidance and spawn placement, which has nothing to do with shooting.
+export const PLAYER_HITBOX_RADIUS = PLAYER_RADIUS * 3;
 
 // Must match `playerHeight` in client/components/game-components/player/TPP.tsx —
 // real clients report position.y as groundHeight + playerHeight, not raw ground height.

@@ -13,7 +13,6 @@ export class Profile {
     @PrimaryColumn('uuid')
     id: string;
 
-    @Column({ unique: true })
     username: string;
 
     @Column({ default: 0 })

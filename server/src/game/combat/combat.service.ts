@@ -8,7 +8,7 @@ import { PhysicsService } from '../physics/physics.service';
 import {
   type ShooterIdentity,
   type ShootObject,
-  PLAYER_RADIUS,
+  PLAYER_HITBOX_RADIUS,
   PLAYER_HITBOX_Y_OFFSET,
 } from '../players/players.types';
 
@@ -21,7 +21,7 @@ const RESPAWN_DELAY_MS = 5000;
 // saw on their screen and what the server hit-tests against. Bots skip this
 // entirely: a bot's ray is built from the same-tick position it fires with,
 // so there's no client-render lag to compensate for.
-const SHOT_REWIND_MS = 0; // TEMP: zeroed to rule out lag-compensation as the cause of missed hits
+const SHOT_REWIND_MS = 500; // TEMP: zeroed to rule out lag-compensation as the cause of missed hits
 
 // Regen: once a real player has gone this long without taking a hit, heal
 // them 1hp/100ms (10hp/sec) until back to full health, so it reads as a
@@ -206,7 +206,7 @@ export class CombatService {
         rayOrigin,
         rayDirection,
         playerCenter,
-        PLAYER_RADIUS,
+        PLAYER_HITBOX_RADIUS,
       );
 
       if (!hit) continue;
@@ -222,17 +222,26 @@ export class CombatService {
         continue;
       }
 
-      server.to(playerId).emit('hit', { rayOrigin });
+      const key = this.playerKey(roomId, playerId);
+      const newHealth = Math.max(
+        0,
+        await this.redisService.hIncrBy(key, 'health', -DAMAGE_PER_HIT),
+      );
+      // Reset the regen clock — any hit, even a non-lethal one, restarts the
+      // 60s idle window before health starts climbing back up.
+      await this.redisService.hSet(key, { lastHitAt: String(Date.now()) });
+
+      // Health is authoritative from here on — the client used to guess its
+      // own post-hit health by subtracting a hardcoded amount locally, which
+      // drifted from Redis truth the moment a 'hit' event was dropped,
+      // reordered, or DAMAGE_PER_HIT changed. Sending the real number closes
+      // that gap the same way opponent positions already get corrected
+      // toward server snapshots instead of purely dead-reckoned.
+      server.to(playerId).emit('hit', { rayOrigin, health: newHealth });
       server.to(roomId).emit('playerHitReaction', { targetId: playerId });
       // Confirms the shot to the shooter — drives the crosshair hit-marker,
       // replacing the old client-side speculative prediction.
       server.to(shooter.id).emit('youHit', { targetId: playerId });
-
-      const key = this.playerKey(roomId, playerId);
-      const newHealth = await this.redisService.hIncrBy(key, 'health', -DAMAGE_PER_HIT);
-      // Reset the regen clock — any hit, even a non-lethal one, restarts the
-      // 60s idle window before health starts climbing back up.
-      await this.redisService.hSet(key, { lastHitAt: String(Date.now()) });
 
       if (newHealth > 0) continue;
 

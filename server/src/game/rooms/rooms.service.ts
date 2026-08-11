@@ -19,6 +19,27 @@ export class RoomsService {
         return `roomPlayers:${roomId}`;
     }
 
+    getRoomMetaKey(roomId: string) {
+        return `roomMeta:${roomId}`;
+    }
+
+    async setRoomStart(roomId: string, startTime: number, duration: number): Promise<void> {
+        await this.redisService.hSet(this.getRoomMetaKey(roomId), {
+            startTime: String(startTime),
+            duration: String(duration),
+        });
+    }
+
+    async getRoomStart(
+        roomId: string,
+    ): Promise<{ startTime: number; duration: number } | null> {
+        const meta = await this.redisService.hGetAll(this.getRoomMetaKey(roomId));
+
+        if (!meta?.startTime) return null;
+
+        return { startTime: Number(meta.startTime), duration: Number(meta.duration) };
+    }
+
     async createRoom(): Promise<string> {
         const roomId = uuidv4();
 
@@ -88,6 +109,7 @@ export class RoomsService {
         }
 
         await this.redisService.del(roomPlayersKey);
+        await this.redisService.del(this.getRoomMetaKey(roomId));
         await this.redisService.sRem(ROOM_KEY, roomId);
     }
 

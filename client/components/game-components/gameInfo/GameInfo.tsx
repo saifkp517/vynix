@@ -8,6 +8,7 @@ import Scoreboard from './Scoreboard';
 import { Crosshair } from '../crosshair/CrossHair';
 
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';;
+import { useRoomStore } from '@/hooks/useRoomStore';
 
 interface Player {
   socketId: string;
@@ -76,9 +77,12 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         forceUpdate({});
       };
 
-      const handleHit = ({ rayOrigin }: { rayOrigin: Vector3 }) => {
-        healthRef.current = Math.max(0, healthRef.current - 10);
-        setHealthInfo(healthRef.current);
+      const handleHit = ({ rayOrigin, health }: { rayOrigin: Vector3; health: number }) => {
+        // Trust the server's post-hit health instead of guessing locally —
+        // a locally-decremented value never resyncs with Redis truth if a
+        // 'hit' event is ever dropped or reordered.
+        healthRef.current = health;
+        setHealthInfo(health);
         createHitEffect(rayOrigin);
       };
 
@@ -173,11 +177,20 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     // in CombatService), so cooldown can't be spoofed by editing local state.
     const [abilityState, setAbilityState] = useState({ invincibleUntil: 0, cooldownUntil: 0 });
     const [now, setNow] = useState(Date.now());
+    // Server sends startTime/duration once on 'gameStarted', caught by
+    // useSocketHandlersMain on the lobby page (before this component mounts)
+    // and stashed in useRoomStore; remaining time is computed locally every
+    // tick instead of the server pushing a countdown.
+    const matchTiming = useRoomStore((state) => state.matchTiming);
 
     useEffect(() => {
       const interval = setInterval(() => setNow(Date.now()), 100);
       return () => clearInterval(interval);
     }, []);
+
+    const matchTimeRemainingMs = matchTiming
+      ? Math.max(0, matchTiming.startTime + matchTiming.duration - now)
+      : null;
 
     const isInvincible = now < abilityState.invincibleUntil;
     const abilityCooldownRemainingMs = Math.max(0, abilityState.cooldownUntil - now);
@@ -195,7 +208,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
     const ammo = useGameInfoStore((state) => state.ammo);
     const isScoped = useGameInfoStore((state) => state.isScoped);
-    const scopeLevel = useGameInfoStore((state) => state.scopeLevel);
 
     const chatMessages = useRef<ChatMessage[]>([]);
     const [, forceUpdate] = useState({});
@@ -457,13 +469,17 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           </div>
         </div>
 
-        {/* Kills Counter - Top Center */}
-        {/* <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-30">
-          <div className="flex items-center space-x-2 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
-            <Skull size={14} className="text-yellow-400" />
-            <span className="text-sm font-medium text-white/90 tabular-nums">{kills}</span>
+        {/* Match Timer - Top Center */}
+        {matchTimeRemainingMs !== null && (
+          <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-30">
+            <div className="bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
+              <span className="text-sm font-medium text-white/90 tabular-nums">
+                {String(Math.floor(matchTimeRemainingMs / 60000)).padStart(2, '0')}:
+                {String(Math.floor((matchTimeRemainingMs % 60000) / 1000)).padStart(2, '0')}
+              </span>
+            </div>
           </div>
-        </div> */}
+        )}
 
         {/* Network Status - Top Right */}
         <div className="fixed top-2 right-2 z-30">
@@ -579,7 +595,11 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           )
         }
 
-        {/* Sniper scope overlay */}
+        {/* Laser sight overlay — tiny glowing red dot inside a wide gun-mounted
+            reflex sight housing. viewBox is 100x100 with "slice" scaling, so
+            the visible area only spans out to r=50 on the shorter screen
+            axis — the housing has to live inside that or it renders
+            off-screen (which is what a much larger radius here did before). */}
         {isScoped && !gameOver && !isPlayerDead?.current && (
           <div className="fixed inset-0 z-40 pointer-events-none">
             <svg
@@ -589,36 +609,48 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
               preserveAspectRatio="xMidYMid slice"
               className="absolute inset-0"
             >
-              <circle cx="50" cy="50" r="34" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="0.6" />
-              <line x1="50" y1="16" x2="50" y2="84" stroke="rgba(0,0,0,0.55)" strokeWidth="0.25" />
-              <line x1="16" y1="50" x2="84" y2="50" stroke="rgba(0,0,0,0.55)" strokeWidth="0.25" />
-              {[-24, -16, -8, 8, 16, 24].map((offset) => (
-                <line
-                  key={`tick-h-${offset}`}
-                  x1={50 + offset}
-                  y1="48.5"
-                  x2={50 + offset}
-                  y2="51.5"
-                  stroke="rgba(0,0,0,0.55)"
-                  strokeWidth="0.25"
-                />
-              ))}
-              {[-24, -16, -8, 8, 16, 24].map((offset) => (
-                <line
-                  key={`tick-v-${offset}`}
-                  x1="48.5"
-                  y1={50 + offset}
-                  x2="51.5"
-                  y2={50 + offset}
-                  stroke="rgba(0,0,0,0.55)"
-                  strokeWidth="0.25"
-                />
-              ))}
-              <circle cx="50" cy="50" r="0.6" fill="rgba(0,0,0,0.7)" />
+              <defs>
+                <filter id="dotGlow" x="-400%" y="-400%" width="900%" height="900%">
+                  <feGaussianBlur stdDeviation="0.5" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <radialGradient id="housingBevel" cx="50%" cy="50%" r="50%">
+                <stop offset="62%" stopColor="rgba(0,0,0,0)" />
+                <stop offset="80%" stopColor="rgba(15,15,15,0.65)" />
+                <stop offset="100%" stopColor="rgba(0,0,0,0.95)" />
+              </radialGradient>
+              <linearGradient id="housingRim" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#3a3a3a" />
+                <stop offset="50%" stopColor="#111" />
+                <stop offset="100%" stopColor="#050505" />
+              </linearGradient>
+
+              {/* Housing tube — darkens off well outside the reticle so it
+                  frames the edges of the view without ever touching the
+                  aiming area around the dot. */}
+              <circle cx="50" cy="50" r="50" fill="url(#housingBevel)" />
+
+              {/* Outer rim of the sight tube */}
+              <circle cx="50" cy="50" r="46" fill="none" stroke="url(#housingRim)" strokeWidth="5" />
+              <circle cx="50" cy="50" r="43" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.4" />
+
+              {/* Two mounting posts top/bottom, thin enough to stay clear of
+                  the reticle and any reasonable aim adjustment */}
+              <rect x="48.5" y="0" width="3" height="8" fill="url(#housingRim)" />
+              <rect x="48.5" y="92" width="3" height="8" fill="url(#housingRim)" />
+              <circle cx="50" cy="3" r="1" fill="#4a4a4a" />
+              <circle cx="50" cy="97" r="1" fill="#4a4a4a" />
+
+              {/* Reticle */}
+              <circle cx="50" cy="50" r="1.4" fill="none" stroke="rgba(255,32,32,0.4)" strokeWidth="0.12" />
+              <g filter="url(#dotGlow)">
+                <circle cx="50" cy="50" r="0.22" fill="#ff2020" />
+              </g>
             </svg>
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/70 text-xs font-bold tracking-wide">
-              {scopeLevel}x
-            </div>
           </div>
         )}
 

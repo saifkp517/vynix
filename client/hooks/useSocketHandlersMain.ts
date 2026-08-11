@@ -62,6 +62,10 @@ export function useSocketHandlers(
     useRoomStore.getState().setSpawnPoint(spawnPoint);
   };
 
+  const handleGameStarted = ({ startTime, duration }: { startTime: number; duration: number }) => {
+    useRoomStore.getState().setMatchTiming({ startTime, duration });
+  };
+
   // Effect for socket events
   useEffect(() => {
     if (!socket) return;
@@ -72,6 +76,7 @@ export function useSocketHandlers(
     socket.on("playerJoined", handlePlayerJoined);
     socket.on("cancelledMatchmaking", handleCancelledMatchmaking);
     socket.on("spawnPoint", handleSpawnPoint);
+    socket.on("gameStarted", handleGameStarted);
 
     return () => {
       socket.off("roomSnapshot", handleRoomSnapshot);
@@ -79,6 +84,7 @@ export function useSocketHandlers(
       socket.off("playerJoined", handlePlayerJoined);
       socket.off("cancelledMatchmaking", handleCancelledMatchmaking);
       socket.off("spawnPoint", handleSpawnPoint);
+      socket.off("gameStarted", handleGameStarted);
     };
   }, [socket]);
 }

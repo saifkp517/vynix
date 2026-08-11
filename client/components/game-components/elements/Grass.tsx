@@ -2,6 +2,7 @@ import { memo, useRef, useMemo, useEffect, RefObject, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { SimplexNoise } from 'three-stdlib';
+import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 
 type TallGrassProps = {
     count?: number;
@@ -36,6 +37,19 @@ const TallGrass = memo(({
     const isGrassInitialized = useRef(false);
     const placedCountRef = useRef({ value: 0 });
     const lastCenterRef = useRef<THREE.Vector3>(centerRef.current.clone());
+
+    // Dynamic radius: the sniper scope thins scene fog as it zooms in (see
+    // TPP.tsx), which pushes the visible ground distance out well past this
+    // patch's edge, exposing bare terrain. Grow the patch radius with the
+    // same zoom level driving that fog change so the edge always stays past
+    // what the scope can actually see. Capped, because the instance count
+    // (`count`) is fixed — spreading it over a much bigger disc just thins
+    // the grass out rather than costing more, so there's a point past which
+    // growing the radius further only hurts the visual, not the frame time.
+    const scopeLevel = useGameInfoStore((state) => state.scopeLevel);
+    const maxRadiusMultiplier = 4;
+    const radiusRef = useRef(radius);
+    const lastDistributedRadiusRef = useRef(radius);
 
     // Add state to control when redistribution should happen
     const [isRedistributing, setIsRedistributing] = useState(false);
@@ -147,15 +161,16 @@ const TallGrass = memo(({
         const quaternion = new THREE.Quaternion();
         const scale = new THREE.Vector3();
 
-        const cellSize = Math.sqrt((Math.PI * radius * radius) / (count * 1));
-        const gridSize = Math.ceil((radius * 2) / cellSize);
+        const currentRadius = radiusRef.current;
+        const cellSize = Math.sqrt((Math.PI * currentRadius * currentRadius) / (count * 1));
+        const gridSize = Math.ceil((currentRadius * 2) / cellSize);
         const halfGrid = gridSize / 2;
         const grid: boolean[][] = Array(gridSize).fill(0).map(() => Array(gridSize).fill(false));
 
         // Distribute grass blades for the specified chunk
         for (let i = startIndex; i < endIndex && placedCount.value < maxCount; i++) {
             const theta = Math.random() * Math.PI * 2;
-            const dist = Math.sqrt(Math.random()) * radius;
+            const dist = Math.sqrt(Math.random()) * currentRadius;
 
             const worldX = centerRef.current.x + dist * Math.cos(theta);
             const worldZ = centerRef.current.z + dist * Math.sin(theta);
@@ -252,6 +267,7 @@ const TallGrass = memo(({
                 redistributionTimeoutRef.current = setTimeout(redistributeNextChunk, 0);
             } else {
                 lastCenterRef.current.copy(centerRef.current);
+                lastDistributedRadiusRef.current = radiusRef.current;
                 setIsRedistributing(false);
             }
         };
@@ -268,7 +284,7 @@ const TallGrass = memo(({
         };
     }, []);
 
-    useFrame((state) => {
+    useFrame((state, delta) => {
 
         if (!instancedMeshRef.current || !playerCenterRef.current) return;
 
@@ -290,6 +306,11 @@ const TallGrass = memo(({
             centerRef.current.copy(playerCenterRef.current);
         }
 
+        // Ease the radius toward the scope-driven target rather than snapping,
+        // so a zoom step doesn't force an instant full redistribution.
+        const targetRadius = radius * Math.min(scopeLevel, maxRadiusMultiplier);
+        radiusRef.current += (targetRadius - radiusRef.current) * Math.min(1, delta * 2);
+
         // Initial distribution
         if (!isGrassInitialized.current) {
             const placedCount = { value: 0 };
@@ -297,13 +318,14 @@ const TallGrass = memo(({
             currentChunkIndex.current = 1;
             isGrassInitialized.current = true;
             lastCenterRef.current.copy(centerRef.current);
+            lastDistributedRadiusRef.current = radiusRef.current;
             instancedMeshRef.current.instanceMatrix.needsUpdate = true;
         }
 
-        // Check if redistribution is needed
-        if (!isRedistributing && lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15) {
-            console.log("distribution needed")
-
+        // Check if redistribution is needed (player moved far enough, or the
+        // scope-driven radius has grown/shrunk enough to matter)
+        const radiusChanged = Math.abs(radiusRef.current - lastDistributedRadiusRef.current) > radius * 0.15;
+        if (!isRedistributing && (lastCenterRef.current.distanceToSquared(centerRef.current) > 15 * 15 || radiusChanged)) {
             scheduleRedistribution();
         }
 

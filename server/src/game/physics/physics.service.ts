@@ -5,24 +5,47 @@ import { join } from 'path';
 
 import { PlayersService } from '../players/players.service';
 import { TerrainService, MAX_TERRAIN_HEIGHT } from '../terrain/terrain.service';
+import {
+  CANOPY_PLATE_RADIUS,
+  CANOPY_PLATE_Y_OFFSET,
+  CANOPY_PLATE_SCALE,
+  TRUNK_COLLIDER_RADIUS,
+  TRUNK_COLLIDER_HEIGHT,
+  TRUNK_COLLIDER_RADIAL_SCALE,
+  TOP_CANOPY_RADIUS,
+  TOP_CANOPY_Y_OFFSET,
+  TOP_CANOPY_SCALE,
+} from '../../../../shared/treeConstants';
 
 type Grid = Map<string, Set<string>>;
 
-interface RockObstacle {
+interface CanopyObstacle {
   center: Vector3;
-  // Half-extents along the rock's own local axes (before rotation).
+  // Half-extents along the canopy's own local axes (before rotation).
   halfExtents: Vector3;
   rotationY: number;
 }
 
-// Mirrors client/components/game-components/obstacles/Rock.tsx's
-// rockTransform(). Rocks are solid cover — shots and bot sightlines must
-// treat them the same way the client's visible/collidable rock does, or a
-// player crouched behind one can get shot through it. Keep these three
-// values (and the baseScale = scale * 1.2 formula below) in sync with that
-// file the same way terrain constants are kept in sync with Ground.tsx.
-const ROCK_SIZE: [number, number, number] = [58.0, 60.0, 42.0];
-const ROCK_EMBED_FRACTION = 0.45;
+interface TrunkObstacle {
+  // Ground-level (x, z) center; the cylinder is axis-aligned along Y, so
+  // rotation doesn't affect it.
+  center: Vector3;
+  radius: number;
+  // World-space Y range the cylinder occupies.
+  bottomY: number;
+  topY: number;
+}
+
+/**
+ * Mirrors getCanopyYOffset() in Tree.tsx: `canopyHeightOffset` is baked into
+ * POS.json by generateTreePos.ts's proximity-aware tiering (trees close
+ * enough for their canopies to overlap get pushed onto different height
+ * tiers), not derived from a tree's own fields — so the server just reads
+ * the same baked value the client does, rather than recomputing it.
+ */
+function getCanopyYOffset(entry: { canopyHeightOffset?: number }): number {
+  return CANOPY_PLATE_Y_OFFSET + (entry.canopyHeightOffset ?? 0);
+}
 
 // Step size for walking a shot's ray to check whether terrain occludes it.
 // Small enough to catch ridgelines, large enough to stay cheap per shot.
@@ -46,26 +69,32 @@ export class PhysicsService {
   // they were at shot-time instead of testing against their current (later)
   // position — see getPositionAt / CombatService.handleShoot.
   private readonly positionHistory = new Map<string, PositionSnapshot[]>();
-  private readonly rocks: RockObstacle[] = [];
+  private readonly canopies: CanopyObstacle[] = [];
+  // Top canopy (the crown cluster above the trunk) — same CanopyObstacle
+  // shape as the bottom plate, just a separate list so occlusion checks can
+  // prefilter each independently (see isPathOccluded).
+  private readonly topCanopies: CanopyObstacle[] = [];
+  private readonly trunks: TrunkObstacle[] = [];
 
   constructor(
     private readonly playersService: PlayersService,
     private readonly terrainService: TerrainService,
   ) {
-    this.loadRocks();
+    this.loadCanopies();
   }
 
-  // ── Vegetation obstacles (rocks) ────────────────────────────────────────────
+  // ── Vegetation obstacles (bottom canopy) ─────────────────────────────────────
 
   /**
    * Reads the same POS.json the client renders from and builds world-space
-   * rock ellipsoids out of the 'rock' entries, so shots and bot line-of-sight
-   * can be blocked by rocks the same way they're already blocked by terrain.
-   * Trees are deliberately not included here — they're thin enough that
-   * blocking sightlines through a whole forest would make fights unplayable;
-   * only rocks (wide, meant as cover) get server-side occlusion.
+   * canopy ellipsoids for every tree, so shots and bot line-of-sight can be
+   * blocked by the bottom canopy the same way they're already blocked by
+   * terrain. Only the bottom canopy plate gets this — the trunk and upper
+   * crown layers are thin enough that blocking sightlines through a whole
+   * forest of them would make fights unplayable; the wide flat plate is the
+   * one layer meant to work as cover.
    */
-  private loadRocks(): void {
+  private loadCanopies(): void {
     // process.cwd() only resolves correctly if the server is launched from
     // server/ (true for `npm run start:dev` there, not guaranteed for every
     // way this could be started — a monorepo script, a different working
@@ -73,8 +102,8 @@ export class PhysicsService {
     // instead, which is stable regardless of launch cwd, but differs between
     // `ts-node` (runs from src/) and `nest build` (runs from dist/, which may
     // or may not preserve the src/ nesting depth). Trying all three covers
-    // every way this service actually gets started; if all fail, rocks just
-    // don't occlude yet and the warning below says why.
+    // every way this service actually gets started; if all fail, canopies
+    // just don't occlude yet and the warning below says why.
     const candidates = [
       join(process.cwd(), '..', 'client', 'public', 'POS.json'),
       join(__dirname, '../../../../client/public/POS.json'), // ts-node: src/game/physics
@@ -95,59 +124,83 @@ export class PhysicsService {
 
     if (!raw) {
       this.logger.warn(
-        `Could not find POS.json in any candidate location (tried: ${candidates.join(', ')}). Rocks won't occlude shots or bot line-of-sight until this is fixed.`,
+        `Could not find POS.json in any candidate location (tried: ${candidates.join(', ')}). Canopies won't occlude shots or bot line-of-sight until this is fixed.`,
       );
       return;
     }
 
     try {
-      const vegetation: { type: string; position: [number, number, number]; rotation: number; scale: number }[] =
-        JSON.parse(raw);
+      const vegetation: {
+        type: string;
+        position: [number, number, number];
+        rotation: number;
+        scale: number;
+        canopyHeightOffset?: number;
+      }[] = JSON.parse(raw);
 
       for (const entry of vegetation) {
-        if (entry.type !== 'rock') continue;
+        if (entry.type !== 'tree') continue;
 
         const baseScale = entry.scale * 1.2;
         const groundHeight = this.terrainService.getHeight(entry.position[0], entry.position[2]);
         const halfExtents = new Vector3(
-          (ROCK_SIZE[0] * baseScale) / 2,
-          (ROCK_SIZE[1] * baseScale) / 2,
-          (ROCK_SIZE[2] * baseScale) / 2,
+          CANOPY_PLATE_RADIUS * CANOPY_PLATE_SCALE[0] * baseScale,
+          CANOPY_PLATE_RADIUS * CANOPY_PLATE_SCALE[1] * baseScale,
+          CANOPY_PLATE_RADIUS * CANOPY_PLATE_SCALE[2] * baseScale,
         );
-        const centerY =
-          groundHeight + halfExtents.y - ROCK_SIZE[1] * baseScale * ROCK_EMBED_FRACTION;
+        const centerY = groundHeight + getCanopyYOffset(entry) * baseScale;
 
-        this.rocks.push({
+        this.canopies.push({
           center: new Vector3(entry.position[0], centerY, entry.position[2]),
           halfExtents,
           rotationY: entry.rotation,
         });
+
+        const topHalfExtents = new Vector3(
+          TOP_CANOPY_RADIUS * TOP_CANOPY_SCALE[0] * baseScale,
+          TOP_CANOPY_RADIUS * TOP_CANOPY_SCALE[1] * baseScale,
+          TOP_CANOPY_RADIUS * TOP_CANOPY_SCALE[2] * baseScale,
+        );
+        const topCenterY = groundHeight + TOP_CANOPY_Y_OFFSET * baseScale;
+
+        this.topCanopies.push({
+          center: new Vector3(entry.position[0], topCenterY, entry.position[2]),
+          halfExtents: topHalfExtents,
+          rotationY: entry.rotation,
+        });
+
+        const trunkRadius = TRUNK_COLLIDER_RADIUS * TRUNK_COLLIDER_RADIAL_SCALE * baseScale;
+        const trunkHeight = TRUNK_COLLIDER_HEIGHT * baseScale;
+        this.trunks.push({
+          center: new Vector3(entry.position[0], 0, entry.position[2]),
+          radius: trunkRadius,
+          bottomY: groundHeight,
+          topY: groundHeight + trunkHeight,
+        });
       }
 
-      this.logger.log(`Loaded ${this.rocks.length} rock obstacles for occlusion/avoidance from ${loadedFrom}`);
+      this.logger.log(
+        `Loaded ${this.canopies.length} canopy, ${this.topCanopies.length} top-canopy, and ${this.trunks.length} trunk obstacles for occlusion from ${loadedFrom}`,
+      );
     } catch (err) {
-      // Non-fatal: worst case, rocks don't block shots/sightlines yet — the
-      // rest of the server has no other dependency on this data.
-      this.logger.warn(`Could not load rock obstacles from POS.json: ${(err as Error).message}`);
+      // Non-fatal: worst case, canopies don't block shots/sightlines yet —
+      // the rest of the server has no other dependency on this data.
+      this.logger.warn(`Could not load canopy obstacles from POS.json: ${(err as Error).message}`);
     }
   }
 
-  getRocks(): readonly RockObstacle[] {
-    return this.rocks;
-  }
-
-  /** Ray vs a single rock ellipsoid, accounting for its Y rotation. */
-  private isRayOccludedByRock(
+  /** Ray vs a single canopy ellipsoid, accounting for its Y rotation. */
+  private isRayOccludedByCanopy(
     rayOrigin: Vector3,
     rayDirection: Vector3,
     distance: number,
-    rock: RockObstacle,
+    canopy: CanopyObstacle,
   ): boolean {
-    // Transform into the rock's local (unrotated, centered) frame.
-    const cos = Math.cos(-rock.rotationY);
-    const sin = Math.sin(-rock.rotationY);
+    // Transform into the canopy's local (unrotated, centered) frame.
+    const cos = Math.cos(-canopy.rotationY);
+    const sin = Math.sin(-canopy.rotationY);
 
-    const rel = rayOrigin.clone().sub(rock.center);
+    const rel = rayOrigin.clone().sub(canopy.center);
     const localOrigin = new Vector3(rel.x * cos + rel.z * sin, rel.y, -rel.x * sin + rel.z * cos);
     const localDir = new Vector3(
       rayDirection.x * cos + rayDirection.z * sin,
@@ -157,12 +210,12 @@ export class PhysicsService {
 
     // Scale space so the ellipsoid becomes a unit sphere, then solve the
     // standard ray-sphere quadratic.
-    const ox = localOrigin.x / rock.halfExtents.x;
-    const oy = localOrigin.y / rock.halfExtents.y;
-    const oz = localOrigin.z / rock.halfExtents.z;
-    const dx = localDir.x / rock.halfExtents.x;
-    const dy = localDir.y / rock.halfExtents.y;
-    const dz = localDir.z / rock.halfExtents.z;
+    const ox = localOrigin.x / canopy.halfExtents.x;
+    const oy = localOrigin.y / canopy.halfExtents.y;
+    const oz = localOrigin.z / canopy.halfExtents.z;
+    const dx = localDir.x / canopy.halfExtents.x;
+    const dy = localDir.y / canopy.halfExtents.y;
+    const dz = localDir.z / canopy.halfExtents.z;
 
     const a = dx * dx + dy * dy + dz * dz;
     if (a === 0) return false;
@@ -183,51 +236,157 @@ export class PhysicsService {
     return tEntry > 0 && tEntry < distance;
   }
 
+  /** Ray vs a single trunk, modeled as a vertical (Y-axis) cylinder. */
+  private isRayOccludedByTrunk(
+    rayOrigin: Vector3,
+    rayDirection: Vector3,
+    distance: number,
+    trunk: TrunkObstacle,
+  ): boolean {
+    // Solve the ray-vs-infinite-cylinder quadratic in the XZ plane, then
+    // clip the resulting entry distance to both the cylinder's Y extent and
+    // the [0, distance] segment actually being tested.
+    const ox = rayOrigin.x - trunk.center.x;
+    const oz = rayOrigin.z - trunk.center.z;
+    const dx = rayDirection.x;
+    const dz = rayDirection.z;
+
+    const a = dx * dx + dz * dz;
+    const b = 2 * (ox * dx + oz * dz);
+    const c = ox * ox + oz * oz - trunk.radius * trunk.radius;
+
+    let tEntry: number;
+    if (a === 0) {
+      // Ray travels straight up/down; only possibly occluded if its XZ
+      // origin already falls within the trunk's radius.
+      if (c > 0) return false;
+      tEntry = 0;
+    } else {
+      const discriminant = b * b - 4 * a * c;
+      if (discriminant < 0) return false;
+
+      const sqrtDisc = Math.sqrt(discriminant);
+      const t0 = (-b - sqrtDisc) / (2 * a);
+      const t1 = (-b + sqrtDisc) / (2 * a);
+      tEntry = Math.max(0, Math.min(t0, t1));
+    }
+
+    if (tEntry >= distance) return false;
+
+    const entryY = rayOrigin.y + rayDirection.y * tEntry;
+    return entryY >= trunk.bottomY && entryY <= trunk.topY;
+  }
+
   /**
-   * True if terrain OR a rock blocks the straight line from `rayOrigin` to a
-   * point `distance` away along `rayDirection`. The single check callers
-   * (shot resolution, bot line-of-sight) should use instead of terrain-only
-   * occlusion, now that rocks are real cover.
+   * Cheap bounding-sphere reject (XZ distance from ray origin to canopy
+   * center, vs. the shot's own range plus the canopy's own reach) used to
+   * skip the full rotated-ellipsoid math below for trees nowhere near this
+   * particular shot. Added specifically for the top canopy: doubling the
+   * number of canopy obstacles to occlude against (bottom plate + crown, one
+   * pair per tree, thousands of trees) would double the per-shot cost
+   * otherwise — this keeps the top-canopy check limited to trees actually
+   * near the shot instead of testing every tree on the map.
+   */
+  private isCanopyNearRay(rayOrigin: Vector3, distance: number, canopy: CanopyObstacle): boolean {
+    const maxReach = Math.max(canopy.halfExtents.x, canopy.halfExtents.z);
+    const dx = canopy.center.x - rayOrigin.x;
+    const dz = canopy.center.z - rayOrigin.z;
+    return Math.sqrt(dx * dx + dz * dz) <= distance + maxReach;
+  }
+
+  /**
+   * True if terrain, a canopy, OR a trunk blocks the straight line from
+   * `rayOrigin` to a point `distance` away along `rayDirection`. The single
+   * check callers (shot resolution, bot line-of-sight) should use instead of
+   * terrain-only occlusion, now that the bottom canopy and the trunk are
+   * both real cover — the trunk already blocks player movement (see
+   * TreeColliders in Tree.tsx), so shots need to respect the same shape.
+   *
+   * No bot ground-pathing equivalent (there was one for rocks —
+   * steerAroundRocks — before rocks were replaced by canopy collision):
+   * canopies sit ~25x a tree's scale above the ground, so a ray between two
+   * grounded bots essentially never crosses one. It only matters for shots
+   * between elevated positions (e.g. players using a canopy as a platform),
+   * which occlusion alone already covers. Trunks, unlike canopies, do sit at
+   * ground level, but bot pathing already steers around them via the
+   * client-mirrored trunk collider elsewhere, so this only needs to add the
+   * sightline/shot check.
    */
   isPathOccluded(rayOrigin: Vector3, rayDirection: Vector3, distance: number): boolean {
     if (this.isRayOccludedByTerrain(rayOrigin, rayDirection, distance)) return true;
 
-    for (const rock of this.rocks) {
-      if (this.isRayOccludedByRock(rayOrigin, rayDirection, distance, rock)) return true;
+    for (const canopy of this.canopies) {
+      if (this.isRayOccludedByCanopy(rayOrigin, rayDirection, distance, canopy)) return true;
+    }
+
+    for (const topCanopy of this.topCanopies) {
+      if (!this.isCanopyNearRay(rayOrigin, distance, topCanopy)) continue;
+      if (this.isRayOccludedByCanopy(rayOrigin, rayDirection, distance, topCanopy)) return true;
+    }
+
+    for (const trunk of this.trunks) {
+      if (this.isRayOccludedByTrunk(rayOrigin, rayDirection, distance, trunk)) return true;
     }
 
     return false;
   }
 
+  // ── Bot obstacle avoidance ───────────────────────────────────────────────────
+
   /**
-   * Returns a steering position to route around any rock sitting in the
-   * straight line between `from` and `to`, or `to` unchanged if the path is
-   * clear. Used by bot movement so bots walk around rocks (which are now
-   * solid cover) instead of beelining through them.
+   * Pushes a ground-level point out of any trunk or canopy it's currently
+   * inside, in the XZ plane. Real players get this for free from
+   * TreeColliders' contact resolution in TPP.tsx (collectContacts +
+   * sphereVsCylinder/sphereVsEllipsoid) — bots move server-side with no
+   * client collider, so movement here has to run the same shape math or bots
+   * just walk straight through trunks and end up phased inside canopies on
+   * terrain tall enough to reach the low canopy plate. Only resolves XZ:
+   * callers always re-snap Y from terrain height right after, so a Y push
+   * here would just be discarded.
    */
-  steerAroundRocks(from: Vector3, to: Vector3): Vector3 {
-    const toTarget = to.clone().sub(from);
-    const distance = toTarget.length();
-    if (distance < 0.01) return to;
-    const direction = toTarget.clone().divideScalar(distance);
+  resolveGroundObstacles(position: Vector3, radius: number): Vector3 {
+    const resolved = position.clone();
 
-    for (const rock of this.rocks) {
-      if (!this.isRayOccludedByRock(from, direction, distance, rock)) continue;
+    for (const trunk of this.trunks) {
+      const dx = resolved.x - trunk.center.x;
+      const dz = resolved.z - trunk.center.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      const minDist = trunk.radius + radius;
+      if (dist >= minDist) continue;
 
-      // Steer laterally around the rock: perpendicular to the approach
-      // direction, on whichever side is closer to the bot's current heading
-      // (so it doesn't flip-flop side to side across ticks).
-      const toRock = rock.center.clone().sub(from);
-      const lateral = new Vector3(-direction.z, 0, direction.x);
-      const side = Math.sign(toRock.dot(lateral)) || 1;
-
-      // Clear the rock's largest horizontal extent with margin, so the
-      // detour point sits outside the ellipsoid rather than grazing it.
-      const clearance = Math.max(rock.halfExtents.x, rock.halfExtents.z) * 1.3;
-      return from.clone().addScaledVector(direction, distance * 0.4).addScaledVector(lateral, -side * clearance);
+      const nx = dist > 0 ? dx / dist : 1;
+      const nz = dist > 0 ? dz / dist : 0;
+      resolved.x = trunk.center.x + nx * minDist;
+      resolved.z = trunk.center.z + nz * minDist;
     }
 
-    return to;
+    for (const canopy of this.canopies) {
+      // Canopy sits ~25x scale above the ground, so it only matters for bots
+      // on terrain tall enough to actually reach its vertical span — cheap
+      // to skip everyone else before doing the rotated-frame math below.
+      if (Math.abs(resolved.y - canopy.center.y) >= canopy.halfExtents.y + radius) continue;
+
+      const cos = Math.cos(-canopy.rotationY);
+      const sin = Math.sin(-canopy.rotationY);
+      const relX = resolved.x - canopy.center.x;
+      const relZ = resolved.z - canopy.center.z;
+      const localX = relX * cos + relZ * sin;
+      const localZ = -relX * sin + relZ * cos;
+
+      const rx = canopy.halfExtents.x + radius;
+      const rz = canopy.halfExtents.z + radius;
+      const norm = (localX * localX) / (rx * rx) + (localZ * localZ) / (rz * rz);
+      if (norm >= 1 || norm === 0) continue;
+
+      const scale = 1 / Math.sqrt(norm);
+      const pushedLocalX = localX * scale;
+      const pushedLocalZ = localZ * scale;
+
+      resolved.x = canopy.center.x + pushedLocalX * cos + pushedLocalZ * sin;
+      resolved.z = canopy.center.z - pushedLocalX * sin + pushedLocalZ * cos;
+    }
+
+    return resolved;
   }
 
   // ── Grid ─────────────────────────────────────────────────────────────────────

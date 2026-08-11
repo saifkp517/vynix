@@ -9,7 +9,7 @@ import { PhysicsService } from '../physics/physics.service';
 import { CombatService } from '../combat/combat.service';
 import { TerrainService } from '../terrain/terrain.service';
 import { RoomsService } from '../rooms/rooms.service';
-import { type Player, PLAYER_HEIGHT, PLAYER_HITBOX_Y_OFFSET } from '../players/players.types';
+import { type Player, PLAYER_HEIGHT, PLAYER_HITBOX_Y_OFFSET, PLAYER_RADIUS } from '../players/players.types';
 import {
   BOT_ID_PREFIX,
   BOT_TICK_MS,
@@ -156,8 +156,9 @@ export class BotsService implements OnModuleDestroy {
 
   private async spawnBot(roomId: string, server: Server): Promise<void> {
     const botId = `${BOT_ID_PREFIX}${uuidv4()}`;
-    const spawnPoint = await this.physicsService.getSpawnPosition(roomId);
+    let spawnPoint = await this.physicsService.getSpawnPosition(roomId);
     spawnPoint.y = this.terrainService.getHeight(spawnPoint.x, spawnPoint.z) + PLAYER_HEIGHT;
+    spawnPoint = this.physicsService.resolveGroundObstacles(spawnPoint, PLAYER_RADIUS);
 
     const bot: Player = {
       socketId: botId,
@@ -337,7 +338,7 @@ export class BotsService implements OnModuleDestroy {
       const aimPoint = entity.position.clone().setY(entity.position.y - PLAYER_HITBOX_Y_OFFSET);
       const direction = aimPoint.clone().sub(bot.position).normalize();
       if (this.physicsService.isPathOccluded(bot.position, direction, distance)) {
-        return null; // in range but a hill or rock blocks line of sight
+        return null; // in range but a hill or canopy blocks line of sight
       }
 
       return distance;
@@ -407,14 +408,7 @@ export class BotsService implements OnModuleDestroy {
       state.fsmState = nearestTarget.distance > state.holdDistance ? 'HUNTING' : 'ENGAGED';
 
       if (nearestTarget.distance > state.holdDistance) {
-        // Route the chase point around any rock sitting directly between the
-        // bot and its target — rocks are solid cover now, so a straight
-        // beeline would walk the bot straight into one instead of around it.
-        const steeredTarget = this.physicsService.steerAroundRocks(
-          bot.position,
-          nearestTarget.player.position,
-        );
-        const toTarget = steeredTarget.clone().sub(bot.position);
+        const toTarget = nearestTarget.player.position.clone().sub(bot.position);
         toTarget.y = 0;
         if (toTarget.length() > 0.1) {
           const direction = toTarget.normalize();
@@ -429,8 +423,7 @@ export class BotsService implements OnModuleDestroy {
       // Runs every tick (not gated by think cadence) so idle bots are
       // always visibly drifting instead of freezing between long pauses.
       const roamTarget = cluster.clone().add(state.roamOffset);
-      const steeredRoamTarget = this.physicsService.steerAroundRocks(bot.position, roamTarget);
-      const toRoamTarget = steeredRoamTarget.sub(bot.position);
+      const toRoamTarget = roamTarget.sub(bot.position);
       if (toRoamTarget.length() > 1) {
         const direction = toRoamTarget.normalize();
         velocity = direction.multiplyScalar(state.moveSpeed);
@@ -438,6 +431,7 @@ export class BotsService implements OnModuleDestroy {
       }
     }
 
+    newPosition = this.physicsService.resolveGroundObstacles(newPosition, PLAYER_RADIUS);
     newPosition.y = this.terrainService.getHeight(newPosition.x, newPosition.z) + PLAYER_HEIGHT;
     state.velocity = velocity;
 
@@ -511,7 +505,8 @@ export class BotsService implements OnModuleDestroy {
     if (state.fsmState === 'FLEEING') {
       const direction = state.fleeDirection ?? this.computeFleeDirection(bot.position, cluster);
       const velocity = direction.clone().multiplyScalar(state.moveSpeed);
-      const newPosition = bot.position.clone().add(velocity);
+      let newPosition = bot.position.clone().add(velocity);
+      newPosition = this.physicsService.resolveGroundObstacles(newPosition, PLAYER_RADIUS);
       newPosition.y = this.terrainService.getHeight(newPosition.x, newPosition.z) + PLAYER_HEIGHT;
       state.velocity = velocity;
 
