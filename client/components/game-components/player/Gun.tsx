@@ -33,7 +33,7 @@ const Gun: React.FC<GunProps> = ({
   crosshairRef,
   playerDeadRef,
 }) => {
-  const maxAmmo = 80;
+  const maxAmmo = 30;
   const gunRef = useRef<THREE.Group>(null!);
   const muzzleFlash = useRef(false);
   const isReloading = useRef(false);
