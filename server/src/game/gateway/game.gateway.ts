@@ -254,7 +254,7 @@ export class GameGateway
         await this.botsService.fillRoom(roomId, BOT_FILL_TARGET, this.server);
         this.combatService.startRegen(roomId, this.server);
 
-        const gameDurationMs = 1 * 60_000;
+        const gameDurationMs = 10 * 60_000;
         const startTime = Date.now();
         await this.roomsService.setRoomStart(roomId, startTime, gameDurationMs);
         this.server.to(roomId).emit('gameStarted', { startTime, duration: gameDurationMs });
