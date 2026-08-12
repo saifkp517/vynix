@@ -1,11 +1,11 @@
 module.exports = {
   apps: [{
-    name: 'server-nest',
+    name: 'server',
     script: 'pnpm',
     args: 'run start',
     interpreter: 'none',
     env: {
-      PORT: 5000
+      PORT: 4001
     }
   }]
 }
