@@ -104,6 +104,7 @@ type GroundProps = {
   removeObstacleRef: (ref: THREE.Mesh) => void;
   onAllComponentsLoaded?: () => void;
   onComponentStatusChange?: (componentName: string, status: 'loading' | 'loaded' | 'failed' | 'unloaded', details?: { loadTime?: number; error?: string }) => void;
+  grassCount?: number;
 };
 
 // Enhanced ForestWrapper with logging
@@ -233,7 +234,8 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   removeObstacleRef,
   playerCenterRef,
   onAllComponentsLoaded,
-  onComponentStatusChange
+  onComponentStatusChange,
+  grassCount
 }, ref) => {
 
   const componentsToTrack = [
@@ -576,6 +578,7 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
         <EnhancedTallGrass
           getGroundHeight={getGroundHeight}
           playerCenterRef={playerCenterRef}
+          count={grassCount}
         />
       </Suspense>
 

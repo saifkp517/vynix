@@ -22,6 +22,7 @@ import KillCam from '@/components/game-components/player/KillCam';
 import { KillFeedRenderer } from '@/components/game-components/toast/KillFeed';
 import GameLoading from '@/components/game-components/loading-page/loading-page';
 import { getLoopingSound, stopAllSounds } from '@/lib/sound';
+import { getGraphicsLevel, getDprForLevel, getGrassCountForLevel } from '@/lib/graphicsSettings';
 
 interface Player {
   id: string;
@@ -324,6 +325,10 @@ const Game: React.FC = () => {
   }, [handlePlayerCenterUpdate, localPlayerId]);
   //
 
+  const graphicsLevel = useMemo(() => getGraphicsLevel(), []);
+  const dpr = useMemo(() => getDprForLevel(graphicsLevel), [graphicsLevel]);
+  const grassCount = useMemo(() => getGrassCountForLevel(graphicsLevel), [graphicsLevel]);
+
   const groundProps = useMemo(() => ({
     playerCenterRef,
     addObstacleRef,
@@ -331,7 +336,8 @@ const Game: React.FC = () => {
     vegetationPositions: vegetationPositionsRef.current,
     onComponentStatusChange: handleComponentStatusChange,
     onAllComponentsLoaded: handleAllComponentsLoaded,
-  }), [addObstacleRef, removeObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded, vegetationPositions]);
+    grassCount,
+  }), [addObstacleRef, removeObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded, vegetationPositions, grassCount]);
 
   console.log(groundProps)
 
@@ -385,7 +391,7 @@ const Game: React.FC = () => {
                   failIfMajorPerformanceCaveat: false,
                   outputColorSpace: SRGBColorSpace,
                 }}
-                dpr={0.25}
+                dpr={dpr}
                 style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px`, imageRendering: 'pixelated' }}
                 camera={{ position: [0, 0.1, 0], fov: FOV, near: 0.1, far: 1000 }}
               >

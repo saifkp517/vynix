@@ -429,44 +429,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
               />
             </div>
           </div>
-
-          {/* Invincibility ability — Q to activate */}
-          <div className="flex items-center space-x-2 mt-2">
-            <div
-              className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[9px] font-bold ${
-                isInvincible
-                  ? 'border-sky-400 bg-sky-400/30 text-sky-200'
-                  : abilityReady
-                    ? 'border-white/60 text-white/80'
-                    : 'border-white/20 text-white/30'
-              }`}
-            >
-              Q
-            </div>
-            <span
-              className={`text-xs font-bold tabular-nums ${
-                isInvincible ? 'text-sky-300' : abilityReady ? 'text-white/80' : 'text-white/40'
-              }`}
-            >
-              {isInvincible
-                ? `${Math.ceil((abilityState.invincibleUntil - now) / 1000)}s`
-                : abilityReady
-                  ? 'READY'
-                  : `${Math.ceil(abilityCooldownRemainingMs / 1000)}s`}
-            </span>
-          </div>
-        </div>
-
-        {/* Ammo - Bottom Right Corner */}
-        <div className="fixed bottom-0 right-0 p-3 z-30">
-          <div className="text-right text-white/90">
-            <div className="flex items-center justify-end space-x-2 mb-1">
-              <Target size={14} className="text-orange-400" />
-              <span className="text-lg font-bold tabular-nums">{ammo}</span>
-              <span className="text-sm text-white/60">/</span>
-              <span className="text-sm text-white/60 tabular-nums">{bulletsAvailable}</span>
-            </div>
-          </div>
         </div>
 
         {/* Match Timer - Top Center */}
@@ -517,11 +479,50 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
           </div>
         )}
 
-        {/* Chat Indicator - Bottom Right */}
-        <div className="fixed bottom-16 right-2 z-30">
-          <div className="text-xs text-white/40 text-center">
-            <MessageCircle size={12} className="mx-auto mb-1" />
-            <div>C</div>
+        {/* Bottom Center Bar - Ammo, Invincibility Ability, Chat */}
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-30">
+          <div className="flex items-center space-x-3 bg-black/30 backdrop-blur-sm rounded-full px-4 py-1.5">
+            <div className="flex items-center space-x-2">
+              <Target size={14} className="text-orange-400" />
+              <span className="text-sm font-bold text-white/90 tabular-nums">{ammo}</span>
+              <span className="text-xs text-white/50">/</span>
+              <span className="text-xs text-white/50 tabular-nums">{bulletsAvailable}</span>
+            </div>
+
+            <div className="w-px h-4 bg-white/15" />
+
+            <div className="flex items-center space-x-1.5">
+              <div
+                className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[9px] font-bold ${
+                  isInvincible
+                    ? 'border-sky-400 bg-sky-400/30 text-sky-200'
+                    : abilityReady
+                      ? 'border-white/60 text-white/80'
+                      : 'border-white/20 text-white/30'
+                }`}
+              >
+                Q
+              </div>
+              <span className="text-xs text-white/50">activate invincibility</span>
+              <span
+                className={`text-xs font-bold tabular-nums ${
+                  isInvincible ? 'text-sky-300' : abilityReady ? 'text-white/80' : 'text-white/40'
+                }`}
+              >
+                {isInvincible
+                  ? `${Math.ceil((abilityState.invincibleUntil - now) / 1000)}s`
+                  : abilityReady
+                    ? 'READY'
+                    : `${Math.ceil(abilityCooldownRemainingMs / 1000)}s`}
+              </span>
+            </div>
+
+            <div className="w-px h-4 bg-white/15" />
+
+            <div className="flex items-center space-x-1 text-white/40">
+              <MessageCircle size={12} />
+              <span className="text-xs">C</span>
+            </div>
           </div>
         </div>
 

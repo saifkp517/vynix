@@ -576,6 +576,57 @@ export class PhysicsService {
   }
 
   /**
+   * Ray vs a vertical (Y-axis) capsule centered on `center`: a flat-capped
+   * cylinder of `xzRadius` in the XZ plane, extended `yHalfHeight` above and
+   * below center. Used for the player hitbox instead of a sphere so the
+   * generous PLAYER_HITBOX_RADIUS forgiveness only applies vertically —
+   * aiming left/right still has to be accurate to PLAYER_RADIUS, only aiming
+   * up/down (a harder judgment in third-person) gets the wide tolerance.
+   * Mirrors the trunk cylinder math in isRayOccludedByTrunk.
+   */
+  rayIntersectsVerticalCapsule(
+    rayOrigin: Vector3,
+    rayDirection: Vector3,
+    center: Vector3,
+    xzRadius: number,
+    yHalfHeight: number,
+  ): { hit: boolean; distance: number } {
+    if (!rayOrigin || !rayDirection || !center) {
+      return { hit: false, distance: Infinity };
+    }
+
+    const ox = rayOrigin.x - center.x;
+    const oz = rayOrigin.z - center.z;
+    const dx = rayDirection.x;
+    const dz = rayDirection.z;
+
+    const a = dx * dx + dz * dz;
+    const b = 2 * (ox * dx + oz * dz);
+    const c = ox * ox + oz * oz - xzRadius * xzRadius;
+
+    let tEntry: number;
+    if (a === 0) {
+      // Ray travels straight up/down; only possibly hits if its XZ origin
+      // already falls within the capsule's radius.
+      if (c > 0) return { hit: false, distance: Infinity };
+      tEntry = 0;
+    } else {
+      const discriminant = b * b - 4 * a * c;
+      if (discriminant < 0) return { hit: false, distance: Infinity };
+
+      const sqrtDisc = Math.sqrt(discriminant);
+      const t0 = (-b - sqrtDisc) / (2 * a);
+      const t1 = (-b + sqrtDisc) / (2 * a);
+      tEntry = Math.max(0, Math.min(t0, t1));
+    }
+
+    const entryY = rayOrigin.y + rayDirection.y * tEntry;
+    const hit = entryY >= center.y - yHalfHeight && entryY <= center.y + yHalfHeight;
+
+    return { hit, distance: tEntry };
+  }
+
+  /**
    * Walks the ray up to `distance` in fixed steps and checks whether it dips
    * below ground height at any sample point — i.e. whether a hill sits
    * between the shooter and the point being tested. Used to stop shots from
