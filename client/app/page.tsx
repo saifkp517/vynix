@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Users, Trophy, Settings, X, Lock, Swords, Loader2, LogOut, Pencil, Check } from "lucide-react";
+import { Users, Trophy, Settings, X, Lock, Swords, Loader2, LogOut, Pencil, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSocketHandlers } from "@/hooks/useSocketHandlersMain";
 import { useRoomStore } from "@/hooks/useRoomStore";
@@ -9,8 +9,25 @@ import { useAuth } from "@/hooks/useAuth";
 import socket from "@/lib/socket";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import {
+  MIN_GRAPHICS_LEVEL,
+  MAX_GRAPHICS_LEVEL,
+  DEFAULT_GRAPHICS_LEVEL,
+  getGraphicsLevel,
+  setGraphicsLevel,
+  getDprForLevel,
+} from "@/lib/graphicsSettings";
 
 const MATCH_SIZE = 5;
+
+const LOBBY_TIPS = [
+  "Staying away from fire for a while increases health over time.",
+  "Try jumping on canopies to ambush enemies.",
+  "Sometimes hits may not be detected on the system, due to network lag.",
+  "Right click to activate mira red dot for aiming.",
+  "Press C to chat with players in the room.",
+  "Use Q to activate invincibility.",
+];
 
 export default function GameLoadoutMenu() {
 
@@ -36,6 +53,16 @@ export default function GameLoadoutMenu() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [graphicsLevel, setGraphicsLevelState] = useState(DEFAULT_GRAPHICS_LEVEL);
+
+  useEffect(() => {
+    setGraphicsLevelState(getGraphicsLevel());
+  }, []);
+
+  const handleGraphicsLevelChange = (level: number) => {
+    setGraphicsLevelState(level);
+    setGraphicsLevel(level);
+  };
 
   const lobbyPlayers = useRoomStore((s) => s.players);
   const inLobby = isMatchMaking && !!roomId;
@@ -248,7 +275,13 @@ export default function GameLoadoutMenu() {
           <div onClick={(e) => e.stopPropagation()}>
             {activeSection === "leaderboard" && <ComingSoonCard icon={Trophy} title="Leaderboard" description="Global rankings launching post-beta" />}
             {activeSection === "friends" && <ComingSoonCard icon={Users} title="Friends" description="Connect with players post-beta" />}
-            {activeSection === "settings" && <ComingSoonCard icon={Settings} title="Settings" description="Customize your experience soon" />}
+            {activeSection === "settings" && (
+              <GraphicsSettingsCard
+                level={graphicsLevel}
+                onChange={handleGraphicsLevelChange}
+                onClose={() => setActiveSection('')}
+              />
+            )}
           </div>
         </div>
       )}
@@ -360,7 +393,6 @@ export default function GameLoadoutMenu() {
               {/* Stats row */}
               <div className="flex items-center justify-center gap-6 pt-1">
                 {[
-                  { label: "Rank", value: profile?.rank },
                   { label: "Matches", value: profile?.matchesPlayed },
                   { label: "Kills", value: profile?.totalKills },
                   { label: "K/D", value: profile?.kdRatio?.toFixed(2) },
@@ -383,9 +415,9 @@ export default function GameLoadoutMenu() {
             {/* Bottom navigation */}
             <div className="flex items-center justify-center gap-8 pt-7">
               {[
-                { icon: Trophy, label: "Leaderboard", key: "leaderboard" },
-                { icon: Users, label: "Friends", key: "friends" },
-                { icon: Settings, label: "Settings", key: "settings" },
+                { icon: Trophy, label: "Leaderboard", key: "leaderboard", locked: true },
+                { icon: Users, label: "Friends", key: "friends", locked: true },
+                { icon: Settings, label: "Settings", key: "settings", locked: false },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -394,7 +426,9 @@ export default function GameLoadoutMenu() {
                 >
                   <div className="relative p-2.5 rounded-full bg-white/[0.03] border border-white/[0.08] group-hover:border-emerald-400/30 group-hover:bg-emerald-400/10 transition-colors">
                     <item.icon className="h-4 w-4 text-neutral-400 group-hover:text-emerald-300 transition-colors" />
-                    <Lock className="h-2 w-2 text-amber-400 absolute -top-1 -right-1 bg-neutral-900 rounded-full p-0.5" />
+                    {item.locked && (
+                      <Lock className="h-2 w-2 text-amber-400 absolute -top-1 -right-1 bg-neutral-900 rounded-full p-0.5" />
+                    )}
                   </div>
                   <span className="text-neutral-500 text-[10px] font-normal group-hover:text-emerald-300 transition-colors tracking-wide">
                     {item.label}
@@ -421,6 +455,157 @@ export default function GameLoadoutMenu() {
           animation: gradient 3s ease infinite;
         }
       `}</style>
+    </div>
+  );
+}
+
+const QUALITY_PRESET_NAMES = ["Very Low", "Low", "Medium", "High", "Ultra"];
+
+// A settings row in the style of a console shooter's video menu: label on the
+// left, current value on the right flanked by ‹ › steppers, with a meter under
+// the value showing where it sits in its range. `onStep` omitted = read-only
+// row (a derived value the player doesn't set directly).
+function SettingRow({
+  label,
+  value,
+  fill,
+  onStep,
+  hint,
+}: {
+  label: string;
+  value: string;
+  fill: number;
+  onStep?: (delta: number) => void;
+  hint?: string;
+}) {
+  const interactive = !!onStep;
+
+  return (
+    <div
+      className={`group flex items-center justify-between gap-6 px-6 py-4 border-l-2 transition-colors ${
+        interactive
+          ? "border-transparent hover:border-emerald-400/60 hover:bg-white/[0.04]"
+          : "border-transparent"
+      }`}
+    >
+      <div className="min-w-0">
+        <p className={`text-sm font-normal ${interactive ? "text-neutral-200" : "text-neutral-500"}`}>
+          {label}
+        </p>
+        {hint && <p className="text-[10px] text-neutral-600 font-normal mt-0.5">{hint}</p>}
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <button
+          onClick={() => onStep?.(-1)}
+          disabled={!interactive}
+          aria-label={`Decrease ${label}`}
+          className="p-1 rounded text-neutral-600 enabled:hover:text-emerald-300 disabled:opacity-0 transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+
+        <div className="w-[104px]">
+          <div className="border-l border-white/20 pl-3">
+            <p
+              className={`text-xs font-normal tabular-nums ${
+                interactive ? "text-white" : "text-neutral-500"
+              }`}
+            >
+              {value}
+            </p>
+          </div>
+          <div className="h-[2px] mt-1.5 ml-3 bg-white/[0.08] overflow-hidden">
+            <div
+              className={`h-full transition-all duration-200 ${
+                interactive ? "bg-gradient-to-r from-emerald-400 to-teal-300" : "bg-neutral-600"
+              }`}
+              style={{ width: `${Math.round(fill * 100)}%` }}
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={() => onStep?.(1)}
+          disabled={!interactive}
+          aria-label={`Increase ${label}`}
+          className="p-1 rounded text-neutral-600 enabled:hover:text-emerald-300 disabled:opacity-0 transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GraphicsSettingsCard({
+  level,
+  onChange,
+  onClose,
+}: {
+  level: number;
+  onChange: (level: number) => void;
+  onClose: () => void;
+}) {
+  const step = (delta: number) => {
+    const next = Math.min(MAX_GRAPHICS_LEVEL, Math.max(MIN_GRAPHICS_LEVEL, level + delta));
+    if (next !== level) onChange(next);
+  };
+
+  const range = MAX_GRAPHICS_LEVEL - MIN_GRAPHICS_LEVEL;
+  const fill = (level - MIN_GRAPHICS_LEVEL) / range;
+
+  return (
+    <div className="bg-neutral-900/95 backdrop-blur-xl rounded-2xl border border-white/[0.08] shadow-2xl max-w-lg w-full overflow-hidden">
+      {/* Tab bar */}
+      <div className="flex items-center justify-between px-6 pt-5 border-b border-white/[0.08]">
+        <div className="flex items-end">
+          <span className="relative text-[11px] uppercase tracking-[0.2em] text-white font-medium pb-3">
+            Quality
+            <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-gradient-to-r from-emerald-400 to-teal-300" />
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1.5 mb-2 rounded hover:bg-white/10 transition-colors"
+          aria-label="Close settings"
+        >
+          <X className="h-4 w-4 text-neutral-400" />
+        </button>
+      </div>
+
+      {/* Section header */}
+      <div className="px-6 pt-6 pb-2">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 font-medium">
+          Details &amp; Textures
+        </p>
+      </div>
+      <div className="h-px mx-6 bg-white/[0.08]" />
+
+      <div className="py-2">
+        <SettingRow
+          label="Graphics Quality"
+          value={QUALITY_PRESET_NAMES[level - MIN_GRAPHICS_LEVEL]}
+          fill={fill}
+          onStep={step}
+        />
+        <SettingRow
+          label="Render Resolution"
+          value={`${Math.round(getDprForLevel(level) * 100)}%`}
+          fill={fill}
+          hint="Derived from quality"
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-6 py-4 border-t border-white/[0.08] bg-black/20">
+        <p className="text-[10px] text-neutral-500 font-normal">
+          Lower quality gives higher FPS
+        </p>
+        <p className="text-[10px] text-neutral-600 font-normal">
+          Applies next match
+        </p>
+      </div>
     </div>
   );
 }
@@ -599,6 +784,7 @@ function LobbyPanel({
   const filled = Math.min(players.length, matchSize);
   const isFull = filled >= matchSize;
   const slots = useMemo(() => Array.from({ length: matchSize }), [matchSize]);
+  const tip = useMemo(() => LOBBY_TIPS[Math.floor(Math.random() * LOBBY_TIPS.length)], []);
 
   return (
     <motion.div
@@ -695,6 +881,12 @@ function LobbyPanel({
               </motion.p>
             )}
           </AnimatePresence>
+        </div>
+
+        {/* Loading tip */}
+        <div className="mb-7 text-center">
+          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-1.5 font-normal">Tip</p>
+          <p className="text-xs text-neutral-400 font-normal">{tip}</p>
         </div>
 
         <button

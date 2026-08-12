@@ -254,7 +254,7 @@ export class GameGateway
         await this.botsService.fillRoom(roomId, BOT_FILL_TARGET, this.server);
         this.combatService.startRegen(roomId, this.server);
 
-        const gameDurationMs = 10 * 60_000;
+        const gameDurationMs = 1 * 60_000;
         const startTime = Date.now();
         await this.roomsService.setRoomStart(roomId, startTime, gameDurationMs);
         this.server.to(roomId).emit('gameStarted', { startTime, duration: gameDurationMs });
@@ -267,13 +267,13 @@ export class GameGateway
                 .filter((p) => !p.isBot)
                 .map((p) => ({ userId: p.userId, kills: p.kills, deaths: p.deaths }));
 
-            if (results.length > 0) {
-                await this.profilesService.recordMatchResults(results);
-            }
-
             this.botsService.stopRoom(expiredRoomId);
             this.combatService.stopRegen(expiredRoomId);
             this.server.to(expiredRoomId).emit('gameOver');
+
+            if (results.length > 0) {
+                await this.profilesService.recordMatchResults(results);
+            }
         }, gameDurationMs);
     }
 

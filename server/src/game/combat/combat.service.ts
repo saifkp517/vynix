@@ -10,6 +10,7 @@ import {
   type ShootObject,
   PLAYER_HITBOX_RADIUS,
   PLAYER_HITBOX_Y_OFFSET,
+  PLAYER_RADIUS,
 } from '../players/players.types';
 
 const DAMAGE_PER_HIT = 10;
@@ -202,10 +203,14 @@ export class CombatService {
         hitTestPosition.z,
       );
 
-      const { hit, distance } = this.physicsService.rayIntersectsSphere(
+      // Vertical capsule, not a sphere: horizontal (XZ) aim still has to be
+      // accurate to PLAYER_RADIUS, but vertical aim gets the generous
+      // PLAYER_HITBOX_RADIUS forgiveness — see PLAYER_HITBOX_RADIUS's comment.
+      const { hit, distance } = this.physicsService.rayIntersectsVerticalCapsule(
         rayOrigin,
         rayDirection,
         playerCenter,
+        PLAYER_RADIUS,
         PLAYER_HITBOX_RADIUS,
       );
 
