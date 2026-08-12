@@ -5,9 +5,47 @@ import socket from '@/lib/socket';
 import { useFrame } from '@react-three/fiber';
 
 import type { Vegetation } from '@/app/types/types';
+import { useColliderRefs } from './useColliderRef';
+import {
+    CANOPY_PLATE_RADIUS,
+    CANOPY_PLATE_Y_OFFSET,
+    CANOPY_PLATE_SCALE,
+    TRUNK_COLLIDER_RADIUS,
+    TRUNK_COLLIDER_HEIGHT,
+    TRUNK_COLLIDER_RADIAL_SCALE,
+    TOP_CANOPY_RADIUS,
+    TOP_CANOPY_Y_OFFSET,
+    TOP_CANOPY_SCALE,
+} from '../../../../shared/treeConstants';
 
 function rgba(r: number, g: number, b: number, a: number): string {
     return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${a})`;
+}
+
+/**
+ * A tree's `canopyHeightOffset` (added here, in the same baseScale units) is
+ * baked in by generateTreePos.ts, not derived here. It used to be a per-tree
+ * hash of rotation/scale — deterministic, but a fixed small spread regardless
+ * of how tightly packed a cluster was, so it barely helped the actual problem
+ * case: several close-together trees whose canopies all overlap and fight
+ * over the player at once. Proximity-aware tiering needs to know which
+ * *other* trees are nearby, which isn't knowable from a single tree's own
+ * fields — that requires the full layout, so it has to happen at generation
+ * time instead. Missing/legacy data (no field) just falls back to the base
+ * height, same as tier 0.
+ */
+export function getCanopyYOffset(treePos: Vegetation): number {
+    return CANOPY_PLATE_Y_OFFSET + (treePos.canopyHeightOffset ?? 0);
+}
+
+/**
+ * Top canopy (the crown cluster above the trunk) sits at a fixed offset —
+ * unlike the bottom plate, it isn't subject to the proximity-aware tiering
+ * in generateTreePos.ts, since the trunk's own height already keeps
+ * neighboring crowns from stacking the way low, wide bottom plates do.
+ */
+export function getTopCanopyYOffset(): number {
+    return TOP_CANOPY_Y_OFFSET;
 }
 
 export const TreeVisual: React.FC<{
@@ -25,24 +63,23 @@ export const TreeVisual: React.FC<{
         const aerialRoot = new THREE.CylinderGeometry(0.15, 0.25, 36, 8, 6, false);
         modifyGeometryForNaturalLook(aerialRoot);
 
-        const largeCanopy = new THREE.SphereGeometry(2.8, 12, 8);   // Smaller radius & segments
-        const mediumCanopy = new THREE.SphereGeometry(2.0, 10, 6);  // Reduced size & detail
-        const smallCanopy = new THREE.SphereGeometry(1.4, 8, 5);    // Lightest/least dense
+        // Top canopy — the crown cluster above the trunk, now a single solid
+        // object (see TOP_CANOPY_* in shared/treeConstants.ts) rather than
+        // three separately wind-swayed layers.
+        const topCanopy = new THREE.SphereGeometry(TOP_CANOPY_RADIUS, 12, 8);
 
         // Wide spherical canopy to match other canopies, replacing cylinder
-        const canopyPlate = new THREE.SphereGeometry(3.5, 12, 8); // Slightly larger than largeCanopy
+        const canopyPlate = new THREE.SphereGeometry(3.5, 12, 8); // Slightly larger than topCanopy
 
         // Add organic variation
-        [largeCanopy, mediumCanopy, smallCanopy, canopyPlate].forEach(geo => {
+        [topCanopy, canopyPlate].forEach(geo => {
             modifyGeometryForOrganicShape(geo);
         });
 
         return {
             mainTrunk,
             aerialRoot,
-            largeCanopy,
-            mediumCanopy,
-            smallCanopy,
+            topCanopy,
             canopyPlate
         };
     }, []);
@@ -127,7 +164,7 @@ export const TreeVisual: React.FC<{
             normalScale: new THREE.Vector2(0.8, 0.8),
         });
 
-        // Foliage materials with rich green variations
+        // Top canopy (crown cluster) material
         const canopyBaseMaterial = new THREE.MeshStandardMaterial({
             color: '#1B5E20',
             roughness: 0.8,
@@ -135,35 +172,23 @@ export const TreeVisual: React.FC<{
             flatShading: false,
         });
 
-        const canopyMidMaterial = new THREE.MeshStandardMaterial({
-            color: '#2E7D32',
-            roughness: 0.75,
-            metalness: 0.0,
-            flatShading: false,
-        });
-
-        const canopyTopMaterial = new THREE.MeshStandardMaterial({
-            color: '#388E3C',
-            roughness: 0.7,
-            metalness: 0.0,
-            flatShading: false,
-            side: THREE.DoubleSide
-        });
-
-        // Horizontal plates material, now matching canopy style
+        // Bottom canopy plate — the one standable/collidable layer. It was
+        // previously the exact same color (#1B5E20) as the non-standable
+        // crown base above it, so there was no visual way to tell which
+        // canopy a player could actually land on. Distinct lighter green
+        // tone (vs. the crown's darker greens above) so it still reads as
+        // "platform" without looking out of place among foliage.
         const plateMaterial = new THREE.MeshStandardMaterial({
-            color: '#1B5E20',
-            roughness: 0.8,
+            color: '#1F5A3A',
+            roughness: 0.85,
             metalness: 0.0,
-            flatShading: false, // Changed to false to match other canopies
+            flatShading: false,
         });
 
         return {
             trunkMaterial,
             rootMaterial,
             canopyBaseMaterial,
-            canopyMidMaterial,
-            canopyTopMaterial,
             plateMaterial
         };
     }, []);
@@ -214,85 +239,23 @@ export const TreeVisual: React.FC<{
     // Mesh references
     const mainTrunkRef = useRef<THREE.InstancedMesh>(null);
     const aerialRootsRef = useRef<THREE.InstancedMesh>(null);
-    const largeCanopyRef = useRef<THREE.InstancedMesh>(null);
-    const mediumCanopyRef = useRef<THREE.InstancedMesh>(null);
-    const smallCanopyRef = useRef<THREE.InstancedMesh>(null);
+    const topCanopyRef = useRef<THREE.InstancedMesh>(null);
     const canopyPlateRef = useRef<THREE.InstancedMesh>(null);
     const dummy = useMemo(() => new THREE.Object3D(), []);
 
-    // Animation for subtle movement
-    useFrame(({ clock }) => {
-        if (!largeCanopyRef.current || !mediumCanopyRef.current || !smallCanopyRef.current || !canopyPlateRef.current) return;
-
-        // Very subtle canopy movement to simulate wind for all canopy layers
-        for (let i = 0; i < positions.length; i++) {
-            dummy.position.copy(new THREE.Vector3(...positions[i].position));
-
-            // Update largeCanopy
-            largeCanopyRef.current.getMatrixAt(i, dummy.matrix);
-            const largePosition = new THREE.Vector3();
-            const largeQuaternion = new THREE.Quaternion();
-            const largeScale = new THREE.Vector3();
-            dummy.matrix.decompose(largePosition, largeQuaternion, largeScale);
-            const windFactor = Math.sin(clock.elapsedTime * 0.5 + i) * 0.2;
-            dummy.rotation.x = windFactor;
-            dummy.rotation.z = windFactor * 0.7;
-            dummy.position.copy(largePosition);
-            dummy.scale.copy(largeScale);
-            dummy.updateMatrix();
-            largeCanopyRef.current.setMatrixAt(i, dummy.matrix);
-
-            // Update mediumCanopy
-            mediumCanopyRef.current.getMatrixAt(i, dummy.matrix);
-            const mediumPosition = new THREE.Vector3();
-            const mediumQuaternion = new THREE.Quaternion();
-            const mediumScale = new THREE.Vector3();
-            dummy.matrix.decompose(mediumPosition, mediumQuaternion, mediumScale);
-            dummy.rotation.x = windFactor;
-            dummy.rotation.z = windFactor * 0.7;
-            dummy.position.copy(mediumPosition);
-            dummy.scale.copy(mediumScale);
-            dummy.updateMatrix();
-            mediumCanopyRef.current.setMatrixAt(i, dummy.matrix);
-
-            // Update smallCanopy
-            smallCanopyRef.current.getMatrixAt(i, dummy.matrix);
-            const smallPosition = new THREE.Vector3();
-            const smallQuaternion = new THREE.Quaternion();
-            const smallScale = new THREE.Vector3();
-            dummy.matrix.decompose(smallPosition, smallQuaternion, smallScale);
-            dummy.rotation.x = windFactor;
-            dummy.rotation.z = windFactor * 0.7;
-            dummy.position.copy(smallPosition);
-            dummy.scale.copy(smallScale);
-            dummy.updateMatrix();
-            smallCanopyRef.current.setMatrixAt(i, dummy.matrix);
-
-            // Update canopyPlate
-            canopyPlateRef.current.getMatrixAt(i, dummy.matrix);
-            const platePosition = new THREE.Vector3();
-            const plateQuaternion = new THREE.Quaternion();
-            const plateScale = new THREE.Vector3();
-            dummy.matrix.decompose(platePosition, plateQuaternion, plateScale);
-            dummy.rotation.x = windFactor;
-            dummy.rotation.z = windFactor * 0.7;
-            dummy.position.copy(platePosition);
-            dummy.scale.copy(plateScale);
-            dummy.updateMatrix();
-            canopyPlateRef.current.setMatrixAt(i, dummy.matrix);
-        }
-
-        // Update matrices
-        largeCanopyRef.current.instanceMatrix.needsUpdate = true;
-        mediumCanopyRef.current.instanceMatrix.needsUpdate = true;
-        smallCanopyRef.current.instanceMatrix.needsUpdate = true;
-        canopyPlateRef.current.instanceMatrix.needsUpdate = true;
-    });
+    // No wind-sway animation on either canopy layer: both are now solid,
+    // collidable objects (see TreeColliders), placed once and never moved.
+    // The old per-frame wind sway (and the medium/small layers it drove) used
+    // Math.random()-seeded jitter computed independently on every client, so
+    // no two players ever agreed on exactly where the crown was — harmless
+    // while purely decorative, but not once it needs to be shootable/
+    // standable the same way for everyone. Static + deterministic keeps the
+    // visible mesh and the solid collider in permanent agreement, same
+    // reasoning as canopyPlate already used.
 
     useEffect(() => {
         if (!mainTrunkRef.current || !aerialRootsRef.current ||
-            !largeCanopyRef.current || !mediumCanopyRef.current ||
-            !smallCanopyRef.current || !canopyPlateRef.current) return;
+            !topCanopyRef.current || !canopyPlateRef.current) return;
 
         // For each tree position
         positions.forEach((treePos, i) => {
@@ -302,7 +265,13 @@ export const TreeVisual: React.FC<{
             const groundHeight = getGroundHeight(position[0], position[2]);
 
             // --------- Main trunk ----------
-            dummy.position.set(position[0], groundHeight, position[2]);
+            // CylinderGeometry is centered on its own origin, so the trunk
+            // must be raised by half its (scaled) height to sit on top of
+            // the ground rather than being bisected by it. Roots/canopy
+            // below are already anchored relative to groundHeight as the
+            // trunk's base, so only the trunk's own placement needed this.
+            const trunkHalfHeight = (geometry.mainTrunk as THREE.CylinderGeometry).parameters.height / 2;
+            dummy.position.set(position[0], groundHeight + trunkHalfHeight * baseScale, position[2]);
             dummy.rotation.set(0, rotation, 0);
             dummy.scale.set(baseScale, baseScale, baseScale);
             dummy.updateMatrix();
@@ -341,65 +310,36 @@ export const TreeVisual: React.FC<{
             }
 
             // --------- Canopy plate (spherical, at original position) ---------
-            // Create the distinctive horizontal spread of a banyan tree
-            dummy.position.set(position[0], groundHeight + 6.4 * baseScale, position[2]);
+            // Create the distinctive horizontal spread of a banyan tree.
+            // Deliberately NOT lifted with the crown cluster below — this is
+            // the low, wide understory layer meant to hide the trunk and
+            // merge with neighboring trees into a dense canopy ceiling,
+            // rather than track the (now much taller) trunk's top.
+            dummy.position.set(position[0], groundHeight + getCanopyYOffset(treePos) * baseScale, position[2]);
             dummy.rotation.set(0, rotation + Math.random() * 0.5, 0);
-            dummy.scale.set(baseScale * 2.6, baseScale * 0.8, baseScale * 2.6); // Adjusted for spherical shape
+            dummy.scale.set(baseScale * 8.0, baseScale * 1.6, baseScale * 8.0); // Wide and fat, not a thin flat leaf
             dummy.updateMatrix();
             canopyPlateRef.current ? canopyPlateRef.current.setMatrixAt(i, dummy.matrix) : null;
 
-            // --------- Large canopy (bottom layer) ---------
-            dummy.position.set(
-                position[0],
-                groundHeight + 20.4 * baseScale,
-                position[2]
-            );
-            dummy.rotation.set(0, rotation + Math.random() * Math.PI, 0);
+            // --------- Top canopy (crown cluster) ---------
+            // Deterministic, like canopyPlate: no Math.random() in position
+            // or rotation, so every client places (and collides with) it
+            // identically. `canopyLift` is folded into TOP_CANOPY_Y_OFFSET.
+            dummy.position.set(position[0], groundHeight + getTopCanopyYOffset() * baseScale, position[2]);
+            dummy.rotation.set(0, rotation, 0);
             dummy.scale.set(
-                baseScale * 6.0,
-                baseScale * 2.4,
-                baseScale * 6.0
+                baseScale * TOP_CANOPY_SCALE[0],
+                baseScale * TOP_CANOPY_SCALE[1],
+                baseScale * TOP_CANOPY_SCALE[2]
             );
             dummy.updateMatrix();
-            largeCanopyRef.current ? largeCanopyRef.current.setMatrixAt(i, dummy.matrix) : null;
-
-            // --------- Medium canopy (middle layer) ---------
-            dummy.position.set(
-                position[0] + (Math.random() - 0.5) * 0.5,
-                groundHeight + 21.6 * baseScale,
-                position[2] + (Math.random() - 0.5) * 0.5
-            );
-            dummy.rotation.set(0, rotation + Math.random() * Math.PI, 0);
-            dummy.scale.set(
-                baseScale * 3.5,
-                baseScale * 1.0,
-                baseScale * 3.5
-            );
-            dummy.updateMatrix();
-            mediumCanopyRef.current ? mediumCanopyRef.current.setMatrixAt(i, dummy.matrix) : null;
-
-            // --------- Small canopy (top layer) ---------
-            dummy.position.set(
-                position[0] + (Math.random() - 0.5) * 0.3,
-                groundHeight + 20.6 * baseScale,
-                position[2] + (Math.random() - 0.5) * 0.3
-            );
-            dummy.rotation.set(0, rotation + Math.random() * Math.PI, 0);
-            dummy.scale.set(
-                baseScale * 2.8,
-                baseScale * 0.8,
-                baseScale * 2.8
-            );
-            dummy.updateMatrix();
-            smallCanopyRef.current ? smallCanopyRef.current.setMatrixAt(i, dummy.matrix) : null;
+            topCanopyRef.current ? topCanopyRef.current.setMatrixAt(i, dummy.matrix) : null;
         });
 
         // Update all instance matrices
         mainTrunkRef.current.instanceMatrix.needsUpdate = true;
         aerialRootsRef.current.instanceMatrix.needsUpdate = true;
-        largeCanopyRef.current.instanceMatrix.needsUpdate = true;
-        mediumCanopyRef.current.instanceMatrix.needsUpdate = true;
-        smallCanopyRef.current.instanceMatrix.needsUpdate = true;
+        topCanopyRef.current.instanceMatrix.needsUpdate = true;
         canopyPlateRef.current.instanceMatrix.needsUpdate = true;
     }, [positions]);
 
@@ -432,28 +372,10 @@ export const TreeVisual: React.FC<{
                 frustumCulled={false}
             />
 
-            {/* Large canopy (bottom layer) */}
+            {/* Top canopy (crown cluster) */}
             <instancedMesh
-                ref={largeCanopyRef}
-                args={[geometry.largeCanopy, materials.canopyBaseMaterial, positions.length]}
-                castShadow
-                receiveShadow
-                frustumCulled={false}
-            />
-
-            {/* Medium canopy (middle layer) */}
-            <instancedMesh
-                ref={mediumCanopyRef}
-                args={[geometry.mediumCanopy, materials.canopyMidMaterial, positions.length]}
-                castShadow
-                receiveShadow
-                frustumCulled={false}
-            />
-
-            {/* Small canopy (top layer) */}
-            <instancedMesh
-                ref={smallCanopyRef}
-                args={[geometry.smallCanopy, materials.canopyTopMaterial, positions.length]}
+                ref={topCanopyRef}
+                args={[geometry.topCanopy, materials.canopyBaseMaterial, positions.length]}
                 castShadow
                 receiveShadow
                 frustumCulled={false}
@@ -462,39 +384,126 @@ export const TreeVisual: React.FC<{
     );
 };
 
-export const TreeColliders: React.FC<{ positions: Vegetation[], addObstacleRef: (ref: THREE.Mesh | null) => void }> =
-    ({ positions, addObstacleRef }) => {
+// TreeColliders mirrors TreeVisual's canopyPlate transform (position
+// groundHeight + getCanopyYOffset(...)*baseScale, scale
+// [baseScale*8, baseScale*1.6, baseScale*8] on a radius-CANOPY_PLATE_RADIUS
+// sphere) — this is what previously replaced rocks as the game's solid cover
+// object, so client visual/collider and server occlusion all need this exact
+// shape. The one deliberate difference: the collider skips the visual's
+// extra `+ Math.random() * 0.5` rotation jitter (that's non-seeded per-frame
+// randomness with no server-reproducible equivalent), so collision uses the
+// tree's plain deterministic `rotation` field instead — a few degrees off
+// from the rendered mesh, same tradeoff already made for rocks.
 
-        // Create refs for all colliders
-        const colliderRefs = useRef<(THREE.Mesh | null)[]>([]);
+export const TreeColliders: React.FC<{
+    positions: Vegetation[],
+    addObstacleRef: (ref: THREE.Mesh | null) => void,
+    removeObstacleRef: (ref: THREE.Mesh) => void,
+    getGroundHeight: (x: number, z: number) => number,
+}> =
+    ({ positions, addObstacleRef, removeObstacleRef, getGroundHeight }) => {
 
-        useEffect(() => {
-            // Initialize the array with null values
-            colliderRefs.current = Array(positions.length).fill(null);
-        }, [positions.length]);
+        // Stable per-tree ref callbacks so a tree that scrolls out of view is
+        // actually removed from the obstacle list instead of leaking forever
+        // (see useColliderRefs for why that matters — this is what made rocks
+        // tank FPS, and the canopy collider below is exactly as susceptible).
+        const getRefCallback = useColliderRefs(addObstacleRef, removeObstacleRef);
+
+        // Shared across every canopy collider instead of a fresh geometry per
+        // tree. Segment count matters here (unlike the movement math, which is
+        // analytic): Gun.tsx raycasts against the collider's actual triangles,
+        // so a coarse sphere would be a coarse *shootable* shape.
+        const canopyColliderGeometry = useMemo(
+            () => new THREE.SphereGeometry(CANOPY_PLATE_RADIUS, 16, 12),
+            [],
+        );
+        const topCanopyColliderGeometry = useMemo(
+            () => new THREE.SphereGeometry(TOP_CANOPY_RADIUS, 16, 12),
+            [],
+        );
+        const canopyColliderMaterial = useMemo(
+            () => new THREE.MeshBasicMaterial({ visible: false }),
+            [],
+        );
 
         return (
             <>
-                {positions.map((treePos, index) => (
-                    <mesh
-                        name='tree'
-                        key={`tree-collider-${index}`}
-                        ref={(ref) => {
-                            // Store ref in our local array
-                            if (colliderRefs.current) {
-                                colliderRefs.current[index] = ref;
-                                // Also register with parent component for collision detection
-                                addObstacleRef(ref);
-                            }
-                        }}
-                        position={treePos.position}
-                        frustumCulled={false}
-                        scale={[treePos.scale * 0.8, treePos.scale * 3.6, treePos.scale * 0.8]}
-                    >
-                        <cylinderGeometry args={[1.5, 1.5, 48, 8]} />
-                        <meshBasicMaterial visible={false} />
-                    </mesh>
-                ))}
+                {positions.map((treePos, index) => {
+                    const { position, rotation, scale } = treePos;
+                    const baseScale = scale * 1.2;
+                    const groundHeight = getGroundHeight(position[0], position[2]);
+                    // Same centered-geometry issue as the visual trunk (see
+                    // TreeVisual): raise by half the collider's own (scaled)
+                    // height so its base sits on the ground instead of being
+                    // bisected by it. Uses the live-computed groundHeight
+                    // (matching the visual mesh) rather than the raw baked
+                    // position from POS.json, so both stay anchored the same way.
+                    // Height is scaled by baseScale (not a separate 3.6x
+                    // multiplier) so the collider matches the visible trunk
+                    // instead of extending ~3x taller than what's rendered.
+                    const trunkColliderHalfHeight = (48 * baseScale) / 2;
+
+                    return (
+                        <React.Fragment key={`tree-collider-${index}`}>
+                            <mesh
+                                name='tree'
+                                ref={getRefCallback(treePos.id ?? `tree-${index}`)}
+                                position={[position[0], groundHeight + trunkColliderHalfHeight, position[2]]}
+                                frustumCulled={false}
+                                scale={[baseScale * 0.8, baseScale, baseScale * 0.8]}
+                            >
+                                <cylinderGeometry args={[1.5, 1.5, 48, 8]} />
+                                <meshBasicMaterial visible={false} />
+                            </mesh>
+                            {/* Bottom canopy — solid cover, same ellipsoid-collider
+                                treatment rocks used before they were removed. Generic
+                                contact resolution in TPP.tsx already handles standing on
+                                top of / sliding along any ellipsoid obstacle, so nothing
+                                canopy-specific is needed there beyond this mesh existing. */}
+                            <mesh
+                                name='canopy'
+                                ref={getRefCallback(`${treePos.id ?? `tree-${index}`}-canopy`)}
+                                geometry={canopyColliderGeometry}
+                                material={canopyColliderMaterial}
+                                position={[
+                                    position[0],
+                                    groundHeight + getCanopyYOffset(treePos) * baseScale,
+                                    position[2],
+                                ]}
+                                rotation={[0, rotation, 0]}
+                                frustumCulled={false}
+                                scale={[
+                                    CANOPY_PLATE_SCALE[0] * baseScale,
+                                    CANOPY_PLATE_SCALE[1] * baseScale,
+                                    CANOPY_PLATE_SCALE[2] * baseScale,
+                                ]}
+                            />
+                            {/* Top canopy — the crown cluster, now solid cover the
+                                same way the bottom canopy plate already is. Rotation
+                                uses the plain deterministic `rotation` field, matching
+                                the visual mesh exactly since it no longer has any
+                                per-frame jitter to diverge from. */}
+                            <mesh
+                                name='topCanopy'
+                                ref={getRefCallback(`${treePos.id ?? `tree-${index}`}-topCanopy`)}
+                                geometry={topCanopyColliderGeometry}
+                                material={canopyColliderMaterial}
+                                position={[
+                                    position[0],
+                                    groundHeight + getTopCanopyYOffset() * baseScale,
+                                    position[2],
+                                ]}
+                                rotation={[0, rotation, 0]}
+                                frustumCulled={false}
+                                scale={[
+                                    TOP_CANOPY_SCALE[0] * baseScale,
+                                    TOP_CANOPY_SCALE[1] * baseScale,
+                                    TOP_CANOPY_SCALE[2] * baseScale,
+                                ]}
+                            />
+                        </React.Fragment>
+                    );
+                })}
             </>
         );
     };

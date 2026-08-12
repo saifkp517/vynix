@@ -3,7 +3,7 @@ import { Howl } from 'howler';
 export const SOUND_PATHS = {
   gunshot: '/sounds/gunshot.mp3',
   reload: '/sounds/reload.mp3',
-  walk: '/sounds/walks.mp3',
+  walk: '/sounds/walk.mp3',
   hitWood: '/sounds/hitwood.mp3',
   breeze: '/sounds/breeze.mp3',
 } as const;

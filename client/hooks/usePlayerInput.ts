@@ -2,8 +2,6 @@ import { useEffect } from 'react';
 
 interface InputParams {
   onJump: () => void;
-  onSprintStart: () => void;
-  onSprintEnd: () => void;
   onGrenade: () => void;
   onLeftMouseDown: () => void;
   onRightMouseDown: () => void;
@@ -22,8 +20,6 @@ export type MoveState = {
 
 export function usePlayerInput({
   onJump,
-  onSprintStart,
-  onSprintEnd,
   onGrenade,
   onLeftMouseDown,
   onRightMouseDown,
@@ -47,9 +43,6 @@ export function usePlayerInput({
         case 'KeyD':
           setMoveState(prev => ({ ...prev, right: true }));
           break;
-        case 'ShiftLeft':
-          onSprintStart();
-          break;
         case 'Space':
           onJump();
           break;
@@ -72,9 +65,6 @@ export function usePlayerInput({
           break;
         case 'KeyD':
           setMoveState(prev => ({ ...prev, right: false }));
-          break;
-        case 'ShiftLeft':
-          onSprintEnd();
           break;
       }
     };
@@ -129,8 +119,6 @@ export function usePlayerInput({
     };
   }, [
     onJump,
-    onSprintStart,
-    onSprintEnd,
     onGrenade,
     onLeftMouseDown,
     onRightMouseDown,

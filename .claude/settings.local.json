@@ -3,7 +3,11 @@
     "allow": [
       "Bash(ls \"\\\\\\\\\\\\\\\\wsl.localhost\\\\\\\\Ubuntu\\\\\\\\home\\\\\\\\saif\\\\\\\\vynix\" 2>&1 || echo \"---\" && ls .)",
       "Read(///wsl.localhost/Ubuntu/home/saif/**)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path '\\\\\\\\wsl.localhost\\\\Ubuntu\\\\home\\\\saif\\\\vynix\\\\server' -File | Select-Object -ExpandProperty Name\")",
+      "Read(///wsl.localhost/Ubuntu/home/saif/vynix/**)",
+      "Bash(cd '/mnt/c' 2>/dev/null; true)",
+      "Read(//mnt/**)"
     ]
   }
 }

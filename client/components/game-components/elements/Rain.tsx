@@ -2,6 +2,11 @@ import { useRef, useMemo, memo } from "react";
 import { Points, BufferGeometry, BufferAttribute, ShaderMaterial } from "three";
 import { useFrame } from "@react-three/fiber";
 
+// How far below the follow point drops keep falling before recycling — the
+// player origin sits above the terrain, so a little slack avoids drops
+// vanishing at eye level.
+const GROUND_OFFSET = 5;
+
 export const RainEffect = memo(
   ({
     count = 3000,
@@ -10,10 +15,11 @@ export const RainEffect = memo(
     intensity = 15,
     area = 120,
     center = [0, 50, 0],
+    playerCenterRef,
     wind = 0.5
   }: any) => {
     const rainRef = useRef<Points>(null);
-    
+
     // Custom shader material for rain streaks
     const rainMaterial = useMemo(() => {
       return new ShaderMaterial({
@@ -68,10 +74,12 @@ export const RainEffect = memo(
       const rainFallHeight = 120;
 
       for (let i = 0; i < count; i++) {
-        // Spread rain across area
-        positions[i * 3] = (Math.random() - 0.5) * area + center[0];
-        positions[i * 3 + 1] = Math.random() * rainFallHeight + center[1];
-        positions[i * 3 + 2] = (Math.random() - 0.5) * area + center[2];
+        // Positions are LOCAL to the points object, which is re-centred on the
+        // player every frame — so the drops are always spread around whoever
+        // is looking at them, the same way the forest/grass patches follow.
+        positions[i * 3] = (Math.random() - 0.5) * area;
+        positions[i * 3 + 1] = Math.random() * rainFallHeight - GROUND_OFFSET;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * area;
         
         // Varied velocities for more natural look
         velocities[i] = (Math.random() * 0.5 + 0.8) * intensity;
@@ -92,10 +100,20 @@ export const RainEffect = memo(
           return geometry;
         })()
       };
-    }, [count, area, intensity, center]);
+    }, [count, area, intensity]);
 
     useFrame((state, delta) => {
       if (!rainRef.current) return;
+
+      // Follow the player (fall back to the static `center` prop when no ref
+      // is supplied). Moving the object rather than every vertex keeps this
+      // free regardless of drop count.
+      const follow = playerCenterRef?.current;
+      rainRef.current.position.set(
+        follow ? follow.x : center[0],
+        follow ? follow.y : center[1],
+        follow ? follow.z : center[2]
+      );
 
       const positions = rainRef.current.geometry.attributes.position.array;
       const time = state.clock.elapsedTime;
@@ -109,11 +127,11 @@ export const RainEffect = memo(
         // Apply subtle wind effect
         positions[idx] += Math.sin(time * 0.5 + i * 0.1) * wind * delta;
         
-        // Reset raindrop when it goes below ground
-        if (positions[idx + 1] < center[1] - 60) {
-          positions[idx] = (Math.random() - 0.5) * area + center[0];
-          positions[idx + 1] = center[1] + 60 + Math.random() * 20;
-          positions[idx + 2] = (Math.random() - 0.5) * area + center[2];
+        // Reset raindrop when it falls past the player's feet
+        if (positions[idx + 1] < -GROUND_OFFSET) {
+          positions[idx] = (Math.random() - 0.5) * area;
+          positions[idx + 1] = 120 - GROUND_OFFSET + Math.random() * 20;
+          positions[idx + 2] = (Math.random() - 0.5) * area;
         }
       }
 

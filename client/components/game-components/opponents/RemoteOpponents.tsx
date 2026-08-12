@@ -21,7 +21,6 @@ interface Snapshot {
 }
 
 interface Props {
-  addObstacleRef: (ref: Mesh | null) => void;
   smoothnessRef: RefObject<number>;
   playerDataRef: RefObject<Record<string, PlayerData>>;
   showKillToast: (name: string) => void;
@@ -30,7 +29,6 @@ interface Props {
 }
 
 const RemoteOpponents: React.FC<Props> = ({
-  addObstacleRef,
   smoothnessRef,
   playerDataRef,
   showKillToast,
@@ -152,10 +150,11 @@ const RemoteOpponents: React.FC<Props> = ({
 
       deadPlayers.current.add(victimSocketId);
       
-      // 👇 remove player after short delay (enough for animation to finish)
+      // 👇 remove player after short delay (enough for animation to finish).
+      // must stay above DeathExplosion's LIFETIME or the debris pops out early.
       setTimeout(() => {
         removePlayer(victimSocketId);
-      }, 1500);
+      }, 2500);
     };
 
     const handlePlayerShot = (payload: { id: string; rayOrigin: { x: number; y: number; z: number }; rayDirection: { x: number; y: number; z: number } }) => {
@@ -228,8 +227,9 @@ const RemoteOpponents: React.FC<Props> = ({
     <>
       {playerIds.map((id) => {
         const data = playerDataRef.current[id];
-        const isDead = deadPlayers.current.has(id);
-        if (!data || isDead) return null;
+        // dead players stay mounted on purpose: unmounting here would cut the
+        // death explosion off. removePlayer() cleans them up once it's done.
+        if (!data) return null;
 
         return (
           <Opponent
@@ -244,7 +244,6 @@ const RemoteOpponents: React.FC<Props> = ({
             abilityEvent={abilityEventEmitter.current}
             userId={id}
             username={playerUsernamesRef.current[id] ?? ''}
-            addObstacleRef={addObstacleRef}
             smoothnessRef={smoothnessRef}
             listener={listenerRef?.current}
             setAudioRef={setAudioRef}

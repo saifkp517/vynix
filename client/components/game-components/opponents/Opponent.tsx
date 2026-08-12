@@ -7,6 +7,7 @@ import { Html } from "@react-three/drei";
 import { PLAYER_RADIUS } from "@/types/types";
 import { createPositionalSound, retriggerPositionalSound } from "@/lib/positionalSound";
 import OpponentGun from "./OpGun"
+import { DeathExplosion } from "./DeathExplosion"
 
 
 const RED = new Color("red");
@@ -40,7 +41,6 @@ export const Opponent = ({
   abilityEvent,
   userId,
   username,
-  addObstacleRef,
   listener,
   setAudioRef,
   setShootAudioRef,
@@ -57,7 +57,6 @@ export const Opponent = ({
   abilityEvent: EventEmitter;
   userId: string;
   username: string;
-  addObstacleRef?: (ref: Mesh | null) => void;
   listener: AudioListener | undefined;
   setAudioRef?: (userId: string, audio: PositionalAudio) => void;
   setShootAudioRef?: (userId: string, audio: PositionalAudio) => void;
@@ -108,58 +107,18 @@ export const Opponent = ({
 
   //handle death animation
   useEffect(() => {
-    const handleDeath = () => {
-      if (!sphereRef.current) return;
-
+    // the death event is broadcast on one shared emitter for every opponent,
+    // so it MUST be filtered by id — otherwise one kill blows up everybody.
+    const handleDeath = (payload: { id: string }) => {
+      if (payload?.id !== userId) return;
       setDead(true);
-      const material = sphereRef.current.material as any;
-      material.color.set(new Color("gray"));
-      material.opacity = 1;
-      material.transparent = true;
-
-      // Fade-out effect
-      let opacity = 1;
-      const fadeOut = setInterval(() => {
-        opacity -= 0.05;
-        if (opacity <= 0) {
-          opacity = 0;
-          clearInterval(fadeOut);
-        }
-        material.opacity = opacity;
-      }, 50);
-
-      // Respawn after 5 seconds
-      const respawnTimeout = setTimeout(() => {
-        if (!sphereRef.current) return;
-
-        setDead(false);
-        const respawnMaterial = sphereRef.current.material as any;
-        respawnMaterial.color.set(new Color("red"));
-        respawnMaterial.transparent = true;
-
-        let respawnOpacity = 0;
-        const fadeIn = setInterval(() => {
-          respawnOpacity += 0.05;
-          if (respawnOpacity >= 1) {
-            respawnOpacity = 1;
-            respawnMaterial.transparent = false;
-            clearInterval(fadeIn);
-          }
-          respawnMaterial.opacity = respawnOpacity;
-        }, 50);
-      }, 5000);
-
-      return () => {
-        clearInterval(fadeOut);
-        clearTimeout(respawnTimeout);
-      };
     };
 
     deathEvent.on("playDeathAnimation", handleDeath);
     return () => {
       deathEvent.off("playDeathAnimation", handleDeath);
     };
-  }, [deathEvent]);
+  }, [deathEvent, userId]);
 
   // flash the sphere white when a bullet actually lands on this opponent
   const hitFlashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -232,17 +191,13 @@ export const Opponent = ({
     };
   }, [listener, userId, setShootAudioRef, shootEvent]);
 
-  /** Obstacle detection code, to prevent lerping from making the opponent clip through trees */
-  useEffect(() => {
-    if (addObstacleRef) {
-      addObstacleRef(sphereRef.current);
-    }
-    return () => {
-      if (addObstacleRef) {
-        addObstacleRef(null);
-      }
-    };
-  }, [addObstacleRef]);
+  // Deliberately NOT registered as an obstacle. Players pass through each
+  // other like grass: they don't block movement, they don't push the boom
+  // camera in when someone walks behind you, and — the reason this came up —
+  // shooting one no longer spawns Gun.tsx's orange impact particles, since
+  // those only fire on a raycast hit against the shared `obstacles` array.
+  // Hit registration is unaffected either way: it's server-side sphere
+  // intersection (CombatService.handleShoot), never a client raycast.
 
   /** Dead reckoning: the opponent moves under its own steam every frame by
    * integrating its last known velocity, rather than snapping between
@@ -289,11 +244,16 @@ export const Opponent = ({
 
   return (
     <group ref={group} position={[0, 0, 0]}>
-      <mesh ref={sphereRef} position={[0, -1.5, 0]}>
+      <mesh ref={sphereRef} position={[0, -1.5, 0]} visible={!dead}>
         <sphereGeometry args={[PLAYER_RADIUS]} />
         <meshStandardMaterial color={RED.getStyle()} />
       </mesh>
-      {invincible && (
+      {dead && (
+        <group position={[0, -1.5, 0]}>
+          <DeathExplosion radius={PLAYER_RADIUS} />
+        </group>
+      )}
+      {invincible && !dead && (
         <mesh position={[0, -1.5, 0]}>
           <sphereGeometry args={[PLAYER_RADIUS * 1.5, 16, 16]} />
           <meshStandardMaterial
@@ -306,12 +266,14 @@ export const Opponent = ({
           />
         </mesh>
       )}
-      <OpponentGun
-        cameraDirection={cameraDirection || new Vector3(0, 0, 1)}
-        shootEvent={shootEvent}
-        userId={userId}
-      />
-      {visible && (
+      {!dead && (
+        <OpponentGun
+          cameraDirection={cameraDirection || new Vector3(0, 0, 1)}
+          shootEvent={shootEvent}
+          userId={userId}
+        />
+      )}
+      {visible && !dead && (
         <Html
           center
           distanceFactor={50}

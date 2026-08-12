@@ -289,8 +289,6 @@ const Gun: React.FC<GunProps> = ({
   // Integrate with usePlayerInput
   usePlayerInput({
     onJump: () => { },
-    onSprintStart: () => { },
-    onSprintEnd: () => { },
     onGrenade: () => { },
     onLeftMouseDown: () => { isTriggerHeld.current = true },
     onRightMouseDown: () => { },
