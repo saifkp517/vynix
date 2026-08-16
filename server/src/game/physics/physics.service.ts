@@ -255,12 +255,27 @@ export class PhysicsService {
     const b = 2 * (ox * dx + oz * dz);
     const c = ox * ox + oz * oz - trunk.radius * trunk.radius;
 
-    let tEntry: number;
+    // Range of distances over which the ray is inside the infinite cylinder.
+    //
+    // Both bounds matter. This used to collapse to
+    // `Math.max(0, Math.min(t0, t1))`, which silently turned every trunk
+    // *behind* the shooter into a blocker: for a trunk the ray only reaches
+    // by extending backwards, both roots are negative, the clamp pulled that
+    // to 0, and the code then read it as "the ray enters this trunk at the
+    // shooter's own feet". The height test that followed compared against the
+    // shooter's own Y — inside a trunk's ~48-unit span for any tree standing
+    // on comparable ground — so it returned "blocked". Any one of the map's
+    // hundreds of trees lining up with the backwards extension of the aim
+    // vetoed the shot, with nothing whatsoever between shooter and target.
+    // Keep both roots, and keep the sign.
+    let tEnterCylinder: number;
+    let tExitCylinder: number;
     if (a === 0) {
-      // Ray travels straight up/down; only possibly occluded if its XZ
-      // origin already falls within the trunk's radius.
+      // Ray travels straight up/down: inside the cylinder for its whole
+      // length if its XZ origin falls within the radius, and never otherwise.
       if (c > 0) return false;
-      tEntry = 0;
+      tEnterCylinder = 0;
+      tExitCylinder = Infinity;
     } else {
       const discriminant = b * b - 4 * a * c;
       if (discriminant < 0) return false;
@@ -268,13 +283,34 @@ export class PhysicsService {
       const sqrtDisc = Math.sqrt(discriminant);
       const t0 = (-b - sqrtDisc) / (2 * a);
       const t1 = (-b + sqrtDisc) / (2 * a);
-      tEntry = Math.max(0, Math.min(t0, t1));
+      tEnterCylinder = Math.min(t0, t1);
+      tExitCylinder = Math.max(t0, t1);
     }
 
-    if (tEntry >= distance) return false;
+    // Entirely behind the shooter, or beyond the point being tested.
+    if (tExitCylinder <= 0) return false;
+    if (tEnterCylinder >= distance) return false;
 
-    const entryY = rayOrigin.y + rayDirection.y * tEntry;
-    return entryY >= trunk.bottomY && entryY <= trunk.topY;
+    // Range of distances over which the ray is within the trunk's height.
+    let tEnterBand: number;
+    let tExitBand: number;
+    if (Math.abs(rayDirection.y) < 1e-9) {
+      if (rayOrigin.y < trunk.bottomY || rayOrigin.y > trunk.topY) return false;
+      tEnterBand = 0;
+      tExitBand = Infinity;
+    } else {
+      const tTop = (trunk.topY - rayOrigin.y) / rayDirection.y;
+      const tBottom = (trunk.bottomY - rayOrigin.y) / rayDirection.y;
+      tEnterBand = Math.min(tTop, tBottom);
+      tExitBand = Math.max(tTop, tBottom);
+    }
+
+    // Occluded only where all three overlap: inside the cylinder, within the
+    // trunk's height, and on the stretch of ray actually being tested.
+    const tEnter = Math.max(tEnterCylinder, tEnterBand, 0);
+    const tExit = Math.min(tExitCylinder, tExitBand, distance);
+
+    return tEnter <= tExit;
   }
 
   /**
@@ -330,6 +366,61 @@ export class PhysicsService {
 
     return false;
   }
+
+  // ── SHOT DIAGNOSTICS (disabled) ──
+  // Reporting twin of isPathOccluded: same tests in the same order, but says
+  // *what* blocked the path and *how far along* it, so a veto can be pinned on
+  // cover right next to the shooter versus real cover out near the target.
+  // Re-enable together with the shot-debug logging in CombatService.
+  //
+  // describeOcclusion(
+  // rayOrigin: Vector3,
+  // rayDirection: Vector3,
+  // distance: number,
+  // ): { blocked: boolean; by: string | null; at: number | null; detail?: unknown } {
+  // const endY = rayOrigin.y + rayDirection.y * distance;
+  // if (Math.min(rayOrigin.y, endY) <= MAX_TERRAIN_HEIGHT) {
+  // for (let traveled = TERRAIN_SAMPLE_STEP; traveled < distance; traveled += TERRAIN_SAMPLE_STEP) {
+  // const point = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(traveled));
+  // const groundHeight = this.terrainService.getHeight(point.x, point.z);
+  //
+  // if (point.y < groundHeight) {
+  // return {
+  // blocked: true,
+  // by: 'terrain',
+  // at: Math.round(traveled * 1000) / 1000,
+  // detail: {
+  // fractionOfPath: Math.round((traveled / distance) * 1000) / 1000,
+  // pointY: Math.round(point.y * 1000) / 1000,
+  // groundHeight: Math.round(groundHeight * 1000) / 1000,
+  // belowGroundBy: Math.round((groundHeight - point.y) * 1000) / 1000,
+  // },
+  // };
+  // }
+  // }
+  // }
+  //
+  // for (const canopy of this.canopies) {
+  // if (this.isRayOccludedByCanopy(rayOrigin, rayDirection, distance, canopy)) {
+  // return { blocked: true, by: 'canopy', at: null };
+  // }
+  // }
+  //
+  // for (const topCanopy of this.topCanopies) {
+  // if (!this.isCanopyNearRay(rayOrigin, distance, topCanopy)) continue;
+  // if (this.isRayOccludedByCanopy(rayOrigin, rayDirection, distance, topCanopy)) {
+  // return { blocked: true, by: 'topCanopy', at: null };
+  // }
+  // }
+  //
+  // for (const trunk of this.trunks) {
+  // if (this.isRayOccludedByTrunk(rayOrigin, rayDirection, distance, trunk)) {
+  // return { blocked: true, by: 'trunk', at: null };
+  // }
+  // }
+  //
+  // return { blocked: false, by: null, at: null };
+  // }
 
   // ── Bot obstacle avoidance ───────────────────────────────────────────────────
 
@@ -604,26 +695,67 @@ export class PhysicsService {
     const b = 2 * (ox * dx + oz * dz);
     const c = ox * ox + oz * oz - xzRadius * xzRadius;
 
-    let tEntry: number;
+    // The ray is inside the capsule only where it is simultaneously inside the
+    // infinite cylinder AND between the capsule's top and bottom. Each of those
+    // is a range of distances along the ray; the shot connects iff the two
+    // ranges overlap.
+    //
+    // This used to test the height at a single point — where the ray enters the
+    // cylinder — which silently dropped most genuine hits. In third person the
+    // camera sits several units above the body, so shots descend: a ray on a
+    // true collision course enters the cylinder *above the target's head* and
+    // only drops into the body further along. Sampling the entry point alone
+    // rejected it before it ever got there, so only near-perfectly-centred
+    // shots (whose entry point happens to land inside the height band) ever
+    // registered. Do not reduce this back to a point test.
+    let tCylinderEnter: number;
+    let tCylinderExit: number;
     if (a === 0) {
-      // Ray travels straight up/down; only possibly hits if its XZ origin
-      // already falls within the capsule's radius.
+      // Ray travels straight up/down: inside the cylinder for its whole length
+      // if its XZ origin falls within the radius, and never otherwise.
       if (c > 0) return { hit: false, distance: Infinity };
-      tEntry = 0;
+      tCylinderEnter = 0;
+      tCylinderExit = Infinity;
     } else {
       const discriminant = b * b - 4 * a * c;
       if (discriminant < 0) return { hit: false, distance: Infinity };
 
       const sqrtDisc = Math.sqrt(discriminant);
-      const t0 = (-b - sqrtDisc) / (2 * a);
-      const t1 = (-b + sqrtDisc) / (2 * a);
-      tEntry = Math.max(0, Math.min(t0, t1));
+      tCylinderEnter = (-b - sqrtDisc) / (2 * a);
+      tCylinderExit = (-b + sqrtDisc) / (2 * a);
+      if (tCylinderEnter > tCylinderExit) {
+        [tCylinderEnter, tCylinderExit] = [tCylinderExit, tCylinderEnter];
+      }
     }
 
-    const entryY = rayOrigin.y + rayDirection.y * tEntry;
-    const hit = entryY >= center.y - yHalfHeight && entryY <= center.y + yHalfHeight;
+    const top = center.y + yHalfHeight;
+    const bottom = center.y - yHalfHeight;
 
-    return { hit, distance: tEntry };
+    let tBandEnter: number;
+    let tBandExit: number;
+    if (Math.abs(rayDirection.y) < 1e-9) {
+      // Perfectly level ray: either it sits in the height band for its whole
+      // length or it never does, so there is no crossing to solve for.
+      if (rayOrigin.y < bottom || rayOrigin.y > top) {
+        return { hit: false, distance: Infinity };
+      }
+      tBandEnter = 0;
+      tBandExit = Infinity;
+    } else {
+      tBandEnter = (top - rayOrigin.y) / rayDirection.y;
+      tBandExit = (bottom - rayOrigin.y) / rayDirection.y;
+      if (tBandEnter > tBandExit) {
+        [tBandEnter, tBandExit] = [tBandExit, tBandEnter];
+      }
+    }
+
+    // Clamped at 0 so geometry behind the shooter never counts as a hit.
+    const tEnter = Math.max(tCylinderEnter, tBandEnter, 0);
+    const tExit = Math.min(tCylinderExit, tBandExit);
+
+    if (tEnter > tExit) return { hit: false, distance: Infinity };
+
+    return { hit: true, distance: tEnter };
   }
 
   /**

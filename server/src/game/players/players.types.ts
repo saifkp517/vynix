@@ -82,7 +82,7 @@ export const PLAYER_RADIUS = 1;
 // PLAYER_RADIUS so left/right accuracy still matters. Keep it separate from
 // PLAYER_RADIUS — widening that one instead would also fatten bot obstacle
 // avoidance and spawn placement, which has nothing to do with shooting.
-export const PLAYER_HITBOX_RADIUS = PLAYER_RADIUS * 5;
+export const PLAYER_HITBOX_RADIUS = PLAYER_RADIUS;
 
 // Must match `playerHeight` in client/components/game-components/player/TPP.tsx —
 // real clients report position.y as groundHeight + playerHeight, not raw ground height.

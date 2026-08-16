@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Vector3 } from 'three';
 import { Server } from 'socket.io';
+// Shot diagnostics (disabled) — see the block below.
+// import { appendFileSync } from 'fs';
+// import { join } from 'path';
 
 import { RedisService } from '../redis/redis.service';
 import { PlayersService } from '../players/players.service';
@@ -15,6 +18,40 @@ import {
 
 const DAMAGE_PER_HIT = 10;
 const RESPAWN_DELAY_MS = 5000;
+
+// ─── SHOT DIAGNOSTICS (disabled) ──────────────────────────────────────────
+// Per-shot hit-detection tracing, written as one JSON object per line (JSONL)
+// to server/shot-debug.log. This is what identified both interval bugs — the
+// player capsule and the tree trunk — by showing shots whose ray demonstrably
+// passed through the target still scoring as misses.
+//
+// To re-enable: uncomment the fs/path imports above, this block, the three
+// blocks in handleShoot, and PhysicsService.describeOcclusion. Then analyse
+// with the miss decomposition (`missHorizontal`/`missVertical` vs the capsule
+// dimensions) and the verdict counts.
+//
+// Left off by default: it costs a synchronous disk write per shot on the hot
+// path, and the file grows without bound.
+//
+// const SHOT_DEBUG_LOG = join(process.cwd(), 'shot-debug.log');
+// let shotDebugAnnounced = false;
+// let shotSeq = 0;
+//
+// function shotDebugWrite(record: unknown): void {
+//   try {
+//     if (!shotDebugAnnounced) {
+//       shotDebugAnnounced = true;
+//       console.log(`[ShotDebug] writing per-shot diagnostics to ${SHOT_DEBUG_LOG}`);
+//     }
+//     appendFileSync(SHOT_DEBUG_LOG, JSON.stringify(record) + '\n');
+//   } catch (err) {
+//     // Diagnostics must never break shooting.
+//     console.error('[ShotDebug] write failed:', (err as Error).message);
+//   }
+// }
+//
+// const r3 = (n: number) => Math.round(n * 1000) / 1000;
+// const v3 = (v: { x: number; y: number; z: number }) => ({ x: r3(v.x), y: r3(v.y), z: r3(v.z) });
 
 // Lag compensation: a real shooter's shot is tested against where the target
 // actually was ~this long ago (per PhysicsService's position history), not
@@ -185,6 +222,17 @@ export class CombatService {
     // fired by real clients.
     const rewindTo = shooter.isBot ? null : Date.now() - SHOT_REWIND_MS;
 
+    // ── SHOT DIAGNOSTICS (disabled) ──
+    // Uncomment this, the block at the top of the file, the per-candidate
+    // block below, the write after the loop, and PhysicsService.describeOcclusion
+    // to log every shot to shot-debug.log as JSONL. This is what found the
+    // capsule and trunk interval bugs; keep it handy for the next hit-detection
+    // question. Costs a synchronous disk write per shot, so leave it off in
+    // production.
+    // const shotId = ++shotSeq;
+    // const shooterBody = players[shooter.id]?.position;
+    // const debugCandidates: unknown[] = [];
+
     for (const [playerId, player] of Object.entries(players)) {
       // BUG-05 fix: compare socketId to socketId, not socketId to userId
       if (playerId === shooter.id) continue;
@@ -219,6 +267,68 @@ export class CombatService {
       if (this.physicsService.isPathOccluded(rayOrigin, rayDirection, distance)) {
         continue;
       }
+
+      // ── SHOT DIAGNOSTICS (disabled) ──
+      // Re-enable by moving this above the two `continue`s over it, so misses
+      // and occlusion vetoes get recorded too rather than only landed hits.
+      //
+      // `missHorizontal`/`missVertical` decompose how far the ray passed from
+      // the target's centre at closest approach. That split is what identified
+      // the capsule bug: shots with both values well inside the hitbox were
+      // still scoring as misses, which pointed at the test rather than the aim.
+      // `occlusionFromBody` re-runs the veto along the path the bullet actually
+      // travels (shooter's body to the impact point) — disagreeing with
+      // `occlusionFromCamera` would mean the veto is an artefact of measuring
+      // from the camera, which trails behind and above the body.
+      //
+      // const toCenter = playerCenter.clone().sub(rayOrigin);
+      // const alongRay = toCenter.dot(rayDirection);
+      // const closestPoint = rayOrigin.clone().addScaledVector(rayDirection, alongRay);
+      // const missVec = playerCenter.clone().sub(closestPoint);
+      // const missHorizontal = Math.hypot(missVec.x, missVec.z);
+      // const missVertical = missVec.y;
+      // const rangeToTarget = toCenter.length();
+      //
+      // const occlusionSpan = hit ? distance : Math.max(alongRay, 0);
+      // const occluded = this.physicsService.isPathOccluded(rayOrigin, rayDirection, occlusionSpan);
+      // let occlusionFromCamera: unknown = null;
+      // let occlusionFromBody: unknown = null;
+      // if (occluded) {
+      //   occlusionFromCamera = this.physicsService.describeOcclusion(
+      //     rayOrigin, rayDirection, occlusionSpan,
+      //   );
+      //   if (shooterBody) {
+      //     const impact = rayOrigin.clone().addScaledVector(rayDirection, occlusionSpan);
+      //     const body = new Vector3(shooterBody.x, shooterBody.y, shooterBody.z);
+      //     const toImpact = impact.clone().sub(body);
+      //     const bodyDist = toImpact.length();
+      //     if (bodyDist > 1e-6) {
+      //       occlusionFromBody = this.physicsService.describeOcclusion(
+      //         body, toImpact.clone().normalize(), bodyDist,
+      //       );
+      //     }
+      //   }
+      // }
+      //
+      // debugCandidates.push({
+      //   occlusionFromCamera,
+      //   occlusionFromBody,
+      //   targetId: playerId,
+      //   isBot: player.isBot ?? null,
+      //   rewound: rewindTo !== null && hitTestPosition !== player.position,
+      //   livePos: v3(player.position),
+      //   hitTestPos: v3(hitTestPosition),
+      //   playerCenter: v3(playerCenter),
+      //   rangeToTarget: r3(rangeToTarget),
+      //   missHorizontal: r3(missHorizontal),
+      //   missVertical: r3(missVertical),
+      //   capsuleXZ: PLAYER_RADIUS,
+      //   capsuleYHalf: PLAYER_HITBOX_RADIUS,
+      //   hit,
+      //   distance: r3(distance),
+      //   occluded,
+      //   verdict: !hit ? 'MISS_CAPSULE' : occluded ? 'VETOED_BY_OCCLUSION' : 'HIT',
+      // });
 
       if (Date.now() < player.invincibleUntil) {
         // Shot connects but does nothing — let the client show a "blocked"
@@ -260,6 +370,36 @@ export class CombatService {
         server,
       });
     }
+
+    // ── SHOT DIAGNOSTICS (disabled) ──
+    // One JSONL record per shot. `rayOriginVsBody` is the camera-vs-body
+    // question in one number: how far the ray's start point sits from the
+    // shooter's own body (third person trails it ~6 back and ~3 up). That
+    // matters because occlusion is still measured from the camera, so a large
+    // value here means vetoes can come from cover that is behind the player
+    // rather than between them and the target.
+    //
+    // shotDebugWrite({
+    //   t: new Date().toISOString(),
+    //   shotId,
+    //   shooterId: shooter.id,
+    //   shooterIsBot: shooter.isBot ?? false,
+    //   rayOrigin: v3(rayOrigin),
+    //   rayDirection: v3(rayDirection),
+    //   muzzleOrigin: v3(muzzleOrigin),
+    //   shooterBody: shooterBody ? v3(shooterBody) : null,
+    //   rayOriginVsBody: shooterBody
+    //     ? {
+    //         dx: r3(rayOrigin.x - shooterBody.x),
+    //         dy: r3(rayOrigin.y - shooterBody.y),
+    //         dz: r3(rayOrigin.z - shooterBody.z),
+    //         dist: r3(rayOrigin.distanceTo(new Vector3(shooterBody.x, shooterBody.y, shooterBody.z))),
+    //       }
+    //     : null,
+    //   rewindMs: rewindTo === null ? null : SHOT_REWIND_MS,
+    //   candidateCount: debugCandidates.length,
+    //   candidates: debugCandidates,
+    // });
   }
 
   private async tryKill({
