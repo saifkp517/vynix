@@ -6,6 +6,7 @@ import { Raycaster, Vector3, Mesh, Group } from 'three';
 
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 import socket from '@/lib/socket';
 import { playSound } from '@/lib/sound';
 
@@ -13,7 +14,6 @@ import { playSound } from '@/lib/sound';
 interface GunProps {
   roomId: string;
   camera: THREE.Camera;
-  userId: string;
   obstacles: any;
   playerCenterRef: React.RefObject<THREE.Vector3>;
   getGroundHeight: (x: number, z: number) => number;
@@ -25,7 +25,6 @@ interface GunProps {
 const Gun: React.FC<GunProps> = ({
   roomId,
   camera,
-  userId,
   obstacles,
   playerCenterRef,
   getGroundHeight,
@@ -33,6 +32,7 @@ const Gun: React.FC<GunProps> = ({
   crosshairRef,
   playerDeadRef,
 }) => {
+  const userId = usePlayerStore((s) => s.socketId);
   const maxAmmo = 30;
   const gunRef = useRef<THREE.Group>(null!);
   const muzzleFlash = useRef(false);

@@ -14,6 +14,7 @@ import { useAudioListener } from '@/hooks/useAudioListener';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 import { useRoomStore } from '@/hooks/useRoomStore';
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 
 import { PLAYER_RADIUS } from '@/types/types';
 import { ZOOM_LEVELS, zoomPercent } from '@/lib/scope';
@@ -31,7 +32,6 @@ interface PlayerProps {
     controlsRef: RefObject<any>;
     playerDeadRef: RefObject<boolean>;
     roomId: string;
-    userId: string;
     listenerRef: RefObject<AudioListener | null>;
 }
 
@@ -51,9 +51,10 @@ const Player: React.FC<PlayerProps> = ({
     grenadeCoolDownRef,
     otherPlayers,
     roomId,
-    userId,
     listenerRef
 }) => {
+
+    const userId = usePlayerStore((s) => s.socketId);
 
     const [isFPS, setIsFPS] = useState(false);
 
@@ -805,7 +806,6 @@ const Player: React.FC<PlayerProps> = ({
                 <Gun
                     roomId={roomId}
                     camera={camera}
-                    userId={userId}
                     obstacles={obstacles}
                     playerCenterRef={playerCenterRef}
                     getGroundHeight={getGroundHeight}

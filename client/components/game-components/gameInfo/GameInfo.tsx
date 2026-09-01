@@ -9,6 +9,7 @@ import { Crosshair } from '../crosshair/CrossHair';
 
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';;
 import { useRoomStore } from '@/hooks/useRoomStore';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 
 interface Player {
   socketId: string;
@@ -26,7 +27,6 @@ interface Player {
 
 interface GameInfoProps {
   roomId: string | null;
-  userid: string | null;
   controlsRef?: RefObject<any>;
   crosshairRef: RefObject<any>;
   grenadeCoolDownRef: RefObject<boolean>;
@@ -59,7 +59,9 @@ interface HitEffect {
 const LOW_HEALTH_THRESHOLD = 80;
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, userid, controlsRef, crosshairRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef, gameOver }) => {
+  ({ roomId, controlsRef, crosshairRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef, gameOver }) => {
+
+    const userid = usePlayerStore((s) => s.socketId);
 
     //* ======================= handle recieve socket events ===============
 
@@ -178,8 +180,8 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     const [abilityState, setAbilityState] = useState({ invincibleUntil: 0, cooldownUntil: 0 });
     const [now, setNow] = useState(Date.now());
     // Server sends startTime/duration once on 'gameStarted', caught by
-    // useSocketHandlersMain on the lobby page (before this component mounts)
-    // and stashed in useRoomStore; remaining time is computed locally every
+    // useMatchmaking on the lobby page (before this component mounts) and
+    // stashed in useRoomStore; remaining time is computed locally every
     // tick instead of the server pushing a countdown.
     const matchTiming = useRoomStore((state) => state.matchTiming);
 

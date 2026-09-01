@@ -11,6 +11,7 @@ import type { Vegetation } from '../../types/types';
 
 import { useWhyDidYouUpdate } from '@/lib/utils';
 import socket from '@/lib/socket';
+import { usePlayerStore } from '@/hooks/usePlayerStore';
 
 
 import Player from '@/components/game-components/player/TPP';
@@ -60,8 +61,6 @@ const Game: React.FC = () => {
   const vegetationPositionsRef = useRef<Vegetation[] | undefined>(undefined);
 
   // State
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [localPlayerId, setLocalPlayerId] = useState<string>('');
   const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
   const [vegetationPositions, setVegetationPositions] = useState<Vegetation[] | undefined>(undefined);
   const [spawnPoint, setSpawnPoint] = useState<Vector3>();
@@ -77,6 +76,10 @@ const Game: React.FC = () => {
 
   const params = useParams<{ tag: string; id: string }>();
   const router = useRouter();
+
+  // roomId is just the route — no need to wait for the socket to learn it.
+  const roomId = params.id;
+  const setSocketId = usePlayerStore((s) => s.setSocketId);
 
   // Handlers
   const handleComponentStatusChange = useCallback((componentName: string, status: ComponentStatus['status'], details?: ComponentStatus['details']) => {
@@ -152,17 +155,20 @@ const Game: React.FC = () => {
       });
   }, []);
 
+  // Keep the local player's socket id in the store, current across reconnects
+  // (socket.id is reassigned on every connect). Consumers read it from the
+  // store instead of having it prop-drilled through the scene.
   useEffect(() => {
-    const hasJoinedRoom = { current: false };
-
-    const handleConnect = async () => {
-      if (!hasJoinedRoom.current) {
-        hasJoinedRoom.current = true;
-        setRoomId(params.id);
-        setLocalPlayerId(socket.id || '124');
-      }
+    const syncSocketId = () => setSocketId(socket.id ?? '');
+    syncSocketId();
+    socket.on('connect', syncSocketId);
+    return () => {
+      socket.off('connect', syncSocketId);
+      setSocketId('');
     };
+  }, [setSocketId]);
 
+  useEffect(() => {
     const handleYouDied = () => {
       isPlayerDead.current = true;
       killStreakRef.current = 0;
@@ -189,25 +195,17 @@ const Game: React.FC = () => {
       }, 5000);
     }
 
-    socket.on('connect', handleConnect);
     socket.on('youDied', handleYouDied);
     socket.on('playerDead', handlePlayerDead);
     socket.on('gameOver', handleGameOver);
 
-    if (socket.connected) {
-      handleConnect();
-    }
-
-
-
     return () => {
-      socket.off('connect', handleConnect);
       socket.off('youDied', handleYouDied);
       socket.off('playerDead', handlePlayerDead);
       socket.off('gameOver', handleGameOver);
       socket.off('pong-check');
     };
-  }, [params.id]);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(calculatePing, PING_CHECK_INTERVAL);
@@ -313,7 +311,6 @@ const Game: React.FC = () => {
           playerCenterRef={playerCenterRef}
           controlsRef={controlsRef}
           crosshairRef={crosshairRef}
-          userId={localPlayerId}
           grenadeCoolDownRef={grenadeCoolDownRef}
           roomId={roomId}
           pingRef={pingRef}
@@ -322,7 +319,7 @@ const Game: React.FC = () => {
       );
     };
     return React.memo(Component);
-  }, [handlePlayerCenterUpdate, localPlayerId]);
+  }, [handlePlayerCenterUpdate, roomId]);
   //
 
   const graphicsLevel = useMemo(() => getGraphicsLevel(), []);
@@ -348,7 +345,7 @@ const Game: React.FC = () => {
   const isReady = roomId && Array.isArray(vegetationPositions) && vegetationPositions.length > 0;
   const isGroundLoaded = loadedComponents.get('Ground') === 'loaded';
 
-  useWhyDidYouUpdate('Game', { roomId, localPlayerId, vegetationPositions });
+  useWhyDidYouUpdate('Game', { roomId, vegetationPositions });
 
   return (
     <div className="w-full h-screen relative flex justify-center items-center" style={{ overflow: 'hidden' }}>
@@ -369,7 +366,6 @@ const Game: React.FC = () => {
             playerDataRef={playerDataRef}
             controlsRef={controlsRef}
             crosshairRef={crosshairRef}
-            userid={localPlayerId}
             bulletsAvailable={30}
             explosionTimeout={3000}
             kills={0}
