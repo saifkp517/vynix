@@ -10,36 +10,47 @@ Vynix (marketed as "Zentra") is a browser multiplayer arena shooter. Next.js (Ap
 
 ```
 app/page.tsx (lobby)
-  |-- uses: useSocketHandlersMain -> useRoomStore
+  |-- uses: useMatchmaking -> useRoomStore
   |-- router.push('/forest/[id]') on lobby full
   v
 app/forest/[id]/page.tsx (Game)
   |
+  |-- useArenaSocket()  <-- the ONE inbound listener, called once here.
+  |     |  registers every 'socket.on' the match needs, tears them all
+  |     |  down on unmount; folds payloads into useRoomStore /
+  |     |  useGameInfoStore / usePlayerStore or scene-owned refs
+  |     |  (playerDataRef, hitTriggerRef, remote event emitters, ...).
+  |     `-- lib/socket.ts (single io-client instance)
+  |            <--> server-nest socket.io gateway (out of scope)
+  |
+  |   (outbound emits are separate: lib/arenaEmit.ts, called from TPP/Gun/
+  |    GameInfo — see "Networking" below)
+  |
   |-- Ground
   |     |-- ForestGenerator / Grass / Mountains / Rain / Loot
   |     |-- ComponentLoadingTracker (load-status bus)
-  |     `-- socket.on('updateForest')            --> lib/socket.ts
+  |     `-- reads useRoomStore.forestTarget (written by useArenaSocket)
   |
   |-- TPP (local Player)
   |     |-- Gun --> Fireball / Explosion
   |     |-- checkCollision
   |     |-- hooks: useAudioListener, usePlayerInput, useRoomStore
-  |     |-- socket.emit('updatePositionAndCamera', 'playerWalking', ...) --> lib/socket.ts
+  |     |-- emitMove/emitWalking/... --> lib/arenaEmit.ts --> lib/socket.ts
   |     `-- lib/sound.ts (Howler: local walk/breeze/hitWood/gunshot)
   |
-  |-- RemoteOpponents
-  |     |-- socket.on('playerMoved','playerDead','playerShot','playerHealthChanged','playerRespawned', ...) --> lib/socket.ts
+  |-- RemoteOpponents (pure prop consumer — no socket import)
+  |     |-- reads playerIds/playerDataRef/event-emitter props, all owned
+  |     |     and written by useArenaSocket (incl. remoteHealthEvent, fed by
+  |     |     'playerHealthChanged'/'playerRespawned')
   |     `-- Opponent (dead-reckoned, per remote id)
   |           |-- OpGun
   |           |-- floating health bar (Html overlay, synced via healthEvent emitter)
   |           `-- lib/positionalSound.ts (three.js PositionalAudio: remote walk/shoot)
   |
-  |-- GameInfo (HUD) --> useGameInfoStore
-  |-- HitImpact (hit VFX)
-  `-- KillFeed (toast list)
-
-lib/socket.ts (single io-client instance)
-  <--> server-nest socket.io gateway (out of scope)
+  |-- GameInfo (HUD) --> reads useGameInfoStore (written by useArenaSocket)
+  |-- HitImpact (hit VFX) --> drains hitTriggerRef each frame
+  `-- KillFeed (toast list) --> page.tsx's own kill-streak state,
+        fed by useArenaSocket's onKillCredited callback
 
 lib/webrtc.ts (dormant peer-data-channel path; not called from any
   scene component today -- signals via lib/socket.ts if ever wired in)
@@ -50,7 +61,7 @@ lib/webrtc.ts (dormant peer-data-channel path; not called from any
 | Path                                                                                                 | Purpose                                                                                                                                                                                                                              |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `app/page.tsx`                                                                                     | Lobby/menu screen: username entry, matchmaking button, lobby player-slot UI. Emits`requestMatchmaking`/`cancelMatchmaking`, redirects to `/forest/[roomId]` when room fills.                                                   |
-| `app/forest/[id]/page.tsx`                                                                         | Main game scene (`Game` component). Owns the R3F `<Canvas>`, wires Ground/Player/Opponents/UI together, handles ping, death/respawn/game-over socket events.                                                                     |
+| `app/forest/[id]/page.tsx`                                                                         | Main game scene (`Game` component). Owns the R3F `<Canvas>`, wires Ground/Player/Opponents/UI together. Calls `useArenaSocket()` once and hands its refs/state down to the scene; the nav guards (beforeunload/popstate/unmount-disconnect) are the one deliberate exception still living here, not in the hook.  |
 | `app/layout.tsx`                                                                                   | Root Next.js layout.                                                                                                                                                                                                                 |
 | `app/api/data/route.ts`                                                                            | Next.js route handler — serves vegetation position data fetched by the forest page (`fetch('/api/data')`).                                                                                                                        |
 | `app/types/types.tsx`                                                                              | `Vegetation` type and related scene-data shapes (separate from `types/types.ts`).                                                                                                                                                |
@@ -65,8 +76,8 @@ lib/webrtc.ts (dormant peer-data-channel path; not called from any
 | `components/game-components/player/Fireball.tsx`, `explosion/Explosion.tsx`                      | Grenade projectile + explosion VFX, spawned from`TPP.tsx`.                                                                                                                                                                         |
 | `components/game-components/player/Loot.tsx`                                                       | Pickup item (ammo crate) rendered by`Ground.tsx`.                                                                                                                                                                                  |
 | `components/game-components/player/HitImpact.tsx`                                                  | Particle burst effect when local player is hit; driven by a`hit` event, keyed off `PLAYER_RADIUS`/`PLAYER_HITBOX_Y_OFFSET` from `types/types.ts`.                                                                            |
-| `components/game-components/opponents/RemoteOpponents.tsx`                                         | Owns the set of remote players: listens to`playerMoved`, `playerDisconnected`, `playerDead`, `playerShot`, `playerHitReaction`, `playerWalking/Stopped`, `playerHealthChanged`, `playerRespawned`; renders one `<Opponent>` per remote id. Health events are republished on a dedicated `healthEvent` `EventEmitter` (same pattern as `shootEvent`/`deathEvent`/`hitEvent`/`abilityEvent`), filtered by id inside `Opponent`.                       |
-| `components/game-components/opponents/Opponent.tsx`                                                | Single remote-player avatar: dead-reckoned movement (extrapolate + correct toward snapshots), death/hit visual feedback, positional walk/shoot audio via`lib/positionalSound.ts`, username + floating health bar in one `<Html>` overlay. Health state defaults to 100 and is only touched by `healthEvent` ('healthChanged') — a fresh mount (on respawn, see `RemoteOpponents`' removePlayer/addPlayer) naturally resets it. Renders `OpGun`.    |
+| `components/game-components/opponents/RemoteOpponents.tsx`                                         | Pure prop consumer (no socket import) — renders one `<Opponent>` per remote id from `playerIds`/`playerDataRef`/`snapshotRef` and fans the `shootEvent`/`deathEvent`/`hitEvent`/`abilityEvent`/`healthEvent` `EventEmitter` props straight through. All of it (render list, transforms, event fan-out) is owned and written by `useArenaSocket`, handed down via `app/forest/[id]/page.tsx`.                       |
+| `components/game-components/opponents/Opponent.tsx`                                                | Single remote-player avatar: dead-reckoned movement (extrapolate + correct toward snapshots), death/hit visual feedback, positional walk/shoot audio via`lib/positionalSound.ts`, username + floating health bar in one `<Html>` overlay. Health state defaults to 100 and is only touched by the `healthEvent` prop's `'healthChanged'` events (sourced from `useArenaSocket`'s `remoteHealthEvent`) — a fresh mount (on respawn, see `useArenaSocket`'s `removeRemotePlayer`/`addRemotePlayer`) naturally resets it. Renders `OpGun`.    |
 | `components/game-components/opponents/OpGun.tsx`                                                   | Remote player's visible weapon/muzzle effects, triggered by shoot events.                                                                                                                                                            |
 | `components/game-components/gameInfo/GameInfo.tsx`                                                 | HUD: health, ammo, crosshair, radar, scoreboard, chat, hit-flash overlay.                                                                                                                                                            |
 | `components/game-components/gameInfo/RadarUI.tsx`, `Scoreboard.tsx`, `PlayerJoinLeaveFeed.tsx` | HUD subcomponents.                                                                                                                                                                                                                   |
@@ -129,8 +140,8 @@ lib/webrtc.ts (dormant peer-data-channel path; not called from any
 | Change matchmaking/lobby flow                                        | `app/page.tsx`, `hooks/useSocketHandlersMain.ts`, `hooks/useRoomStore.ts`                                                                                 |
 | Change terrain/world generation                                      | `components/game-components/ground/Ground.tsx` (height fn, fog, sky), `forest/ForestGenerator.tsx`, `elements/*`                                          |
 | Change HUD (health, radar, scoreboard, crosshair)                    | `components/game-components/gameInfo/*`, `crosshair/CrossHair.tsx`                                                                                          |
-| Change the local player's own health HUD (top-left bar)              | `components/game-components/gameInfo/GameInfo.tsx` (targeted `hit`/`healthRegen` socket events — per-socket, not roomwide)                                  |
-| Change *other* players' floating health bars (above-head bar)        | `components/game-components/opponents/Opponent.tsx` (render + `getHealthBarColor`), fed by `RemoteOpponents.tsx`'s `healthEvent` emitter, which listens for the roomwide `playerHealthChanged`/`playerRespawned` socket events — see `server/MODULE_MAP.md`'s `CombatService` section for where those are emitted |
+| Change the local player's own health HUD (top-left bar)              | `components/game-components/gameInfo/GameInfo.tsx` reads `useGameInfoStore.health`, written by `useArenaSocket`'s targeted `hit`/`healthRegen` handlers (per-socket, not roomwide)                                  |
+| Change *other* players' floating health bars (above-head bar)        | `components/game-components/opponents/Opponent.tsx` (render + `getHealthBarColor`), fed by the `healthEvent` prop — sourced from `useArenaSocket`'s `remoteHealthEvent`, which fans out the roomwide `playerHealthChanged`/`playerRespawned` socket events — see `server/MODULE_MAP.md`'s `CombatService` section for where those are emitted |
 | Change local (non-positional) sound                                  | `lib/sound.ts`                                                                                                                                                |
 | Change remote/positional sound (opponent walk/shoot)                 | `lib/positionalSound.ts`, wiring in `opponents/Opponent.tsx`                                                                                                |
 | Add a new remote-player visual/audio effect keyed off a server event | Add handler in`opponents/RemoteOpponents.tsx` (owns the socket listeners), pass down via `EventEmitter` prop to `opponents/Opponent.tsx`                  |

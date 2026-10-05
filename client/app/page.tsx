@@ -3,12 +3,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Users, Trophy, Settings, X, Lock, Swords, Loader2, LogOut, Pencil, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useSocketHandlers } from "@/hooks/useSocketHandlersMain";
-import { useRoomStore } from "@/hooks/useRoomStore";
+import { useMatchmaking, MATCH_SIZE } from "@/hooks/useMatchmaking";
+import { usePlayerStore } from "@/hooks/usePlayerStore";
 import { useAuth } from "@/hooks/useAuth";
-import socket from "@/lib/socket";
-import { useRouter } from "next/navigation";
-import axios from "axios";
 import {
   MIN_GRAPHICS_LEVEL,
   MAX_GRAPHICS_LEVEL,
@@ -17,8 +14,6 @@ import {
   setGraphicsLevel,
   getDprForLevel,
 } from "@/lib/graphicsSettings";
-
-const MATCH_SIZE = 5;
 
 const LOBBY_TIPS = [
   "Staying away from fire for a while increases health over time.",
@@ -29,27 +24,42 @@ const LOBBY_TIPS = [
   "Use Q to activate invincibility.",
 ];
 
+// The forest key art + darkening scrim that both the menu and the auth screen
+// sit on. One component so the two surfaces can never drift apart.
+function ArenaBackdrop() {
+  return (
+    <div className="absolute inset-0">
+      <div
+        className="absolute inset-0 bg-cover bg-center scale-105"
+        style={{ backgroundImage: "url('/images/background.png')" }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/45 to-black/85" />
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+    </div>
+  );
+}
+
+// Shared focus ring for dark-glass controls — an emerald ring offset off the
+// panel so keyboard users always see where they are.
+const FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/60";
+
 export default function GameLoadoutMenu() {
 
-  const router = useRouter();
-  const { session, user, isGuest, loading: authLoading, signOut } = useAuth();
+  const { session, user, isGuest, loading: authLoading, profile, updateUsername, signOut } = useAuth();
 
-  const [matchmakingStatus, setMatchmakingStatus] = useState("Find Match");
-  const [isMatchMaking, setIsMatchmaking] = useState(false);
-  const [activeSection, setActiveSection] = useState('');
-  const [onlinePlayers, setOnlinePlayers] = useState(0);
-  const [username, setUsername] = useState("");
-  const [usernameEdited, setUsernameEdited] = useState(false);
-  const [roomId, setRoomId] = useState<string | null>(null);
+  const {
+    status: matchmakingStatus,
+    isMatchmaking: isMatchMaking,
+    roomId,
+    players: lobbyPlayers,
+    findMatch,
+    cancelMatch,
+  } = useMatchmaking();
 
-  const [profile, setProfile] = useState<{
-    username: string;
-    rank: number;
-    matchesPlayed: number;
-    totalKills: number;
-    totalDeaths: number;
-    kdRatio: number;
-  } | null>(null);
+  const { username, setUsername, setDerivedUsername } = usePlayerStore();
+
+  const [showSettings, setShowSettings] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
@@ -64,52 +74,19 @@ export default function GameLoadoutMenu() {
     setGraphicsLevel(level);
   };
 
-  const lobbyPlayers = useRoomStore((s) => s.players);
   const inLobby = isMatchMaking && !!roomId;
-
-  useSocketHandlers(socket, {
-    setMatchmakingStatus,
-    setIsMatchmaking,
-    setRoomId,
-    redirect: (path) => {
-      router.push('/' + path);
-    },
-  });
 
   // Callsign defaults to the account's display name (profile username, falling
   // back to email if that's ever empty) or a random Guest_ id for anonymous
-  // sessions — never persisted, so it's re-derived fresh each session unless
-  // the player types their own.
+  // sessions — never persisted, so it's re-derived fresh each session.
+  // setDerivedUsername no-ops once the player types their own (see usePlayerStore).
   useEffect(() => {
-    if (usernameEdited) return;
-
     if (isGuest) {
-      setUsername(`Guest_${(user?.id ?? Math.random().toString(36).slice(2)).slice(0, 6)}`);
+      setDerivedUsername(`Guest_${(user?.id ?? Math.random().toString(36).slice(2)).slice(0, 6)}`);
     } else if (profile) {
-      setUsername(profile.username?.trim() || user?.email || "Player");
+      setDerivedUsername(profile.username?.trim() || user?.email || "Player");
     }
-  }, [isGuest, user, profile, usernameEdited]);
-
-  useEffect(() => {
-    if (!session?.access_token) {
-      setProfile(null);
-      return;
-    }
-
-    let cancelled = false;
-    axios
-      .get(`${process.env.NEXT_PUBLIC_REST_API_URL}/profiles/me`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      .then((res) => {
-        if (!cancelled) setProfile(res.data);
-      })
-      .catch((err) => console.error("Error fetching profile:", err));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.access_token]);
+  }, [isGuest, user, profile, setDerivedUsername]);
 
   const startEditingName = () => {
     setNameDraft(profile?.username ?? "");
@@ -118,18 +95,13 @@ export default function GameLoadoutMenu() {
 
   const saveProfileName = async () => {
     const trimmed = nameDraft.trim();
-    if (!trimmed || !session?.access_token) {
+    if (!trimmed) {
       setIsEditingName(false);
       return;
     }
     setSavingName(true);
     try {
-      const res = await axios.patch(
-        `${process.env.NEXT_PUBLIC_REST_API_URL}/profiles/me`,
-        { username: trimmed },
-        { headers: { Authorization: `Bearer ${session.access_token}` } },
-      );
-      setProfile(res.data);
+      await updateUsername(trimmed);
       setIsEditingName(false);
     } catch (err) {
       console.error("Error updating profile name:", err);
@@ -138,102 +110,14 @@ export default function GameLoadoutMenu() {
     }
   };
 
-  useEffect(() => {
-    let isFetching = false;
-
-    async function fetchOnlinePlayers() {
-      if (isFetching) return; //wait until previous fetch has been completed
-      isFetching = true;
-      try {
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_REST_API_URL}/game/onlinePlayers`);
-        setOnlinePlayers(res.data.players)
-      } catch (err) {
-        console.error("Error fetching players:", err);
-        setOnlinePlayers(0)
-      } finally {
-        isFetching = false;
-      }
-    }
-
-    fetchOnlinePlayers();
-
-    const interval = setInterval(fetchOnlinePlayers, 5000);
-
-    return () => clearInterval(interval)
-
-  }, [])
-
-  // Once the room fills to match size, hold briefly on "Match starting" then
-  // hand off to the room route (roomAssigned already fired earlier).
-  useEffect(() => {
-    if (!inLobby || !roomId) return;
-    if (lobbyPlayers.length < MATCH_SIZE) return;
-
-    setMatchmakingStatus("Match starting...");
-    const timeout = setTimeout(() => {
-      router.push(`/forest/${roomId}`);
-    }, 900);
-
-    return () => clearTimeout(timeout);
-  }, [inLobby, roomId, lobbyPlayers.length, router]);
-
-  const handleUsernameChange = (value: string) => {
-    setUsernameEdited(true);
-    setUsername(value);
-  };
-
-  const ComingSoonCard = ({ icon: Icon, title, description }: any) => (
-    <div className="bg-neutral-900/90 backdrop-blur-xl rounded-[24px] border border-white/[0.08] p-5 shadow-2xl max-w-xs w-full">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-full bg-gradient-to-br from-emerald-400 to-teal-300">
-            <Icon className="h-3.5 w-3.5 text-neutral-900" />
-          </div>
-          <h3 className="font-display text-sm font-medium text-white">{title}</h3>
-        </div>
-        <button
-          onClick={() => setActiveSection('')}
-          className="p-1 hover:bg-white/10 rounded-full transition-colors"
-        >
-          <X className="h-3.5 w-3.5 text-neutral-400" />
-        </button>
-      </div>
-      <div className="flex flex-col items-center justify-center py-6">
-        <div className="relative mb-2">
-          <Icon className="h-10 w-10 text-emerald-400/40" />
-          <Lock className="h-3 w-3 text-amber-400 absolute -bottom-0.5 -right-0.5 bg-neutral-900 rounded-full p-0.5" />
-        </div>
-        <p className="font-display text-white text-xs font-medium mb-1">Coming Soon</p>
-        <p className="text-neutral-500 text-[10px] text-center font-normal">{description}</p>
-      </div>
-    </div>
-  );
-
   const handleMatchmaking = () => {
-
-    if (!socket.connected) {
-      socket.connect()
-    }
-
-    if (isMatchMaking) {
-      socket.emit("cancelMatchmaking");
-      setIsMatchmaking(false);
-      setMatchmakingStatus("Find Match");
-      setRoomId(null);
-      useRoomStore.getState().setPlayers([]);
-    } else {
-      useRoomStore.getState().setPlayers([]);
-      setRoomId(null);
-      socket.emit("requestMatchmaking", username);
-      setIsMatchmaking(true);
-      setMatchmakingStatus("Searching...");
-      setTimeout(() => setMatchmakingStatus("Finding opponents..."), 1500);
-    }
+    if (isMatchMaking) cancelMatch();
+    else findMatch(username);
   };
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-[100svh] flex items-center justify-center bg-black">
         <Loader2 className="h-6 w-6 text-emerald-400 animate-spin" />
       </div>
     );
@@ -244,47 +128,52 @@ export default function GameLoadoutMenu() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-6 overflow-hidden">
-      {/* Background image with overlay */}
-      <div className="absolute inset-0">
-        <div
-          className="absolute inset-0 bg-cover bg-center scale-105"
-          style={{ backgroundImage: "url('/images/background.png')" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/80" />
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
-      </div>
+    <div className="h-[100svh] relative flex items-center justify-center px-6 py-8 overflow-hidden">
+      <ArenaBackdrop />
 
       {/* Signed-in-as / sign out */}
       <div className="absolute top-5 right-5 z-20 flex items-center gap-3">
-        <span className="text-[11px] text-neutral-400 font-medium">
+        <span className="text-[11px] text-neutral-300 font-medium">
           {isGuest ? "Playing as Guest" : user?.email}
         </span>
         <button
+          type="button"
           onClick={() => signOut()}
-          className="p-1.5 rounded-lg bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-red-400/40 group transition-colors"
+          className={`p-1.5 rounded-lg bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-red-400/40 group transition-colors ${FOCUS_RING}`}
           title="Sign out"
         >
-          <LogOut className="h-3.5 w-3.5 text-neutral-400 group-hover:text-red-400 transition-colors" />
+          <LogOut className="h-3.5 w-3.5 text-neutral-300 group-hover:text-red-400 transition-colors" />
         </button>
       </div>
 
-      {/* Modal overlay */}
-      {activeSection && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setActiveSection('')}>
-          <div onClick={(e) => e.stopPropagation()}>
-            {activeSection === "leaderboard" && <ComingSoonCard icon={Trophy} title="Leaderboard" description="Global rankings launching post-beta" />}
-            {activeSection === "friends" && <ComingSoonCard icon={Users} title="Friends" description="Connect with players post-beta" />}
-            {activeSection === "settings" && (
+      {/* Settings modal — kept as a modal because the graphics panel needs
+          protected focus; the locked nav items no longer open one. */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setShowSettings(false)}
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 4 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            >
               <GraphicsSettingsCard
                 level={graphicsLevel}
                 onChange={handleGraphicsLevelChange}
-                onClose={() => setActiveSection('')}
+                onClose={() => setShowSettings(false)}
               />
-            )}
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {inLobby ? (
@@ -302,108 +191,125 @@ export default function GameLoadoutMenu() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="relative z-10 w-full max-w-md"
           >
             {/* Header */}
-            <div className="text-center mb-10">
-              <span className="inline-block mb-4 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-md text-[11px] text-neutral-300 font-medium tracking-wide">
-                Season 1 • Beta
-              </span>
-              <h1 className="font-display text-5xl md:text-6xl font-medium text-white mb-3 tracking-tight leading-none">
+            <div className="text-center mb-6">
+              <h1
+                className="font-display text-4xl md:text-5xl font-medium text-white mb-1.5 leading-none"
+                style={{ letterSpacing: "-0.04em" }}
+              >
                 Zentra<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">.io</span>
               </h1>
-              <p className="text-neutral-400 text-sm font-normal tracking-wide">Enter the arena</p>
+              <p className="text-neutral-300 text-sm font-normal tracking-wide">Enter the arena</p>
             </div>
 
             {/* Card */}
-            <div className="rounded-[28px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)] p-7 space-y-6">
+            <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] p-5 sm:p-6 space-y-4">
 
-              {/* Username input */}
+              {/* Callsign input */}
               <div>
-                <div className="rounded-2xl border border-white/[0.08] bg-black/20 focus-within:border-emerald-400/40 transition-colors px-4 py-3.5">
+                <label htmlFor="callsign" className="sr-only">Callsign</label>
+                <div className={`rounded-2xl border border-white/[0.08] bg-black/20 focus-within:border-emerald-400/50 transition-colors px-4 py-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-emerald-400/60`}>
                   <input
+                    id="callsign"
                     type="text"
-                    placeholder="Choose a callsign..."
+                    placeholder="Choose a callsign…"
                     value={username}
-                    onChange={(e) => handleUsernameChange(e.target.value)}
-                    className="w-full text-sm text-center text-white bg-transparent focus:outline-none placeholder:text-neutral-500 font-normal"
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full text-sm text-center text-white bg-transparent focus:outline-none placeholder:text-neutral-400 font-normal"
                   />
                 </div>
                 {username && (
-                  <p className="text-xs text-center text-neutral-500 mt-2.5 font-normal">
-                    Playing as <span className="font-medium text-emerald-300">{username}</span>
+                  <p className="text-xs text-center text-neutral-400 mt-2 font-normal">
+                    Dropping in as <span className="font-medium text-emerald-300">{username}</span>
                   </p>
                 )}
               </div>
 
               {/* Profile name (persisted account identity, separate from the per-match callsign above) */}
-              <div className="flex items-center justify-center gap-2">
-                {isEditingName ? (
-                  <>
-                    <input
-                      type="text"
-                      autoFocus
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && saveProfileName()}
-                      className="text-xs text-center text-white bg-black/20 border border-emerald-400/30 rounded-full px-3.5 py-1.5 focus:outline-none"
-                    />
+              {!isGuest && (
+                <div className="flex items-center justify-center gap-2">
+                  {isEditingName ? (
+                    <>
+                      <input
+                        type="text"
+                        autoFocus
+                        aria-label="Display name"
+                        value={nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveProfileName();
+                          if (e.key === "Escape") setIsEditingName(false);
+                        }}
+                        className={`text-xs text-center text-white bg-black/20 border border-emerald-400/40 rounded-full px-3.5 py-1.5 focus:outline-none ${FOCUS_RING}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={saveProfileName}
+                        disabled={savingName}
+                        aria-label="Save display name"
+                        className={`p-1.5 rounded-full bg-emerald-400/10 border border-emerald-400/20 hover:bg-emerald-400/20 disabled:opacity-50 transition-colors ${FOCUS_RING}`}
+                      >
+                        {savingName
+                          ? <Loader2 className="h-3 w-3 text-emerald-300 animate-spin" />
+                          : <Check className="h-3 w-3 text-emerald-300" />}
+                      </button>
+                    </>
+                  ) : profile ? (
                     <button
-                      onClick={saveProfileName}
-                      disabled={savingName}
-                      className="p-1.5 rounded-full bg-emerald-400/10 border border-emerald-400/20 hover:bg-emerald-400/20"
+                      type="button"
+                      onClick={startEditingName}
+                      className={`flex items-center gap-1.5 text-xs text-neutral-400 hover:text-emerald-300 transition-colors font-normal rounded-full px-1 ${FOCUS_RING}`}
                     >
-                      <Check className="h-3 w-3 text-emerald-300" />
+                      <span className="text-neutral-500">Display name:</span>
+                      {profile.username?.trim() || "Set one"}
+                      <Pencil className="h-3 w-3 text-neutral-500" />
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={startEditingName}
-                    className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-emerald-300 transition-colors font-normal"
-                  >
-                    {profile?.username ?? "..."}
-                    <Pencil className="h-3 w-3 text-neutral-600" />
-                  </button>
-                )}
-              </div>
+                  ) : (
+                    <div className="h-4 w-32 rounded-full bg-white/[0.06] animate-pulse" />
+                  )}
+                </div>
+              )}
 
               {/* Matchmaking Button */}
               <button
+                type="button"
                 onClick={handleMatchmaking}
-                className="w-full group relative overflow-hidden rounded-full transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg shadow-emerald-950/30"
+                className={`w-full group relative overflow-hidden rounded-full transition-transform hover:scale-[1.01] active:scale-[0.985] shadow-[0_10px_30px_-8px_rgba(16,185,129,0.5)] ${FOCUS_RING}`}
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-300" />
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10" />
-                <div className="relative px-6 py-4 flex items-center justify-center gap-2.5">
+                <div className="relative px-6 py-3.5 flex items-center justify-center gap-2.5">
                   {isMatchMaking ? (
                     <>
-                      <Loader2 className="h-4 w-4 text-neutral-900 animate-spin" />
-                      <span className="font-display text-neutral-900 text-sm font-medium">{matchmakingStatus}</span>
+                      <Loader2 className="h-4 w-4 text-emerald-950 animate-spin" />
+                      <span className="font-display text-emerald-950 text-sm font-semibold tracking-wide">{matchmakingStatus}</span>
                     </>
                   ) : (
                     <>
-                      <Swords className="h-4 w-4 text-neutral-900" />
-                      <span className="font-display text-neutral-900 text-sm font-medium">Find Match</span>
+                      <Swords className="h-4 w-4 text-emerald-950" />
+                      <span className="font-display text-emerald-950 text-sm font-semibold tracking-wide">Find Match</span>
                     </>
                   )}
                 </div>
               </button>
 
-              {/* Stats row */}
+              {/* Lifetime record */}
               <div className="flex items-center justify-center gap-6 pt-1">
-                {[
+                {([
                   { label: "Matches", value: profile?.matchesPlayed },
                   { label: "Kills", value: profile?.totalKills },
                   { label: "K/D", value: profile?.kdRatio?.toFixed(2) },
-                ].map((stat, i) => (
+                ] as const).map((stat, i) => (
                   <React.Fragment key={stat.label}>
-                    {i > 0 && <div className="w-px h-8 bg-white/[0.08]" />}
+                    {i > 0 && <div className="w-px h-8 bg-white/[0.1]" />}
                     <div className="text-center">
-                      <p className="text-neutral-500 text-[10px] uppercase tracking-wider mb-1 font-normal">
+                      <p className="text-neutral-400 text-[10px] uppercase tracking-wider mb-1 font-normal">
                         {stat.label}
                       </p>
-                      <p className="font-display text-neutral-200 text-sm font-medium">
+                      <p className="font-display text-neutral-100 text-sm font-medium tabular-nums">
                         {stat.value ?? "—"}
                       </p>
                     </div>
@@ -413,7 +319,7 @@ export default function GameLoadoutMenu() {
             </div>
 
             {/* Bottom navigation */}
-            <div className="flex items-center justify-center gap-8 pt-7">
+            <nav className="flex items-center justify-center gap-8 pt-5">
               {[
                 { icon: Trophy, label: "Leaderboard", key: "leaderboard", locked: true },
                 { icon: Users, label: "Friends", key: "friends", locked: true },
@@ -421,40 +327,32 @@ export default function GameLoadoutMenu() {
               ].map((item) => (
                 <button
                   key={item.key}
-                  onClick={() => setActiveSection(item.key)}
-                  className="relative group flex flex-col items-center gap-2 hover:-translate-y-0.5 transition-transform"
+                  type="button"
+                  onClick={item.locked ? undefined : () => setShowSettings(true)}
+                  disabled={item.locked}
+                  title={item.locked ? `${item.label} — coming after beta` : item.label}
+                  className={`relative group flex flex-col items-center gap-1.5 transition-transform enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed rounded-xl ${FOCUS_RING}`}
                 >
-                  <div className="relative p-2.5 rounded-full bg-white/[0.03] border border-white/[0.08] group-hover:border-emerald-400/30 group-hover:bg-emerald-400/10 transition-colors">
-                    <item.icon className="h-4 w-4 text-neutral-400 group-hover:text-emerald-300 transition-colors" />
+                  <div className="relative p-2.5 rounded-full bg-white/[0.03] border border-white/[0.08] transition-colors group-enabled:group-hover:border-emerald-400/30 group-enabled:group-hover:bg-emerald-400/10 group-disabled:opacity-45">
+                    <item.icon className="h-4 w-4 text-neutral-300 transition-colors group-enabled:group-hover:text-emerald-300" />
                     {item.locked && (
-                      <Lock className="h-2 w-2 text-amber-400 absolute -top-1 -right-1 bg-neutral-900 rounded-full p-0.5" />
+                      <Lock className="h-2 w-2 text-amber-300 absolute -top-1 -right-1 bg-neutral-900 rounded-full p-0.5" />
                     )}
                   </div>
-                  <span className="text-neutral-500 text-[10px] font-normal group-hover:text-emerald-300 transition-colors tracking-wide">
+                  <span className="text-neutral-400 text-[10px] font-normal tracking-wide transition-colors group-enabled:group-hover:text-emerald-300 group-disabled:opacity-70">
                     {item.label}
                   </span>
                 </button>
               ))}
-            </div>
+            </nav>
 
             {/* Footer */}
-            <div className="text-center mt-7 text-neutral-600 text-xs font-normal">
-              <p>Beta • More features coming soon</p>
-            </div>
+            <p className="text-center mt-5 text-neutral-500 text-[11px] font-normal tracking-wide">
+              Season 1 · Open beta — Leaderboard and Friends coming soon
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <style jsx global>{`
-        @keyframes gradient {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient {
-          animation: gradient 3s ease infinite;
-        }
-      `}</style>
     </div>
   );
 }
@@ -489,18 +387,19 @@ function SettingRow({
       }`}
     >
       <div className="min-w-0">
-        <p className={`text-sm font-normal ${interactive ? "text-neutral-200" : "text-neutral-500"}`}>
+        <p className={`text-sm font-normal ${interactive ? "text-neutral-100" : "text-neutral-400"}`}>
           {label}
         </p>
-        {hint && <p className="text-[10px] text-neutral-600 font-normal mt-0.5">{hint}</p>}
+        {hint && <p className="text-[10px] text-neutral-500 font-normal mt-0.5">{hint}</p>}
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
         <button
+          type="button"
           onClick={() => onStep?.(-1)}
           disabled={!interactive}
           aria-label={`Decrease ${label}`}
-          className="p-1 rounded text-neutral-600 enabled:hover:text-emerald-300 disabled:opacity-0 transition-colors"
+          className="p-1 rounded text-neutral-400 enabled:hover:text-emerald-300 disabled:opacity-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -509,16 +408,16 @@ function SettingRow({
           <div className="border-l border-white/20 pl-3">
             <p
               className={`text-xs font-normal tabular-nums ${
-                interactive ? "text-white" : "text-neutral-500"
+                interactive ? "text-white" : "text-neutral-400"
               }`}
             >
               {value}
             </p>
           </div>
-          <div className="h-[2px] mt-1.5 ml-3 bg-white/[0.08] overflow-hidden">
+          <div className="h-[2px] mt-1.5 ml-3 bg-white/[0.1] overflow-hidden">
             <div
               className={`h-full transition-all duration-200 ${
-                interactive ? "bg-gradient-to-r from-emerald-400 to-teal-300" : "bg-neutral-600"
+                interactive ? "bg-gradient-to-r from-emerald-400 to-teal-300" : "bg-neutral-500"
               }`}
               style={{ width: `${Math.round(fill * 100)}%` }}
             />
@@ -526,10 +425,11 @@ function SettingRow({
         </div>
 
         <button
+          type="button"
           onClick={() => onStep?.(1)}
           disabled={!interactive}
           aria-label={`Increase ${label}`}
-          className="p-1 rounded text-neutral-600 enabled:hover:text-emerald-300 disabled:opacity-0 transition-colors"
+          className="p-1 rounded text-neutral-400 enabled:hover:text-emerald-300 disabled:opacity-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -556,7 +456,12 @@ function GraphicsSettingsCard({
   const fill = (level - MIN_GRAPHICS_LEVEL) / range;
 
   return (
-    <div className="bg-neutral-900/95 backdrop-blur-xl rounded-2xl border border-white/[0.08] shadow-2xl max-w-lg w-full overflow-hidden">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Graphics settings"
+      className="bg-neutral-900/95 backdrop-blur-xl rounded-2xl border border-white/[0.08] shadow-[0_24px_70px_-20px_rgba(0,0,0,0.8)] max-w-lg w-full my-auto max-h-[calc(100svh-2rem)] overflow-y-auto"
+    >
       {/* Tab bar */}
       <div className="flex items-center justify-between px-6 pt-5 border-b border-white/[0.08]">
         <div className="flex items-end">
@@ -566,17 +471,18 @@ function GraphicsSettingsCard({
           </span>
         </div>
         <button
+          type="button"
           onClick={onClose}
-          className="p-1.5 mb-2 rounded hover:bg-white/10 transition-colors"
+          className="p-1.5 mb-2 rounded hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
           aria-label="Close settings"
         >
-          <X className="h-4 w-4 text-neutral-400" />
+          <X className="h-4 w-4 text-neutral-300" />
         </button>
       </div>
 
       {/* Section header */}
       <div className="px-6 pt-6 pb-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 font-medium">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-neutral-400 font-medium">
           Details &amp; Textures
         </p>
       </div>
@@ -599,10 +505,10 @@ function GraphicsSettingsCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between px-6 py-4 border-t border-white/[0.08] bg-black/20">
-        <p className="text-[10px] text-neutral-500 font-normal">
+        <p className="text-[10px] text-neutral-400 font-normal">
           Lower quality gives higher FPS
         </p>
-        <p className="text-[10px] text-neutral-600 font-normal">
+        <p className="text-[10px] text-neutral-500 font-normal">
           Applies next match
         </p>
       </div>
@@ -653,72 +559,70 @@ function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-6 overflow-hidden">
-      <div className="absolute inset-0">
-        <div
-          className="absolute inset-0 bg-cover bg-center scale-105"
-          style={{ backgroundImage: "url('/images/background.png')" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/80" />
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
-      </div>
+    <div className="h-[100svh] relative flex items-center justify-center px-6 py-8 overflow-hidden">
+      <ArenaBackdrop />
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
         className="relative z-10 w-full max-w-sm"
       >
-        <div className="text-center mb-10">
-          <h1 className="font-display text-5xl md:text-6xl font-medium text-white mb-3 tracking-tight leading-none">
+        <div className="text-center mb-6">
+          <h1
+            className="font-display text-4xl md:text-5xl font-medium text-white mb-1.5 leading-none"
+            style={{ letterSpacing: "-0.04em" }}
+          >
             Zentra<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">.io</span>
           </h1>
-          <p className="text-neutral-400 text-sm font-normal tracking-wide">
+          <p className="text-neutral-300 text-sm font-normal tracking-wide">
             {mode === "login" ? "Sign in to play" : "Create an account"}
           </p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-[28px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)] p-7 space-y-4"
+          className="rounded-3xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] p-5 sm:p-6 space-y-4"
         >
-          <div className="rounded-2xl border border-white/[0.08] bg-black/20 focus-within:border-emerald-400/40 transition-colors px-4 py-3.5">
+          <div className="rounded-2xl border border-white/[0.08] bg-black/20 focus-within:border-emerald-400/50 transition-colors px-4 py-3">
             <input
               type="email"
               required
+              autoComplete="email"
               placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full text-sm text-white bg-transparent focus:outline-none placeholder:text-neutral-500 font-normal"
+              className="w-full text-sm text-white bg-transparent focus:outline-none placeholder:text-neutral-400 font-normal"
             />
           </div>
 
-          <div className="rounded-2xl border border-white/[0.08] bg-black/20 focus-within:border-emerald-400/40 transition-colors px-4 py-3.5">
+          <div className="rounded-2xl border border-white/[0.08] bg-black/20 focus-within:border-emerald-400/50 transition-colors px-4 py-3">
             <input
               type="password"
               required
               minLength={6}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full text-sm text-white bg-transparent focus:outline-none placeholder:text-neutral-500 font-normal"
+              className="w-full text-sm text-white bg-transparent focus:outline-none placeholder:text-neutral-400 font-normal"
             />
           </div>
 
-          {error && <p className="text-xs text-red-400 text-center font-normal">{error}</p>}
-          {info && <p className="text-xs text-emerald-300 text-center font-normal">{info}</p>}
+          {error && <p className="text-xs text-red-300 text-center font-normal" role="alert">{error}</p>}
+          {info && <p className="text-xs text-emerald-300 text-center font-normal" role="status">{info}</p>}
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full group relative overflow-hidden rounded-full transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg shadow-emerald-950/30 disabled:opacity-60"
+            className={`w-full group relative overflow-hidden rounded-full transition-transform hover:scale-[1.01] active:scale-[0.985] shadow-[0_10px_30px_-8px_rgba(16,185,129,0.5)] disabled:opacity-60 ${FOCUS_RING}`}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-300" />
             <div className="relative px-6 py-3.5 flex items-center justify-center gap-2.5">
               {submitting ? (
-                <Loader2 className="h-4 w-4 text-neutral-900 animate-spin" />
+                <Loader2 className="h-4 w-4 text-emerald-950 animate-spin" />
               ) : (
-                <span className="font-display text-neutral-900 text-sm font-medium">
+                <span className="font-display text-emerald-950 text-sm font-semibold tracking-wide">
                   {mode === "login" ? "Sign In" : "Sign Up"}
                 </span>
               )}
@@ -732,14 +636,14 @@ function AuthScreen() {
               setError(null);
               setInfo(null);
             }}
-            className="w-full text-center text-xs text-neutral-500 hover:text-emerald-300 transition-colors font-normal"
+            className={`w-full text-center text-xs text-neutral-400 hover:text-emerald-300 transition-colors font-normal rounded-full py-1 ${FOCUS_RING}`}
           >
             {mode === "login" ? "Need an account? Sign up" : "Already have an account? Sign in"}
           </button>
 
           <div className="flex items-center gap-3 pt-1">
             <div className="h-px flex-1 bg-white/[0.08]" />
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-normal">or</span>
+            <span className="text-[10px] text-neutral-400 uppercase tracking-wider font-normal">or</span>
             <div className="h-px flex-1 bg-white/[0.08]" />
           </div>
 
@@ -747,23 +651,12 @@ function AuthScreen() {
             type="button"
             onClick={handleGuest}
             disabled={guestLoading}
-            className="w-full rounded-full border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] transition-colors py-3 text-xs font-normal text-neutral-300 tracking-wide disabled:opacity-60"
+            className={`w-full rounded-full border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] transition-colors py-3 text-xs font-normal text-neutral-200 tracking-wide disabled:opacity-60 ${FOCUS_RING}`}
           >
-            {guestLoading ? "Starting..." : "Continue as Guest"}
+            {guestLoading ? "Starting…" : "Continue as Guest"}
           </button>
         </form>
       </motion.div>
-
-      <style jsx global>{`
-        @keyframes gradient {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient {
-          animation: gradient 3s ease infinite;
-        }
-      `}</style>
     </div>
   );
 }
@@ -791,19 +684,19 @@ function LobbyPanel({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.25 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="relative z-10 w-full max-w-lg"
     >
-      <div className="rounded-[28px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)] p-7">
-        <div className="text-center mb-6">
-          <p className="text-neutral-500 text-[10px] uppercase tracking-[0.3em] mb-1.5 font-normal">Lobby</p>
-          <h2 className="font-display text-2xl font-medium text-white flex items-center justify-center gap-2">
+      <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] p-5 sm:p-6">
+        <div className="text-center mb-5">
+          <p className="text-neutral-400 text-[10px] uppercase tracking-[0.3em] mb-1.5 font-normal">Lobby</p>
+          <h2 className="font-display text-2xl font-medium text-white flex items-center justify-center gap-2" style={{ letterSpacing: "-0.02em" }}>
             {isFull ? (
               <span className="text-emerald-300">{status}</span>
             ) : (
               <>
                 Waiting for players
-                <span className="inline-flex gap-1">
+                <span className="inline-flex gap-1" aria-hidden="true">
                   <span className="w-1.5 h-1.5 bg-emerald-300 rounded-full animate-dot-bounce" style={{ animationDelay: "0ms" }} />
                   <span className="w-1.5 h-1.5 bg-emerald-300 rounded-full animate-dot-bounce" style={{ animationDelay: "150ms" }} />
                   <span className="w-1.5 h-1.5 bg-emerald-300 rounded-full animate-dot-bounce" style={{ animationDelay: "300ms" }} />
@@ -814,9 +707,9 @@ function LobbyPanel({
         </div>
 
         {/* Progress */}
-        <div className="mb-7">
+        <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-normal">Players</span>
+            <span className="text-[10px] text-neutral-400 uppercase tracking-wider font-normal">Players</span>
             <span className="font-display text-sm font-medium text-white tabular-nums">{filled}/{matchSize}</span>
           </div>
           <div className="h-1.5 rounded-full bg-black/30 border border-white/[0.08] overflow-hidden">
@@ -829,7 +722,7 @@ function LobbyPanel({
         </div>
 
         {/* Player slots */}
-        <div className="grid grid-cols-5 gap-2.5 mb-7">
+        <div className="grid grid-cols-5 gap-2.5 mb-5">
           {slots.map((_, i) => {
             const player = players[i];
             return (
@@ -854,7 +747,7 @@ function LobbyPanel({
                     )}
                   </AnimatePresence>
                 </div>
-                <span className="text-[9px] text-neutral-500 max-w-[44px] truncate font-normal">
+                <span className="text-[9px] text-neutral-400 max-w-[44px] truncate font-normal">
                   {player ? player.username : "Open"}
                 </span>
               </div>
@@ -863,7 +756,7 @@ function LobbyPanel({
         </div>
 
         {/* Recent join feed */}
-        <div className="mb-7 h-6 overflow-hidden text-center">
+        <div className="mb-4 h-6 overflow-hidden text-center" aria-live="polite">
           <AnimatePresence mode="popLayout">
             {players.length > 0 && (
               <motion.p
@@ -872,7 +765,7 @@ function LobbyPanel({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.3 }}
-                className="text-xs text-neutral-400 font-normal"
+                className="text-xs text-neutral-300 font-normal"
               >
                 <span className="font-medium text-emerald-300">
                   {players[players.length - 1]?.username}
@@ -884,17 +777,18 @@ function LobbyPanel({
         </div>
 
         {/* Loading tip */}
-        <div className="mb-7 text-center">
-          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-1.5 font-normal">Tip</p>
-          <p className="text-xs text-neutral-400 font-normal">{tip}</p>
+        <div className="mb-6 text-center">
+          <p className="text-[10px] text-neutral-400 uppercase tracking-[0.2em] mb-1.5 font-normal">Tip</p>
+          <p className="text-xs text-neutral-300 font-normal">{tip}</p>
         </div>
 
         <button
+          type="button"
           onClick={onCancel}
           disabled={isFull}
-          className="w-full rounded-full border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors py-3 text-xs font-normal text-neutral-300 tracking-wide"
+          className={`w-full rounded-full border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors py-3 text-xs font-normal text-neutral-200 tracking-wide ${FOCUS_RING}`}
         >
-          {isFull ? "Launching..." : "Cancel"}
+          {isFull ? "Launching…" : "Cancel"}
         </button>
       </div>
     </motion.div>

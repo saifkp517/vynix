@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { ObjectLoader, MaterialLoader } from 'three';
 import * as THREE from 'three';
-import socket from '@/lib/socket';
 import { useFrame } from '@react-three/fiber';
 
 import type { Vegetation } from '@/app/types/types';

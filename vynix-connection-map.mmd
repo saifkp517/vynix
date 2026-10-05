@@ -1,0 +1,127 @@
+flowchart TD
+
+%% ============================ CLIENT ============================
+subgraph CLIENT["🖥️ Client — Next.js + React Three Fiber"]
+  direction TB
+  AUTH["Sign in\n(Supabase)"]
+  SOCK["Open socket\nwith login token"]
+  LOOP["Game loop\n(read input, render frame)"]
+  SEND["Send player actions\n(move, shoot, ability,\nchat, find match)"]
+  RECV["Apply server updates\n(positions, hits, room state)\nto local scene"]
+  FETCH["Fetch profile & stats\n(with login token)"]
+  AUTH --> SOCK
+  LOOP --> SEND
+  RECV --> LOOP
+  AUTH --> FETCH
+end
+
+CONN(["Live game connection\n(one socket, stays open)"])
+SOCK --> CONN
+SEND --> CONN
+CONN --> RECV
+
+%% ============================ GATEWAY ============================
+subgraph GW["🖧 Server — real-time game logic"]
+  direction TB
+
+  subgraph H0["① New connection"]
+    direction TB
+    T0["1. Check login token"]
+    V0["2. Verify with Supabase"]
+    P0["3. Load or create\nplayer profile"]
+    S0["4. Mark player online"]
+    T0 -->|"no token"| REJECT0["Disconnect"]
+    T0 --> V0
+    V0 -->|"invalid"| REJECT0
+    V0 -->|"valid"| P0 --> S0
+  end
+
+  subgraph H1["② Find a match"]
+    direction TB
+    SEARCH["1. Searching for match..."]
+    MM["2. Look for an open room"]
+    POOL["3a. Wait in queue"]
+    CREATE["3b. Create a new room"]
+    BOTS["4. Fill empty slots\nwith bots"]
+    REGEN["5. Start health\nregen for room"]
+    START["6. Start match\n(10 minute timer)"]
+    ENROLL["7. Place player in room\n& pick spawn point"]
+    SEARCH --> MM
+    MM -->|"room found"| ENROLL
+    MM -->|"none open"| POOL --> CREATE --> BOTS --> REGEN --> START
+    CREATE --> ENROLL
+  end
+
+  subgraph H2["③ Player moves"]
+    direction TB
+    MOVE["1. Update position"]
+    EMITMOVE["2. Tell nearby players"]
+    MOVE --> EMITMOVE
+  end
+
+  subgraph H3["④ Player shoots"]
+    direction TB
+    SHOT["1. Fire shot"]
+    REWIND["2. Rewind target's position\n(lag compensation)"]
+    CAPSULE["3. Did the shot\nactually hit?"]
+    OCCL["4. Was the line of sight\nblocked by terrain/trees?"]
+    INVINC["5. Is the target\nshielded?"]
+    DMG["6. Apply damage"]
+    KILL["7. Health hits zero →\nkill & respawn"]
+    SHOT --> REWIND --> CAPSULE --> OCCL --> INVINC --> DMG --> KILL
+  end
+
+  H4["⑤ Ability use, chat,\nping — same pattern"]
+
+  subgraph H5["⑥ Match ends"]
+    direction TB
+    READ["1. Collect final scores"]
+    STOP["2. Stop bots & regen"]
+    REC["3. Save stats\nto player profiles"]
+    WIPE["4. Clear the room"]
+    READ --> STOP --> REC --> WIPE
+  end
+
+  H0 ~~~ H1 ~~~ H2 ~~~ H3 ~~~ H4 ~~~ H5
+end
+
+CONN -->|"move, shoot, chat,\nfind match ..."| GW
+GW -->|"match started, player moved,\nyou got hit, someone died ..."| CONN
+
+%% ============================ REST ============================
+subgraph REST["🌐 Server — profile & stats API"]
+  direction TB
+  RC1["How many players\nare online"]
+  RC2["Get / update\nplayer profile"]
+  RC3["Tree placement data\n(client-only, no server)"]
+end
+FETCH --> RC1
+FETCH --> RC2
+
+%% ============================ DATA STORES ============================
+subgraph STORES["🗄️ Where things are stored"]
+  direction TB
+  REDIS[("REDIS\nLive match state\n(cleared when match ends)")]
+  PG[("POSTGRES\nPlayer stats\n(kills, deaths, matches — permanent)")]
+  MEM[("IN-MEMORY (server RAM)\nWorking memory\n(who's near whom, bot behavior)")]
+  SUPA[("SUPABASE\nLogin accounts")]
+  POSJSON[("STATIC FILE (POS.json)\nTree map\n(where trees are placed)")]
+end
+
+V0 -.-> SUPA
+P0 --> PG
+CREATE --> REDIS
+BOTS --> REDIS
+START --> REDIS
+ENROLL --> REDIS
+ENROLL --> MEM
+MOVE --> REDIS
+MOVE --> MEM
+REWIND --> MEM
+OCCL --> POSJSON
+DMG --> REDIS
+KILL --> REDIS
+READ --> REDIS
+REC --> PG
+WIPE -.->|"clears"| REDIS
+RC2 --> PG

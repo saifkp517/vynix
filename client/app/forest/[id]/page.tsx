@@ -4,13 +4,15 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber';
 import { Vector3, Mesh, SRGBColorSpace, AudioListener } from 'three';
 import { PointerLockControls, Stats } from '@react-three/drei';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 
 import type { Vegetation } from '../../types/types';
 
 
 import { useWhyDidYouUpdate } from '@/lib/utils';
 import socket from '@/lib/socket';
+import { useRoomStore } from '@/hooks/useRoomStore';
+import { useArenaSocket } from '@/hooks/useArenaSocket';
 
 
 import Player from '@/components/game-components/player/TPP';
@@ -40,16 +42,12 @@ interface ComponentStatus {
 const Game: React.FC = () => {
   // Refs
   const obstacles = useRef<Mesh[]>([]);
-  const isPlayerDead = useRef(false);
-  const killerIdRef = useRef<string | null>(null);
   const playerDataRef = useRef<{ [playerId: string]: { user: any; position: Vector3; velocity: Vector3; cameraDirection: Vector3 } }>({});
   const playerCenterRef = useRef<Vector3>(new Vector3());
   const cameraDirectionRef = useRef<Vector3>(new Vector3(0, 0, 1));
-  const pingRef = useRef(0);
-  const smoothnessRef = useRef(0);
   const grenadeCoolDownRef = useRef(false);
   const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const crosshairRef = useRef(null);
+  const crosshairRef = useRef<{ triggerHit: (damage?: number) => void } | null>(null);
   const controlsRef = useRef<any>(null);
   const listenerRef = useRef<AudioListener>(new AudioListener());
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -60,23 +58,65 @@ const Game: React.FC = () => {
   const vegetationPositionsRef = useRef<Vegetation[] | undefined>(undefined);
 
   // State
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [localPlayerId, setLocalPlayerId] = useState<string>('');
   const [loadedComponents, setLoadedComponents] = useState<Map<string, string>>(new Map());
   const [vegetationPositions, setVegetationPositions] = useState<Vegetation[] | undefined>(undefined);
   const [spawnPoint, setSpawnPoint] = useState<Vector3>();
-  const [gameOver, setGameOver] = useState(false);
-
 
   // Constants
   const RESOLUTION_SCALE = 1.0;
   const FOV = 105;
-  const PING_CHECK_INTERVAL = 1000;
-  const RESPAWN_TIMEOUT = 5000;
   const TOAST_TIMEOUT = 3000;
 
   const params = useParams<{ tag: string; id: string }>();
-  const router = useRouter();
+
+  // roomId is just the route — no need to wait for the socket to learn it.
+  const roomId = params.id;
+  const setRoomId = useRoomStore((s) => s.setRoomId);
+
+  // Defined ahead of useArenaSocket below — the hook fires it directly as
+  // onKillCredited when the local player gets a kill.
+  const showKillToast = useCallback((name: string) => {
+    const id = toastIdRef.current++;
+    killStreakRef.current++;
+    killFeedRef.current.push({ id, name, streak: killStreakRef.current });
+    listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
+    setTimeout(() => {
+      killFeedRef.current = killFeedRef.current.filter(item => item.id !== id);
+      listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
+    }, TOAST_TIMEOUT);
+  }, []);
+
+  // Owns the server → client socket conversation for the match (see hooks/useArenaSocket.ts).
+  const {
+    hitTriggerRef,
+    pingRef,
+    smoothnessRef,
+    isPlayerDeadRef: isPlayerDead,
+    killerIdRef,
+    gameOver,
+    remotePlayerIds,
+    remotePlayerUsernamesRef,
+    remoteSnapshotRef,
+    remoteShootEvent,
+    remoteDeathEvent,
+    remoteHitEvent,
+    remoteAbilityEvent,
+    remoteHealthEvent,
+    setRemoteWalkAudioRef,
+    setRemoteShootAudioRef,
+  } = useArenaSocket({
+    onLocalDeath: () => { killStreakRef.current = 0; },
+    playerDataRef,
+    crosshairRef,
+    onKillCredited: showKillToast,
+  });
+
+  // Publish roomId to the store so lib/arenaEmit can read it without it being
+  // prop-drilled through the scene.
+  useEffect(() => {
+    setRoomId(roomId ?? '');
+    return () => setRoomId('');
+  }, [roomId, setRoomId]);
 
   // Handlers
   const handleComponentStatusChange = useCallback((componentName: string, status: ComponentStatus['status'], details?: ComponentStatus['details']) => {
@@ -94,31 +134,6 @@ const Game: React.FC = () => {
   const handlePlayerCenterUpdate = useCallback((center: Vector3, cameraDirection: Vector3) => {
     playerCenterRef.current = center.clone();
     cameraDirectionRef.current = cameraDirection.clone();
-  }, []);
-
-  const showKillToast = useCallback((name: string) => {
-    const id = toastIdRef.current++;
-    killStreakRef.current++;
-    killFeedRef.current.push({ id, name, streak: killStreakRef.current });
-    listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
-    setTimeout(() => {
-      killFeedRef.current = killFeedRef.current.filter(item => item.id !== id);
-      listenersRef.current.forEach(cb => cb([...killFeedRef.current]));
-    }, TOAST_TIMEOUT);
-  }, []);
-
-  const calculatePing = useCallback(() => {
-    const startTime = Date.now();
-    socket.emit('ping-check', startTime);
-    socket.on('pong-check', (clientTime: number) => {
-      const pingValue = Date.now() - clientTime;
-      pingRef.current = pingValue;
-      const maxPing = 500;
-      const minFactor = 0.5;
-      const maxFactor = 10;
-      const clampedPing = Math.min(Math.max(pingValue, 0), maxPing);
-      smoothnessRef.current = maxFactor - (clampedPing / maxPing) * (maxFactor - minFactor);
-    });
   }, []);
 
   const addObstacleRef = useCallback((ref: Mesh | null) => {
@@ -150,72 +165,6 @@ const Game: React.FC = () => {
         setVegetationPositions(data);
         vegetationPositionsRef.current = data;
       });
-  }, []);
-
-  useEffect(() => {
-    const hasJoinedRoom = { current: false };
-
-    const handleConnect = async () => {
-      if (!hasJoinedRoom.current) {
-        hasJoinedRoom.current = true;
-        setRoomId(params.id);
-        setLocalPlayerId(socket.id || '124');
-      }
-    };
-
-    const handleYouDied = () => {
-      isPlayerDead.current = true;
-      killStreakRef.current = 0;
-      setTimeout(() => {
-        isPlayerDead.current = false;
-        killerIdRef.current = null;
-      }, RESPAWN_TIMEOUT);
-    }
-
-    // Broadcast to the whole room — only capture the killer when we're the
-    // victim. killerSocketId feeds the killcam (see KillCam component).
-    const handlePlayerDead = ({ killerSocketId, victimSocketId }: { killerSocketId: string; victimSocketId: string }) => {
-      if (victimSocketId === socket.id) {
-        killerIdRef.current = killerSocketId;
-      }
-    }
-
-    const handleGameOver = () => {
-      setGameOver(true);
-      stopAllSounds();
-      setTimeout(() => {
-        socket.disconnect();
-        router.push('/');
-      }, 5000);
-    }
-
-    socket.on('connect', handleConnect);
-    socket.on('youDied', handleYouDied);
-    socket.on('playerDead', handlePlayerDead);
-    socket.on('gameOver', handleGameOver);
-
-    if (socket.connected) {
-      handleConnect();
-    }
-
-
-
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('youDied', handleYouDied);
-      socket.off('playerDead', handlePlayerDead);
-      socket.off('gameOver', handleGameOver);
-      socket.off('pong-check');
-    };
-  }, [params.id]);
-
-  useEffect(() => {
-    const interval = setInterval(calculatePing, PING_CHECK_INTERVAL);
-    return () => clearInterval(interval);
-  }, [calculatePing]);
-
-  useEffect(() => {
-    obstacles.current = [];
   }, []);
 
   // Covers leaving the game by any path other than the handleGameOver flow
@@ -312,17 +261,14 @@ const Game: React.FC = () => {
           playerDeadRef={isPlayerDead}
           playerCenterRef={playerCenterRef}
           controlsRef={controlsRef}
-          crosshairRef={crosshairRef}
-          userId={localPlayerId}
           grenadeCoolDownRef={grenadeCoolDownRef}
-          roomId={roomId}
           pingRef={pingRef}
           getGroundHeight={getGroundHeight}
         />
       );
     };
     return React.memo(Component);
-  }, [handlePlayerCenterUpdate, localPlayerId]);
+  }, [handlePlayerCenterUpdate, roomId]);
   //
 
   const graphicsLevel = useMemo(() => getGraphicsLevel(), []);
@@ -339,7 +285,6 @@ const Game: React.FC = () => {
     grassCount,
   }), [addObstacleRef, removeObstacleRef, handleComponentStatusChange, handleAllComponentsLoaded, vegetationPositions, grassCount]);
 
-  console.log(groundProps)
 
   // Calculated Values
   const canvasWidth = Math.floor(window.innerWidth * RESOLUTION_SCALE);
@@ -347,8 +292,6 @@ const Game: React.FC = () => {
   const scaleTransform = 1 / RESOLUTION_SCALE;
   const isReady = roomId && Array.isArray(vegetationPositions) && vegetationPositions.length > 0;
   const isGroundLoaded = loadedComponents.get('Ground') === 'loaded';
-
-  useWhyDidYouUpdate('Game', { roomId, localPlayerId, vegetationPositions });
 
   return (
     <div className="w-full h-screen relative flex justify-center items-center" style={{ overflow: 'hidden' }}>
@@ -362,14 +305,12 @@ const Game: React.FC = () => {
         <>
           {process.env.NODE_ENV !== 'production' && <Stats />}
           <GameInfo
-            roomId={roomId}
             grenadeCoolDownRef={grenadeCoolDownRef}
             playerCenterRef={playerCenterRef}
             cameraDirectionRef={cameraDirectionRef}
             playerDataRef={playerDataRef}
             controlsRef={controlsRef}
             crosshairRef={crosshairRef}
-            userid={localPlayerId}
             bulletsAvailable={30}
             explosionTimeout={3000}
             kills={0}
@@ -407,9 +348,18 @@ const Game: React.FC = () => {
                   <RemoteOpponents
                     smoothnessRef={smoothnessRef}
                     playerDataRef={playerDataRef}
-                    showKillToast={showKillToast}
                     listenerRef={listenerRef}
                     playerCenterRef={playerCenterRef}
+                    playerIds={remotePlayerIds}
+                    playerUsernamesRef={remotePlayerUsernamesRef}
+                    snapshotRef={remoteSnapshotRef}
+                    shootEvent={remoteShootEvent}
+                    deathEvent={remoteDeathEvent}
+                    hitEvent={remoteHitEvent}
+                    abilityEvent={remoteAbilityEvent}
+                    healthEvent={remoteHealthEvent}
+                    setAudioRef={setRemoteWalkAudioRef}
+                    setShootAudioRef={setRemoteShootAudioRef}
                   />
                   <KillCam
                     isPlayerDead={isPlayerDead}
@@ -417,7 +367,7 @@ const Game: React.FC = () => {
                     playerDataRef={playerDataRef}
                     controlsRef={controlsRef}
                   />
-                  <HitImpact playerCenterRef={playerCenterRef} />
+                  <HitImpact playerCenterRef={playerCenterRef} hitTriggerRef={hitTriggerRef} />
                 </Ground>
               </Canvas>
             </div>
