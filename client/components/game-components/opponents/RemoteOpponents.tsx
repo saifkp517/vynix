@@ -47,6 +47,7 @@ const RemoteOpponents: React.FC<Props> = ({
   const deathEventEmitter = useRef(new EventEmitter());
   const hitEventEmitter = useRef(new EventEmitter());
   const abilityEventEmitter = useRef(new EventEmitter());
+  const healthEventEmitter = useRef(new EventEmitter());
   const walkingAudioRefs = useRef<Record<string, PositionalAudio>>({});
   const shootingAudioRefs = useRef<Record<string, PositionalAudio>>({});
 
@@ -171,6 +172,17 @@ const RemoteOpponents: React.FC<Props> = ({
       hitEventEmitter.current.emit('playerHitReaction', { id: payload.targetId });
     };
 
+    // Roomwide health sync (hits + regen ticks) — drives every opponent's
+    // floating health bar, independent of the targeted 'hit'/'healthRegen'
+    // events that drive the local player's own HUD.
+    const handlePlayerHealthChanged = (payload: { id: string; health: number }) => {
+      healthEventEmitter.current.emit('healthChanged', payload);
+    };
+
+    const handlePlayerRespawned = (payload: { id: string; health: number }) => {
+      healthEventEmitter.current.emit('healthChanged', { id: payload.id, health: payload.health });
+    };
+
     const handleAbilityActivated = (payload: { id: string; invincibleUntil: number }) => {
       abilityEventEmitter.current.emit('abilityActivated', payload);
     };
@@ -200,6 +212,8 @@ const RemoteOpponents: React.FC<Props> = ({
     socket.on('playerWalking', handlePlayerWalking);
     socket.on('playerStopped', handlePlayerStopped);
     socket.on('abilityActivated', handleAbilityActivated);
+    socket.on('playerHealthChanged', handlePlayerHealthChanged);
+    socket.on('playerRespawned', handlePlayerRespawned);
 
     return () => {
       socket.off('playerMoved', handlePlayerMoved);
@@ -210,6 +224,8 @@ const RemoteOpponents: React.FC<Props> = ({
       socket.off('playerWalking', handlePlayerWalking);
       socket.off('playerStopped', handlePlayerStopped);
       socket.off('abilityActivated', handleAbilityActivated);
+      socket.off('playerHealthChanged', handlePlayerHealthChanged);
+      socket.off('playerRespawned', handlePlayerRespawned);
     };
   }, [addPlayer, removePlayer, playerDataRef, showKillToast]);
 
@@ -242,6 +258,7 @@ const RemoteOpponents: React.FC<Props> = ({
             deathEvent={deathEventEmitter.current}
             hitEvent={hitEventEmitter.current}
             abilityEvent={abilityEventEmitter.current}
+            healthEvent={healthEventEmitter.current}
             userId={id}
             username={playerUsernamesRef.current[id] ?? ''}
             smoothnessRef={smoothnessRef}

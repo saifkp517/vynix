@@ -11,6 +11,13 @@ import { DeathExplosion } from "./DeathExplosion"
 
 
 const RED = new Color("red");
+// Same thresholds as GameInfo's own HUD health bar (getHealthBarColor) —
+// keep the two in sync if the thresholds ever change.
+const getHealthBarColor = (health: number) => {
+  if (health > 60) return "#34d399"; // emerald-400
+  if (health > 30) return "#facc15"; // yellow-400
+  return "#f87171"; // red-400
+};
 const MOVEMENT_THRESHOLD = 0.001; // Minimum speed to consider as moving
 // How hard we pull the dead-reckoned position back toward the server's
 // authoritative position each second. Motion itself is driven by
@@ -39,6 +46,7 @@ export const Opponent = ({
   deathEvent,
   hitEvent,
   abilityEvent,
+  healthEvent,
   userId,
   username,
   listener,
@@ -55,6 +63,7 @@ export const Opponent = ({
   deathEvent: EventEmitter;
   hitEvent: EventEmitter;
   abilityEvent: EventEmitter;
+  healthEvent: EventEmitter;
   userId: string;
   username: string;
   listener: AudioListener | undefined;
@@ -73,6 +82,9 @@ export const Opponent = ({
   const [visible, setVisible] = useState(true);
   const [dead, setDead] = useState(false);
   const [invincible, setInvincible] = useState(false);
+  // Defaults to full — matches spawn health, and a fresh mount is exactly
+  // what happens on respawn (see removePlayer/addPlayer in RemoteOpponents).
+  const [health, setHealth] = useState(100);
   const invincibleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Shield glow: lets everyone else see this player popped invincibility,
@@ -119,6 +131,20 @@ export const Opponent = ({
       deathEvent.off("playDeathAnimation", handleDeath);
     };
   }, [deathEvent, userId]);
+
+  // Keeps the floating health bar in sync with the server's authoritative
+  // health for this player (see CombatService's roomwide 'playerHealthChanged').
+  useEffect(() => {
+    const handleHealthChanged = (payload: { id: string; health: number }) => {
+      if (payload.id !== userId) return;
+      setHealth(payload.health);
+    };
+
+    healthEvent.on('healthChanged', handleHealthChanged);
+    return () => {
+      healthEvent.off('healthChanged', handleHealthChanged);
+    };
+  }, [healthEvent, userId]);
 
   // flash the sphere white when a bullet actually lands on this opponent
   const hitFlashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -278,13 +304,34 @@ export const Opponent = ({
           center
           distanceFactor={50}
           style={{
-            background: "",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
             padding: "2px 6px",
             borderRadius: "4px",
             color: "white",
             fontSize: "12px",
           }}
         >
+          <div
+            style={{
+              width: "48px",
+              height: "5px",
+              borderRadius: "999px",
+              background: "rgba(255,255,255,0.15)",
+              overflow: "hidden",
+              marginBottom: "3px",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${Math.max(0, Math.min(100, health))}%`,
+                background: getHealthBarColor(health),
+                transition: "width 150ms, background-color 150ms",
+              }}
+            />
+          </div>
           {username.startsWith("Guest") ? username.slice(0, 10) : username}
         </Html>
       )}

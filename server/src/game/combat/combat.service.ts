@@ -64,13 +64,15 @@ const SHOT_REWIND_MS = 500; // TEMP: zeroed to rule out lag-compensation as the 
 // Regen: once a real player has gone this long without taking a hit, heal
 // them 1hp/100ms (10hp/sec) until back to full health, so it reads as a
 // smooth climb rather than a stepped one. Reset by any hit (see `lastHitAt`
-// stamp in handleShoot). Each tick is a targeted per-player emit (server.to
-// a single socket, ~40-byte payload) that stops firing entirely once a
-// player is at full health, so cost is bounded by how many real players are
-// actively mid-heal at once, not room size — but at 10 emits/sec per healer
-// this is the priciest per-player event in the codebase; if that ever
-// matters (many concurrent healers), switch to one `healthRegenStart` event
-// + client-side local tween instead of ticking the network every 100ms.
+// stamp in handleShoot). Each tick emits twice: a targeted `healthRegen`
+// (server.to a single socket, drives that player's own HUD) plus a roomwide
+// `playerHealthChanged` (drives everyone else's health-bar overlay for that
+// player). Cost is bounded by how many real players are actively mid-heal
+// at once, not room size — but at 10 ticks/sec per healer, each now fanned
+// out to every socket in the room, this is the priciest event in the
+// codebase; if that ever matters (many concurrent healers), switch to one
+// `healthRegenStart` event + client-side local tween instead of ticking the
+// network every 100ms.
 const REGEN_IDLE_MS = 10_000;
 const REGEN_TICK_MS = 100;
 const REGEN_AMOUNT = 1;
@@ -134,6 +136,9 @@ export class CombatService {
       );
 
       server.to(playerId).emit('healthRegen', { id: playerId, health: newHealth });
+      // Roomwide copy so everyone's health-bar overlay for this player
+      // ticks up too, not just their own HUD.
+      server.to(roomId).emit('playerHealthChanged', { id: playerId, health: newHealth });
     }
   }
 
@@ -354,6 +359,9 @@ export class CombatService {
       // toward server snapshots instead of purely dead-reckoned.
       server.to(playerId).emit('hit', { rayOrigin, health: newHealth });
       server.to(roomId).emit('playerHitReaction', { targetId: playerId });
+      // Roomwide so everyone's health-bar overlay for this player stays in
+      // sync — the targeted 'hit' above only reaches the victim themselves.
+      server.to(roomId).emit('playerHealthChanged', { id: playerId, health: newHealth });
       // Confirms the shot to the shooter — drives the crosshair hit-marker,
       // replacing the old client-side speculative prediction.
       server.to(shooter.id).emit('youHit', { targetId: playerId });
@@ -493,6 +501,7 @@ export class CombatService {
         server.to(roomId).emit('playerRespawned', {
           id: playerId,
           position: newPos,
+          health: MAX_HEALTH,
         });
       } catch (err) {
         console.error(`[Combat] Respawn failed for ${playerId}:`, err);
