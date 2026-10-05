@@ -1,11 +1,13 @@
+// Terrain + drifting forest mesh. forestTarget comes from useRoomStore
+// (written by useArenaSocket's 'updateForest' handler); no socket import.
 import { useThree, useLoader, useFrame } from "@react-three/fiber";
 import { createNoise2D } from 'simplex-noise';
 import React, { Suspense, createContext, useContext, memo } from "react";
-import { useEffect, useMemo, useRef, forwardRef, useState } from "react";
+import { useEffect, useMemo, useRef, forwardRef } from "react";
 import * as THREE from "three";
 import { TextureLoader } from "three";
-import socket from "@/lib/socket";
 import { Forest } from "../forest/ForestGenerator";
+import { useRoomStore } from "@/hooks/useRoomStore";
 import { Sky } from "@react-three/drei";
 import { Mountains } from "../elements/Mountains";
 import { RainEffect } from "../elements/Rain";
@@ -305,29 +307,13 @@ const GroundBase = forwardRef<THREE.Mesh, GroundProps>(({
   const { scene } = useThree();
   const geometryRef = useRef<THREE.PlaneGeometry>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
-  const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
+  // Server-pushed via 'updateForest'; useArenaSocket writes it into the store.
+  const targetPosition = useRoomStore((s) => s.forestTarget);
   const initializedRef = useRef(false);
 
   // Main component logging
   const { markLoaded } = useComponentLogger('Ground');
 
-
-  // Socket setup with logging
-  useEffect(() => {
-    logger.logStatus('Socket Connection', 'loading');
-
-    socket.on('updateForest', ({ id, position }) => {
-      setTargetPosition([position.x, position.y, position.z]);
-      logger.logStatus('Socket Connection', 'loaded');
-    });
-
-    return () => {
-      socket.off("updateForest", ({ id, position }: any) => {
-        setTargetPosition([position.x, position.y, position.z]);
-      });
-      logger.logStatus('Socket Connection', 'unloaded');
-    };
-  }, []);
 
   // Roughness variation with logging
   const roughnessVariation = useMemo(() => {

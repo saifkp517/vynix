@@ -1,8 +1,9 @@
-import React, { RefObject, useEffect, useState } from 'react';
+// Player list + kill feed panel. Reads useRoomStore; no socket import —
+// playerJoined/playerDead are populated by useArenaSocket.
+import React, { RefObject, useEffect } from 'react';
 import { Users, X, Skull } from 'lucide-react';
 import { Vector3 } from 'three';
 
-import socket from '@/lib/socket';
 import { useRoomStore } from '@/hooks/useRoomStore';
 
 interface ScoreboardProps {
@@ -27,15 +28,6 @@ interface Player {
   health: number;
 }
 
-interface KillFeedItem {
-  id: string;
-  killerId: string;
-  victimId: string;
-  killerName: string;
-  victimName: string;
-  timestamp: number;
-}
-
 const Scoreboard: React.FC<ScoreboardProps> = ({
   roomId,
   currentUserId,
@@ -43,7 +35,7 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
   onToggle,
   onClose,
 }) => {
-  const [killFeed, setKillFeed] = useState<KillFeedItem[]>([]);
+  const killFeed = useRoomStore((s) => s.killFeed);
 
   const handleToggle = () => {
     onToggle();
@@ -53,57 +45,14 @@ const Scoreboard: React.FC<ScoreboardProps> = ({
     onClose();
   };
 
-  // ========== handle recieve socket events ============
-
-  useEffect(() => {
-
-    const updateScoreboard = (killerId: string, victimId: string) => {
-      useRoomStore.getState().updatePlayer(killerId, { kills: (useRoomStore.getState().getPlayer(killerId)?.kills || 0) + 1 });
-      useRoomStore.getState().updatePlayer(victimId, { deaths: (useRoomStore.getState().getPlayer(victimId)?.deaths || 0) + 1 });
-    }
-
-    socket.on('playerDead', ({ killerSocketId, victimSocketId, killerName, victimName }) => {
-      console.log(`player ${killerName} killed ${victimName}`);
-
-      // Add to kill feed
-      const newKillFeedItem: KillFeedItem = {
-        id: `${killerName}-${victimName}-${Date.now()}`,
-        killerId: killerSocketId,
-        victimId: victimSocketId,
-        killerName,
-        victimName,
-        timestamp: Date.now()
-      };
-
-      setKillFeed(prev => {
-        const updated = [newKillFeedItem, ...prev];
-        // Keep only the last 8 kills
-        return updated.slice(0, 8);
-      });
-
-      updateScoreboard(killerSocketId, victimSocketId);
-    });
-
-    socket.on('playerJoined', (player: any) => {
-      console.log("player joined");
-      useRoomStore.getState().addPlayers([player]);
-    });
-
-    return () => {
-
-      socket.off('playerJoined', (player: any) => {
-        useRoomStore.getState().addPlayers([player]);
-      });
-
-      socket.off('playerDead');
-    };
-  }, [socket]);
+  // ========== kill feed housekeeping ============
+  // playerJoined and playerDead (kills/deaths + feed entry) are populated by
+  // useArenaSocket, into useRoomStore; this component just reads from there.
 
   // Auto-remove old kill feed items after 10 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      const now = Date.now();
-      setKillFeed(prev => prev.filter(item => now - item.timestamp < 10000));
+      useRoomStore.getState().pruneKillFeed(10000);
     }, 1000);
 
     return () => clearInterval(interval);

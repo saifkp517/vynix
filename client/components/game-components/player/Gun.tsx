@@ -1,3 +1,6 @@
+// Outbound socket messages go through lib/arenaEmit.ts. The 'youHit' inbound
+// listener that used to live here now ticks crosshairRef directly from
+// useArenaSocket — this file no longer touches the socket.
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -7,29 +10,25 @@ import { Raycaster, Vector3, Mesh, Group } from 'three';
 import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { usePlayerInput } from '@/hooks/usePlayerInput';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
-import socket from '@/lib/socket';
+import { emitShoot } from '@/lib/arenaEmit';
 import { playSound } from '@/lib/sound';
 
 
 interface GunProps {
-  roomId: string;
   camera: THREE.Camera;
   obstacles: any;
   playerCenterRef: React.RefObject<THREE.Vector3>;
   getGroundHeight: (x: number, z: number) => number;
   otherPlayers: React.RefObject<Record<string, { position: THREE.Vector3 }>>;
-  crosshairRef: React.RefObject<{ triggerHit: () => void }>;
   playerDeadRef?: React.RefObject<boolean>;
 }
 
 const Gun: React.FC<GunProps> = ({
-  roomId,
   camera,
   obstacles,
   playerCenterRef,
   getGroundHeight,
   otherPlayers,
-  crosshairRef,
   playerDeadRef,
 }) => {
   const userId = usePlayerStore((s) => s.socketId);
@@ -85,19 +84,6 @@ const Gun: React.FC<GunProps> = ({
   const isTriggerHeld = useRef(false);
   const lastFireTime = useRef(0);
   const fireRateMs = 120;
-
-  // Crosshair hit-marker is server-authoritative: only fires once the
-  // server confirms the aim ray actually connected, not on local prediction.
-  useEffect(() => {
-    const handleYouHit = () => {
-      crosshairRef.current?.triggerHit();
-    };
-    socket.on('youHit', handleYouHit);
-    return () => {
-      socket.off('youHit', handleYouHit);
-    };
-  }, [crosshairRef]);
-
 
   //get live barrel position
   const getBarrelWorldPos = () => {
@@ -337,7 +323,7 @@ const Gun: React.FC<GunProps> = ({
       createImpactParticles(hitPoint, worldNormal);
     }
 
-    socket.emit('shoot', { userId, shootObject, roomId });
+    emitShoot(userId, shootObject);
 
     // visuals and sound
     if (gunRef.current) {

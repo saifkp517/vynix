@@ -128,7 +128,7 @@ export default function GameLoadoutMenu() {
   }
 
   return (
-    <div className="min-h-[100svh] relative flex items-center justify-center px-6 py-8 overflow-x-hidden overflow-y-auto">
+    <div className="h-[100svh] relative flex items-center justify-center px-6 py-8 overflow-hidden">
       <ArenaBackdrop />
 
       {/* Signed-in-as / sign out */}
@@ -559,7 +559,7 @@ function AuthScreen() {
   };
 
   return (
-    <div className="min-h-[100svh] relative flex items-center justify-center px-6 py-8 overflow-x-hidden overflow-y-auto">
+    <div className="h-[100svh] relative flex items-center justify-center px-6 py-8 overflow-hidden">
       <ArenaBackdrop />
 
       <motion.div

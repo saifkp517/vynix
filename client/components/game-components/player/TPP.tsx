@@ -1,8 +1,8 @@
-// Key changes to add to your Player component:
+// Local player. Outbound socket messages go through lib/arenaEmit.ts.
 
 import React, { useRef, useState, useEffect, RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber'
-import socket from '@/lib/socket';
+import { emitPositionAndCamera, emitPlayerWalking, emitPlayerStopped } from '@/lib/arenaEmit';
 import { getLoopingSound, playSound } from '@/lib/sound';
 import Explosion from '../explosion/Explosion';
 import Gun from './Gun';
@@ -25,13 +25,11 @@ interface PlayerProps {
     handlePlayerCenterUpdate: (center: Vector3, cameraDirection: Vector3) => void;
     playerCenterRef: RefObject<Vector3>;
     pingRef: RefObject<number>;
-    crosshairRef: RefObject<{ triggerHit: () => void }>;
     grenadeCoolDownRef: RefObject<boolean>;
     getGroundHeight: (x: number, z: number) => number;
     otherPlayers: RefObject<{ [playerId: string]: { position: Vector3; velocity: Vector3 } }>;
     controlsRef: RefObject<any>;
     playerDeadRef: RefObject<boolean>;
-    roomId: string;
     listenerRef: RefObject<AudioListener | null>;
 }
 
@@ -46,11 +44,9 @@ const Player: React.FC<PlayerProps> = ({
     handlePlayerCenterUpdate,
     playerCenterRef,
     playerDeadRef, controlsRef,
-    crosshairRef,
     getGroundHeight,
     grenadeCoolDownRef,
     otherPlayers,
-    roomId,
     listenerRef
 }) => {
 
@@ -180,7 +176,7 @@ const Player: React.FC<PlayerProps> = ({
     }, [camera]);
 
     const handlePositionAndCameraChange = React.useCallback((pos: Vector3, velocity: Vector3, cameraDirection: Vector3) => {
-        socket.emit("updatePositionAndCamera", { position: pos, velocity, cameraDirection, roomId });
+        emitPositionAndCamera(pos, velocity, cameraDirection);
     }, []);
 
     const handleFireballShoot = () => {
@@ -778,10 +774,10 @@ const Player: React.FC<PlayerProps> = ({
             walkSound.volume(0.8);
             walkSound.rate(2);
             walkSound.play();
-            socket.emit("playerWalking", { userId });
+            emitPlayerWalking(userId);
         } else if (!isWalkingNow && wasWalkingRef.current) {
             walkSound.stop();
-            socket.emit("playerStopped", { userId });
+            emitPlayerStopped(userId);
         } else if (isWalkingNow && walkSound.playing()) {
             walkSound.volume(0.8);
             walkSound.rate(2);
@@ -804,13 +800,11 @@ const Player: React.FC<PlayerProps> = ({
 
                 {/* Gun (attached to player's right hand) */}
                 <Gun
-                    roomId={roomId}
                     camera={camera}
                     obstacles={obstacles}
                     playerCenterRef={playerCenterRef}
                     getGroundHeight={getGroundHeight}
                     otherPlayers={otherPlayers}
-                    crosshairRef={crosshairRef}
                     playerDeadRef={playerDeadRef}
                 />
             </group>

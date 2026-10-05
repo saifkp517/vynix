@@ -1,3 +1,6 @@
+// Room-wide coarse state (player roster, kill feed, spawn/match timing,
+// forest drift target). Written by useArenaSocket; read by Scoreboard,
+// Ground, TPP. Never per-frame-hot data — see landmine 2 in TODO-inbound.md.
 import { create } from "zustand";
 import { Vector3 } from "three";
 
@@ -20,7 +23,20 @@ export interface MatchTiming {
     duration: number;
 }
 
+export interface KillFeedItem {
+    id: string;
+    killerId: string;
+    victimId: string;
+    killerName: string;
+    victimName: string;
+    timestamp: number;
+}
+
+const MAX_KILL_FEED_ITEMS = 8;
+
 interface RoomStore {
+    roomId: string;
+    setRoomId: (roomId: string) => void;
     spawnPoint: Vector3;
     setSpawnPoint: (spawnPoint: Vector3) => void;
     players: Player[];
@@ -33,13 +49,33 @@ interface RoomStore {
     // /forest/[id] — stash it here so it survives the route change.
     matchTiming: MatchTiming | null;
     setMatchTiming: (matchTiming: MatchTiming) => void;
+    // Server-pushed target for the drifting forest mesh ('updateForest').
+    // Low-frequency; Ground lerps toward it.
+    forestTarget: [number, number, number];
+    setForestTarget: (pos: [number, number, number]) => void;
+    // Recent kills for Scoreboard's kill-feed panel ('playerDead'). Capped at
+    // MAX_KILL_FEED_ITEMS; stale entries are dropped by pruneKillFeed.
+    killFeed: KillFeedItem[];
+    addKillFeedItem: (item: KillFeedItem) => void;
+    pruneKillFeed: (maxAgeMs: number) => void;
 }
 
 export const useRoomStore = create<RoomStore>((set) => ({
+    roomId: "",
+    setRoomId: (roomId) => set({ roomId }),
     spawnPoint: new Vector3(0, 0, 0),
     setSpawnPoint: (spawnPoint) => set({ spawnPoint }),
     matchTiming: null,
     setMatchTiming: (matchTiming) => set({ matchTiming }),
+    forestTarget: [0, 0, 0],
+    setForestTarget: (pos) => set({ forestTarget: pos }),
+    killFeed: [] as KillFeedItem[],
+    addKillFeedItem: (item) =>
+        set((state) => ({ killFeed: [item, ...state.killFeed].slice(0, MAX_KILL_FEED_ITEMS) })),
+    pruneKillFeed: (maxAgeMs) =>
+        set((state) => ({
+            killFeed: state.killFeed.filter((item) => Date.now() - item.timestamp < maxAgeMs),
+        })),
     players: [] as Player[],
     getPlayer: (id: string): Player | undefined => {
         return useRoomStore.getState().players.find((p: Player) => p.socketId === id);

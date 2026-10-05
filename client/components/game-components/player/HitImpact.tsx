@@ -2,11 +2,13 @@ import { RefObject, useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
-import socket from '@/lib/socket';
 import { PLAYER_RADIUS, PLAYER_HITBOX_Y_OFFSET } from '@/types/types';
+import type { HitTrigger } from '@/hooks/useArenaSocket';
 
 interface Props {
   playerCenterRef: RefObject<THREE.Vector3>;
+  // Bumped by useArenaSocket on every 'hit'; drained in useFrame below.
+  hitTriggerRef: RefObject<HitTrigger>;
 }
 
 const MAX_IMPACT_INSTANCES = 24;
@@ -24,10 +26,11 @@ interface ImpactParticle {
 // Driven directly off the same 'hit' event that triggers the screen flash
 // in GameInfo, so the burst can never desync from it (a separate
 // proximity-guess in the tracer code used to miss during movement).
-const HitImpact: React.FC<Props> = ({ playerCenterRef }) => {
+const HitImpact: React.FC<Props> = ({ playerCenterRef, hitTriggerRef }) => {
   const { scene } = useThree();
   const instancedImpacts = useRef<THREE.InstancedMesh | null>(null);
   const impactData = useRef<ImpactParticle[]>([]);
+  const lastHitSeq = useRef(0);
 
   useEffect(() => {
     const geometry = new THREE.SphereGeometry(0.4, 8, 8);
@@ -64,8 +67,7 @@ const HitImpact: React.FC<Props> = ({ playerCenterRef }) => {
     };
   }, [scene]);
 
-  useEffect(() => {
-    const handleHit = ({ rayOrigin }: { rayOrigin: { x: number; y: number; z: number } }) => {
+  const spawnBurst = (rayOrigin: { x: number; y: number; z: number }) => {
       const localPos = playerCenterRef.current;
       if (!localPos || !instancedImpacts.current) return;
 
@@ -98,16 +100,17 @@ const HitImpact: React.FC<Props> = ({ playerCenterRef }) => {
         data.velocity.copy(scatter).multiplyScalar(IMPACT_SPEED * (0.6 + Math.random() * 0.8));
         data.createdAt = Date.now();
       }
-    };
-
-    socket.on('hit', handleHit);
-    return () => {
-      socket.off('hit', handleHit);
-    };
-  }, [playerCenterRef]);
+  };
 
   useFrame((_, delta) => {
     if (!instancedImpacts.current) return;
+
+    // Drain the hit trigger: useArenaSocket bumps seq on each 'hit'.
+    const trigger = hitTriggerRef.current;
+    if (trigger && trigger.seq !== lastHitSeq.current) {
+      lastHitSeq.current = trigger.seq;
+      spawnBurst(trigger.rayOrigin);
+    }
 
     const now = Date.now();
     let needsUpdate = false;

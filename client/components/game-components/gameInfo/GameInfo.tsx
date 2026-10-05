@@ -1,13 +1,16 @@
+// HUD + chat. Inbound state (health, ability, killer name, chat) is pushed
+// here by useArenaSocket via useGameInfoStore; outbound emits go through
+// lib/arenaEmit.ts. This file no longer touches the socket directly.
 import React, { RefObject, useEffect, useState, useRef } from 'react';
 import { Heart, Target, MessageCircle, X, Skull } from 'lucide-react';
 import { Vector3 } from 'three';
 
-import socket from '@/lib/socket';
+import { emitUseAbility, emitSendMessage } from '@/lib/arenaEmit';
 import { RadarUI } from './RadarUI';
 import Scoreboard from './Scoreboard';
 import { Crosshair } from '../crosshair/CrossHair';
 
-import { useGameInfoStore } from '@/hooks/useGameInfoStore';;
+import { useGameInfoStore } from '@/hooks/useGameInfoStore';
 import { useRoomStore } from '@/hooks/useRoomStore';
 import { usePlayerStore } from '@/hooks/usePlayerStore';
 
@@ -26,7 +29,6 @@ interface Player {
 }
 
 interface GameInfoProps {
-  roomId: string | null;
   controlsRef?: RefObject<any>;
   crosshairRef: RefObject<any>;
   grenadeCoolDownRef: RefObject<boolean>;
@@ -41,14 +43,6 @@ interface GameInfoProps {
   gameOver: boolean;
 }
 
-interface ChatMessage {
-  id: string;
-  playerName: string;
-  message: string;
-  timestamp: Date;
-}
-
-
 interface HitEffect {
   id: string;
   rayOrigin: Vector3;
@@ -59,98 +53,31 @@ interface HitEffect {
 const LOW_HEALTH_THRESHOLD = 80;
 
 const GameInfo: React.FC<GameInfoProps> = React.memo(
-  ({ roomId, controlsRef, crosshairRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef, gameOver }) => {
+  ({ controlsRef, crosshairRef, bulletsAvailable, kills, pingRef, isPlayerDead, playerCenterRef, playerDataRef, cameraDirectionRef, gameOver }) => {
+    const roomId = useRoomStore((s) => s.roomId);
 
     const userid = usePlayerStore((s) => s.socketId);
 
-    //* ======================= handle recieve socket events ===============
+    // Server-pushed HUD state — useArenaSocket writes these into
+    // useGameInfoStore on 'hit' / 'healthRegen' / 'playerRespawned' /
+    // 'abilityActivated' / 'playerDead' / 'receiveMessage'. Nothing here
+    // calls socket.on any more.
+    const healthInfo = useGameInfoStore((s) => s.health);
+    const killerName = useGameInfoStore((s) => s.killerName);
+    const abilityState = useGameInfoStore((s) => s.abilityState);
+    const chatMessages = useGameInfoStore((s) => s.chatMessages);
+    const hitSeq = useGameInfoStore((s) => s.hitSeq);
 
-    // ! the socket events called here can be unmounted, so make sure that the events called are only those that effect the ongoing gameplay
+    // Spawn the screen-flash effect whenever the hook bumps hitSeq. A plain
+    // store subscription is enough here (unlike HitImpact) — GameInfo
+    // already re-renders on every store change, no per-frame polling needed.
     useEffect(() => {
+      if (hitSeq === 0) return;
+      const rayOrigin = useGameInfoStore.getState().lastHitRayOrigin;
+      if (rayOrigin) createHitEffect(rayOrigin as unknown as Vector3);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hitSeq]);
 
-      const handleReceiveMessage = ({ userId, message }: { userId: string, message: string }) => {
-        console.log('Received message:', userId, message);
-        chatMessages.current.push({
-          id: `${userId}-${Date.now()}`,
-          playerName: userId,
-          message,
-          timestamp: new Date(),
-        });
-        forceUpdate({});
-      };
-
-      const handleHit = ({ rayOrigin, health }: { rayOrigin: Vector3; health: number }) => {
-        // Trust the server's post-hit health instead of guessing locally —
-        // a locally-decremented value never resyncs with Redis truth if a
-        // 'hit' event is ever dropped or reordered.
-        healthRef.current = health;
-        setHealthInfo(health);
-        createHitEffect(rayOrigin);
-      };
-
-      const handlePlayerRespawned = ({ id }: { id: string }) => {
-        if (id === userid) {
-          healthRef.current = 100;
-          setHealthInfo(100);
-          setKillerName(null);
-        }
-      };
-
-      const handlePlayerDead = ({
-        victimSocketId,
-        killerName: killedBy,
-      }: {
-        victimSocketId: string;
-        killerName: string;
-      }) => {
-        if (victimSocketId === userid) {
-          setKillerName(killedBy);
-        }
-      };
-
-      const handleHealthRegen = ({ id, health }: { id: string; health: number }) => {
-        if (id === userid) {
-          healthRef.current = health;
-          setHealthInfo(health);
-        }
-      };
-
-      const handleAbilityActivated = ({
-        id,
-        invincibleUntil,
-        abilityCooldownUntil,
-      }: {
-        id: string;
-        invincibleUntil: number;
-        abilityCooldownUntil: number;
-      }) => {
-        if (id === userid) {
-          setAbilityState({ invincibleUntil, cooldownUntil: abilityCooldownUntil });
-        }
-      };
-
-      socket.on("hit", handleHit);
-      socket.on("receiveMessage", handleReceiveMessage);
-      socket.on("playerRespawned", handlePlayerRespawned);
-      socket.on("healthRegen", handleHealthRegen);
-      socket.on("abilityActivated", handleAbilityActivated);
-      socket.on("playerDead", handlePlayerDead);
-
-      return () => {
-        socket.off('receiveMessage', handleReceiveMessage);
-        socket.off("hit", handleHit);
-        socket.off("playerRespawned", handlePlayerRespawned);
-        socket.off("healthRegen", handleHealthRegen);
-        socket.off("abilityActivated", handleAbilityActivated);
-        socket.off("playerDead", handlePlayerDead);
-      };
-    }, [socket, userid]);
-
-    // ====================================================================
-
-    const healthRef = useRef(100);
-    const [healthInfo, setHealthInfo] = useState(100);
-    const [killerName, setKillerName] = useState<string | null>(null);
     const [pingInfo, setPingInfo] = useState(0);
     const [showScoreboard, setShowScoreboard] = useState(false);
     const [showChat, setShowChat] = useState(false);
@@ -177,7 +104,6 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
     // Invincibility ability — timestamps come from the server (activateInvincibility
     // in CombatService), so cooldown can't be spoofed by editing local state.
-    const [abilityState, setAbilityState] = useState({ invincibleUntil: 0, cooldownUntil: 0 });
     const [now, setNow] = useState(Date.now());
     // Server sends startTime/duration once on 'gameStarted', caught by
     // useMatchmaking on the lobby page (before this component mounts) and
@@ -201,18 +127,15 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     useEffect(() => {
       const handleAbilityKeyDown = (event: KeyboardEvent) => {
         if (event.key.toLowerCase() === 'q' && !showChat) {
-          socket.emit("useAbility", { roomId });
+          emitUseAbility();
         }
       };
       window.addEventListener('keydown', handleAbilityKeyDown);
       return () => window.removeEventListener('keydown', handleAbilityKeyDown);
-    }, [roomId, showChat]);
+    }, [showChat]);
 
     const ammo = useGameInfoStore((state) => state.ammo);
     const isScoped = useGameInfoStore((state) => state.isScoped);
-
-    const chatMessages = useRef<ChatMessage[]>([]);
-    const [, forceUpdate] = useState({});
 
     useEffect(() => {
       const interval = setInterval(() => {
@@ -240,8 +163,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
 
     const handleSendMessage = () => {
       if (chatMessage.trim()) {
-        console.log(roomId, userid, chatMessage.trim());
-        socket.emit("sendMessage", { roomId, userId: userid, message: chatMessage.trim() });
+        emitSendMessage(userid, chatMessage.trim());
         setChatMessage('');
         setShowChat(false);
         setTimeout(lockControls, 50);
@@ -325,7 +247,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
     };
 
     const getRecentMessages = () => {
-      return chatMessages.current.slice(-2);
+      return chatMessages.slice(-2);
     };
 
     const getHealthColor = (health: number) => {
@@ -532,7 +454,7 @@ const GameInfo: React.FC<GameInfoProps> = React.memo(
         {showChat && (
           <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 w-96 z-40">
             <div className="mb-2 space-y-1 max-h-32 overflow-y-auto">
-              {chatMessages.current.slice(-4).map((msg) => (
+              {chatMessages.slice(-4).map((msg) => (
                 <div key={msg.id} className="bg-black/60 backdrop-blur-sm rounded px-2 py-1 text-xs">
                   <span className="font-medium">
                     {msg.playerName}:

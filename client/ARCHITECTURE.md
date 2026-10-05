@@ -10,35 +10,45 @@ Vynix (marketed as "Zentra") is a browser multiplayer arena shooter. Next.js (Ap
 
 ```
 app/page.tsx (lobby)
-  |-- uses: useSocketHandlersMain -> useRoomStore
+  |-- uses: useMatchmaking -> useRoomStore
   |-- router.push('/forest/[id]') on lobby full
   v
 app/forest/[id]/page.tsx (Game)
   |
+  |-- useArenaSocket()  <-- the ONE inbound listener, called once here.
+  |     |  registers every 'socket.on' the match needs, tears them all
+  |     |  down on unmount; folds payloads into useRoomStore /
+  |     |  useGameInfoStore / usePlayerStore or scene-owned refs
+  |     |  (playerDataRef, hitTriggerRef, remote event emitters, ...).
+  |     `-- lib/socket.ts (single io-client instance)
+  |            <--> server-nest socket.io gateway (out of scope)
+  |
+  |   (outbound emits are separate: lib/arenaEmit.ts, called from TPP/Gun/
+  |    GameInfo — see "Networking" below)
+  |
   |-- Ground
   |     |-- ForestGenerator / Grass / Mountains / Rain / Loot
   |     |-- ComponentLoadingTracker (load-status bus)
-  |     `-- socket.on('updateForest')            --> lib/socket.ts
+  |     `-- reads useRoomStore.forestTarget (written by useArenaSocket)
   |
   |-- TPP (local Player)
   |     |-- Gun --> Fireball / Explosion
   |     |-- checkCollision
   |     |-- hooks: useAudioListener, usePlayerInput, useRoomStore
-  |     |-- socket.emit('updatePositionAndCamera', 'playerWalking', ...) --> lib/socket.ts
+  |     |-- emitMove/emitWalking/... --> lib/arenaEmit.ts --> lib/socket.ts
   |     `-- lib/sound.ts (Howler: local walk/breeze/hitWood/gunshot)
   |
-  |-- RemoteOpponents
-  |     |-- socket.on('playerMoved','playerDead','playerShot', ...) --> lib/socket.ts
+  |-- RemoteOpponents (pure prop consumer — no socket import)
+  |     |-- reads playerIds/playerDataRef/event-emitter props, all owned
+  |     |     and written by useArenaSocket
   |     `-- Opponent (dead-reckoned, per remote id)
   |           |-- OpGun
   |           `-- lib/positionalSound.ts (three.js PositionalAudio: remote walk/shoot)
   |
-  |-- GameInfo (HUD) --> useGameInfoStore
-  |-- HitImpact (hit VFX)
-  `-- KillFeed (toast list)
-
-lib/socket.ts (single io-client instance)
-  <--> server-nest socket.io gateway (out of scope)
+  |-- GameInfo (HUD) --> reads useGameInfoStore (written by useArenaSocket)
+  |-- HitImpact (hit VFX) --> drains hitTriggerRef each frame
+  `-- KillFeed (toast list) --> page.tsx's own kill-streak state,
+        fed by useArenaSocket's onKillCredited callback
 
 lib/webrtc.ts (dormant peer-data-channel path; not called from any
   scene component today -- signals via lib/socket.ts if ever wired in)
@@ -49,7 +59,7 @@ lib/webrtc.ts (dormant peer-data-channel path; not called from any
 | Path                                                                                                 | Purpose                                                                                                                                                                                                                              |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `app/page.tsx`                                                                                     | Lobby/menu screen: username entry, matchmaking button, lobby player-slot UI. Emits`requestMatchmaking`/`cancelMatchmaking`, redirects to `/forest/[roomId]` when room fills.                                                   |
-| `app/forest/[id]/page.tsx`                                                                         | Main game scene (`Game` component). Owns the R3F `<Canvas>`, wires Ground/Player/Opponents/UI together, handles ping, death/respawn/game-over socket events.                                                                     |
+| `app/forest/[id]/page.tsx`                                                                         | Main game scene (`Game` component). Owns the R3F `<Canvas>`, wires Ground/Player/Opponents/UI together. Calls `useArenaSocket()` once and hands its refs/state down to the scene; the nav guards (beforeunload/popstate/unmount-disconnect) are the one deliberate exception still living here, not in the hook.  |
 | `app/layout.tsx`                                                                                   | Root Next.js layout.                                                                                                                                                                                                                 |
 | `app/api/data/route.ts`                                                                            | Next.js route handler — serves vegetation position data fetched by the forest page (`fetch('/api/data')`).                                                                                                                        |
 | `app/types/types.tsx`                                                                              | `Vegetation` type and related scene-data shapes (separate from `types/types.ts`).                                                                                                                                                |
