@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Users, Trophy, Settings, X, Lock, Swords, Loader2, LogOut, Pencil, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Trophy, Settings, X, Lock, Swords, Loader2, LogOut, Pencil, Check, ChevronLeft, ChevronRight, Monitor } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMatchmaking, MATCH_SIZE } from "@/hooks/useMatchmaking";
 import { usePlayerStore } from "@/hooks/usePlayerStore";
@@ -44,7 +44,35 @@ function ArenaBackdrop() {
 const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/60";
 
+// Touch-only devices (phones/tablets) can't play — the game needs keyboard +
+// mouse. Pure CSS media query, so there's no SSR flash and no UA sniffing.
+function DesktopOnlyGate() {
+  return (
+    <div className="hidden [@media(hover:none)_and_(pointer:coarse)]:flex fixed inset-0 z-[100] items-center justify-center px-6 bg-black">
+      <ArenaBackdrop />
+      <div className="relative z-10 max-w-sm w-full rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center">
+        <Monitor className="mx-auto h-10 w-10 text-emerald-400" />
+        <h1 className="mt-5 font-display text-2xl font-semibold text-white">
+          Zentra<span className="text-emerald-400">.io</span> is desktop only
+        </h1>
+        <p className="mt-3 text-sm text-neutral-300 leading-relaxed">
+          The arena needs a keyboard and mouse. Hop on a laptop or desktop to drop in.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function GameLoadoutMenu() {
+  return (
+    <>
+      <DesktopOnlyGate />
+      <GameLoadoutMenuInner />
+    </>
+  );
+}
+
+function GameLoadoutMenuInner() {
 
   const { session, user, isGuest, loading: authLoading, profile, updateUsername, signOut } = useAuth();
 
